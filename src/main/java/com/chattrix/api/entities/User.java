@@ -1,0 +1,51 @@
+package com.chattrix.api.entities;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Column(name = "display_name", nullable = false, length = 100)
+    private String displayName;
+
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    @OneToMany(mappedBy = "user")
+    private Set<ConversationParticipant> conversationParticipants;
+
+    @Column(name = "created_at")
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+    @PrePersist
+    protected void onPrePersist() {
+        this.createdAt = this.updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    protected void onPreUpdate() {
+        this.updatedAt = Instant.now();
+    }
+}
