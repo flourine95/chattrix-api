@@ -8,10 +8,14 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.ChatSessionService;
 import com.chattrix.api.services.TokenService;
+import com.chattrix.api.services.TypingIndicatorService;
 import com.chattrix.api.websocket.codec.MessageDecoder;
 import com.chattrix.api.websocket.codec.MessageEncoder;
 import com.chattrix.api.websocket.dto.ChatMessageDto;
 import com.chattrix.api.websocket.dto.OutgoingMessageDto;
+import com.chattrix.api.websocket.dto.TypingIndicatorDto;
+import com.chattrix.api.websocket.dto.TypingIndicatorResponseDto;
+import com.chattrix.api.websocket.dto.TypingUserDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,6 +27,7 @@ import jakarta.websocket.server.ServerEndpoint;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -42,6 +47,8 @@ public class ChatServerEndpoint {
     private ConversationRepository conversationRepository;
     @Inject
     private MessageRepository messageRepository;
+    @Inject
+    private TypingIndicatorService typingIndicatorService;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,6 +81,12 @@ public class ChatServerEndpoint {
         if ("chat.message".equals(message.getType())) {
             ChatMessageDto chatMessageDto = objectMapper.convertValue(message.getPayload(), ChatMessageDto.class);
             processChatMessage(userId, chatMessageDto);
+        } else if ("typing.start".equals(message.getType())) {
+            TypingIndicatorDto typingDto = objectMapper.convertValue(message.getPayload(), TypingIndicatorDto.class);
+            processTypingStart(userId, typingDto);
+        } else if ("typing.stop".equals(message.getType())) {
+            TypingIndicatorDto typingDto = objectMapper.convertValue(message.getPayload(), TypingIndicatorDto.class);
+            processTypingStop(userId, typingDto);
         }
     }
 
@@ -105,10 +118,96 @@ public class ChatServerEndpoint {
         });
     }
 
+    private void processTypingStart(UUID userId, TypingIndicatorDto typingDto) {
+        UUID conversationId = typingDto.getConversationId();
+
+        System.out.println("DEBUG: processTypingStart - userId: " + userId + ", conversationId: " + conversationId);
+
+        // Validate conversation exists and user is participant
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found."));
+
+        // TODO: Add validation to ensure user is a participant of the conversation
+
+        // Mark user as typing
+        typingIndicatorService.startTyping(conversationId, userId);
+        System.out.println("DEBUG: User marked as typing");
+
+        // Broadcast typing status to other participants
+        broadcastTypingIndicator(conversation, userId);
+    }
+
+    private void processTypingStop(UUID userId, TypingIndicatorDto typingDto) {
+        UUID conversationId = typingDto.getConversationId();
+
+        System.out.println("DEBUG: processTypingStop - userId: " + userId + ", conversationId: " + conversationId);
+
+        // Validate conversation exists
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found."));
+
+        // Mark user as stopped typing
+        typingIndicatorService.stopTyping(conversationId, userId);
+        System.out.println("DEBUG: User marked as stopped typing");
+
+        // Broadcast updated typing status to other participants
+        broadcastTypingIndicator(conversation, userId);
+    }
+
+    private void broadcastTypingIndicator(Conversation conversation, UUID excludeUserId) {
+        UUID conversationId = conversation.getId();
+
+        // Get ALL typing users first (for debugging)
+        Set<UUID> allTypingUsers = typingIndicatorService.getTypingUsersInConversation(conversationId, null);
+        System.out.println("DEBUG: All typing users in conversation " + conversationId + ": " + allTypingUsers);
+
+        // For typing indicators, we want to show OTHER users who are typing
+        // But if we're testing with single user, we might want to see our own typing for debugging
+        Set<UUID> typingUserIds;
+
+        // If there's only one participant (testing scenario), include all typing users
+        if (conversation.getParticipants().size() <= 1) {
+            typingUserIds = allTypingUsers;
+            System.out.println("DEBUG: Single user conversation - showing all typing users: " + typingUserIds);
+        } else {
+            // Normal case: exclude the user who triggered the event
+            typingUserIds = typingIndicatorService.getTypingUsersInConversation(conversationId, excludeUserId);
+            System.out.println("DEBUG: Multi-user conversation - typing users (excluding " + excludeUserId + "): " + typingUserIds);
+        }
+
+        // Convert user IDs to detailed user information
+        List<TypingUserDto> typingUsers = typingUserIds.stream()
+                .map(userId -> {
+                    User user = userRepository.findById(userId).orElse(null);
+                    if (user != null) {
+                        return new TypingUserDto(user.getId(), user.getUsername(), user.getDisplayName());
+                    }
+                    return null;
+                })
+                .filter(typingUser -> typingUser != null)
+                .collect(java.util.stream.Collectors.toList());
+
+        System.out.println("DEBUG: Final typing users to broadcast: " + typingUsers.size() + " users - " +
+                          typingUsers.stream().map(u -> u.getUsername()).collect(java.util.stream.Collectors.toList()));
+
+        // Create response DTO
+        TypingIndicatorResponseDto responseDto = new TypingIndicatorResponseDto(conversationId, typingUsers);
+        WebSocketMessage<TypingIndicatorResponseDto> message = new WebSocketMessage<>("typing.indicator", responseDto);
+
+        // Broadcast to all participants
+        conversation.getParticipants().forEach(participant -> {
+            UUID participantId = participant.getUser().getId();
+            System.out.println("DEBUG: Broadcasting typing indicator to participant: " + participantId);
+            chatSessionService.sendMessageToUser(participantId, message);
+        });
+    }
+
     @OnClose
     public void onClose(Session session) {
         UUID userId = (UUID) session.getUserProperties().get("userId");
         if (userId != null) {
+            // Clean up typing indicators for this user
+            typingIndicatorService.removeUserFromAllConversations(userId);
             chatSessionService.removeSession(userId);
             System.out.println("User disconnected: " + userId);
         }

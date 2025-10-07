@@ -51,4 +51,9 @@ public class ConversationRepository {
             return em.merge(conversation);
         }
     }
+
+    public Optional<Object> findById(UUID conversationId) {
+        Conversation conversation = em.find(Conversation.class, conversationId);
+        return Optional.ofNullable(conversation);
+    }
 }

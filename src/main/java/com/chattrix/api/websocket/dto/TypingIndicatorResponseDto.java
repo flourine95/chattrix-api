@@ -5,13 +5,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TypingIndicatorDto {
+public class TypingIndicatorResponseDto {
     private UUID conversationId;
-    private boolean typing; // true = start typing, false = stop typing
+    private List<TypingUserDto> typingUsers; // List of users currently typing with their details
 }

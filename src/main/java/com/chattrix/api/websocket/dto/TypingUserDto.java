@@ -11,7 +11,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TypingIndicatorDto {
-    private UUID conversationId;
-    private boolean typing; // true = start typing, false = stop typing
+public class TypingUserDto {
+    private UUID userId;
+    private String username;
+    private String displayName;
 }
