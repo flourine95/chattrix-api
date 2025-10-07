@@ -21,7 +21,7 @@ import java.security.Principal;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthenticationFilter implements ContainerRequestFilter {
 
-    private static final String REALM = "example";
+    private static final String REALM = "Chattrix API";
     private static final String AUTHENTICATION_SCHEME = "Bearer";
 
     @Inject
@@ -32,27 +32,21 @@ public class AuthenticationFilter implements ContainerRequestFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-
-        // Get the Authorization header from the request
         String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
 
-        // Validate the Authorization header
         if (!isTokenBasedAuthentication(authorizationHeader)) {
             abortWithUnauthorized(requestContext);
             return;
         }
 
-        // Extract the token from the Authorization header
         String token = authorizationHeader.substring(AUTHENTICATION_SCHEME.length()).trim();
 
         try {
-            // Validate the token
             if (!tokenService.validateToken(token)) {
                 abortWithUnauthorized(requestContext);
                 return;
             }
 
-            // Set the security context
             String username = tokenService.getUsernameFromToken(token);
             User user = userRepository.findByUsername(username)
                     .orElseThrow(() -> new SecurityException("User not found"));
@@ -86,16 +80,11 @@ public class AuthenticationFilter implements ContainerRequestFilter {
     }
 
     private boolean isTokenBasedAuthentication(String authorizationHeader) {
-        // Check if the Authorization header is valid
-        // It must not be null and must be prefixed with "Bearer" plus a whitespace
-        // The authentication scheme comparison must be case-insensitive
         return authorizationHeader != null && authorizationHeader.toLowerCase()
                 .startsWith(AUTHENTICATION_SCHEME.toLowerCase() + " ");
     }
 
     private void abortWithUnauthorized(ContainerRequestContext requestContext) {
-        // Abort the filter chain with a 401 status code response
-        // The WWW-Authenticate header is sent along with the response
         requestContext.abortWith(
                 Response.status(Response.Status.UNAUTHORIZED)
                         .header(HttpHeaders.WWW_AUTHENTICATE,

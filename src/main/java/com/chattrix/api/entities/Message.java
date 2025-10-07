@@ -35,6 +35,12 @@ public class Message {
     @Column(name = "sent_at")
     private Instant sentAt;
 
+    @Column(name = "created_at")
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
     @PrePersist
     protected void onPrePersist() {
         this.sentAt = Instant.now();
