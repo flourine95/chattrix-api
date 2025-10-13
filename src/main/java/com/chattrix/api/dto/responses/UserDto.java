@@ -4,6 +4,7 @@ import com.chattrix.api.entities.User;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -13,6 +14,8 @@ public class UserDto {
     private String username;
     private String displayName;
     private String avatarUrl;
+    private boolean isOnline;
+    private Instant lastSeen;
 
     public static UserDto fromUser(User user) {
         UserDto dto = new UserDto();
@@ -20,8 +23,8 @@ public class UserDto {
         dto.setUsername(user.getUsername());
         dto.setDisplayName(user.getDisplayName());
         dto.setAvatarUrl(user.getAvatarUrl());
+        dto.setOnline(user.isOnline());
+        dto.setLastSeen(user.getLastSeen());
         return dto;
     }
 }
-
-

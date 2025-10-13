@@ -7,6 +7,7 @@ import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -45,6 +46,29 @@ public class UserRepository {
         }
         return em.createQuery("SELECT u FROM User u WHERE u.id IN :ids", User.class)
                 .setParameter("ids", ids)
+                .getResultList();
+    }
+
+    public List<User> findByIsOnlineTrue() {
+        return em.createQuery("SELECT u FROM User u WHERE u.isOnline = true ORDER BY u.displayName", User.class)
+                .getResultList();
+    }
+
+    public List<User> findOnlineUsersByConversationId(UUID conversationId) {
+        return em.createQuery(
+                "SELECT DISTINCT u FROM User u " +
+                "JOIN u.conversationParticipants cp " +
+                "WHERE cp.conversation.id = :conversationId AND u.isOnline = true " +
+                "ORDER BY u.displayName", User.class)
+                .setParameter("conversationId", conversationId)
+                .getResultList();
+    }
+
+    public List<User> findStaleOnlineUsers(Instant threshold) {
+        return em.createQuery(
+                "SELECT u FROM User u " +
+                "WHERE u.isOnline = true AND u.lastSeen < :threshold", User.class)
+                .setParameter("threshold", threshold)
                 .getResultList();
     }
 

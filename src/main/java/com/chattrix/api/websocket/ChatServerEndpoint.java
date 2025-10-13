@@ -9,6 +9,7 @@ import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.ChatSessionService;
 import com.chattrix.api.services.TokenService;
 import com.chattrix.api.services.TypingIndicatorService;
+import com.chattrix.api.services.UserStatusService;
 import com.chattrix.api.websocket.codec.MessageDecoder;
 import com.chattrix.api.websocket.codec.MessageEncoder;
 import com.chattrix.api.websocket.dto.ChatMessageDto;
@@ -49,6 +50,8 @@ public class ChatServerEndpoint {
     private MessageRepository messageRepository;
     @Inject
     private TypingIndicatorService typingIndicatorService;
+    @Inject
+    private UserStatusService userStatusService;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -69,6 +72,13 @@ public class ChatServerEndpoint {
 
         session.getUserProperties().put("userId", user.getId());
         chatSessionService.addSession(user.getId(), session);
+
+        // Mark user as online
+        userStatusService.setUserOnline(user.getId());
+
+        // Broadcast user status change to other users
+        broadcastUserStatusChange(user.getId(), true);
+
         System.out.println("User connected: " + user.getUsername());
     }
 
@@ -77,6 +87,9 @@ public class ChatServerEndpoint {
     public void onMessage(Session session, WebSocketMessage<?> message) throws IOException {
         UUID userId = (UUID) session.getUserProperties().get("userId");
         if (userId == null) return;
+
+        // Update last seen when user sends any message
+        userStatusService.updateLastSeen(userId);
 
         if ("chat.message".equals(message.getType())) {
             ChatMessageDto chatMessageDto = objectMapper.convertValue(message.getPayload(), ChatMessageDto.class);
@@ -88,6 +101,29 @@ public class ChatServerEndpoint {
             TypingIndicatorDto typingDto = objectMapper.convertValue(message.getPayload(), TypingIndicatorDto.class);
             processTypingStop(userId, typingDto);
         }
+    }
+
+    @OnClose
+    public void onClose(Session session) {
+        UUID userId = (UUID) session.getUserProperties().get("userId");
+        if (userId != null) {
+            chatSessionService.removeSession(userId, session);
+
+            // Mark user as offline if no more active sessions
+            userStatusService.setUserOffline(userId);
+
+            // Broadcast user status change to other users
+            broadcastUserStatusChange(userId, false);
+
+            System.out.println("User disconnected: " + userId);
+        }
+    }
+
+    @OnError
+    public void onError(Session session, Throwable throwable) {
+        UUID userId = (UUID) session.getUserProperties().get("userId");
+        System.err.println("WebSocket error for user " + userId + ": " + throwable.getMessage());
+        throwable.printStackTrace();
     }
 
     private void processChatMessage(UUID senderId, ChatMessageDto chatMessageDto) {
@@ -202,21 +238,21 @@ public class ChatServerEndpoint {
         });
     }
 
-    @OnClose
-    public void onClose(Session session) {
-        UUID userId = (UUID) session.getUserProperties().get("userId");
-        if (userId != null) {
-            // Clean up typing indicators for this user
-            typingIndicatorService.removeUserFromAllConversations(userId);
-            chatSessionService.removeSession(userId);
-            System.out.println("User disconnected: " + userId);
-        }
-    }
+    private void broadcastUserStatusChange(UUID userId, boolean isOnline) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
 
-    @OnError
-    public void onError(Session session, Throwable throwable) {
-        // Do error handling here
-        throwable.printStackTrace();
+        // Create status change message
+        WebSocketMessage<Map<String, Object>> statusMessage = new WebSocketMessage<>("user.status", Map.of(
+            "userId", userId.toString(),
+            "username", user.getUsername(),
+            "displayName", user.getDisplayName(),
+            "isOnline", isOnline,
+            "lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null
+        ));
+
+        // Broadcast to all connected users
+        chatSessionService.broadcastToAllUsers(statusMessage);
     }
 
     private String getTokenFromQuery(Session session) {

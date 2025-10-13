@@ -33,6 +33,12 @@ public class User {
     @OneToMany(mappedBy = "user")
     private Set<ConversationParticipant> conversationParticipants;
 
+    @Column(name = "is_online", nullable = false)
+    private boolean isOnline = false;
+
+    @Column(name = "last_seen")
+    private Instant lastSeen;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -42,6 +48,7 @@ public class User {
     @PrePersist
     protected void onPrePersist() {
         this.createdAt = this.updatedAt = Instant.now();
+        this.lastSeen = Instant.now();
     }
 
     @PreUpdate
