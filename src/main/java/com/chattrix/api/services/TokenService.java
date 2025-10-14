@@ -44,10 +44,11 @@ public class TokenService {
                 .compact();
     }
 
-    public RefreshToken generateRefreshToken(User user, String accessTokenId) {
+    public RefreshToken generateRefreshToken(User user, String accessTokenId, String accessToken) {
         Instant expiresAt = Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY);
         RefreshToken refreshToken = new RefreshToken(user, expiresAt);
         refreshToken.setAccessTokenId(accessTokenId);
+        refreshToken.setAccessToken(accessToken);  // Lưu access token string
         refreshTokenRepository.save(refreshToken);
         return refreshToken;
     }

@@ -40,6 +40,10 @@ public class RefreshToken {
     @Column(name = "access_token_id", length = 100)
     private String accessTokenId;
 
+    // Lưu access token string để có thể blacklist khi refresh
+    @Column(name = "access_token", length = 1024)
+    private String accessToken;
+
     // Metadata cho device tracking (optional)
     @Column(name = "device_name", length = 255)
     private String deviceName;

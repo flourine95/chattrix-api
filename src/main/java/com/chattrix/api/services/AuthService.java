@@ -64,7 +64,7 @@ public class AuthService {
         // Tạo access token và refresh token với linking
         String jti = UUID.randomUUID().toString();
         String accessToken = tokenService.generateAccessToken(user, jti);
-        RefreshToken refreshToken = tokenService.generateRefreshToken(user, jti);
+        RefreshToken refreshToken = tokenService.generateRefreshToken(user, jti, accessToken);
 
         return new AuthResponse(
             accessToken,
@@ -122,6 +122,21 @@ public class AuthService {
 
         User user = refreshToken.getUser();
 
+        // BLACKLIST access token cũ khi refresh (bảo mật cao hơn)
+        String oldAccessToken = refreshToken.getAccessToken();
+        if (oldAccessToken != null && !oldAccessToken.isEmpty()) {
+            try {
+                Date expiration = tokenService.getExpirationFromToken(oldAccessToken);
+                // Chỉ blacklist nếu token chưa hết hạn
+                if (expiration.after(new Date())) {
+                    InvalidatedToken invalidatedToken = new InvalidatedToken(oldAccessToken, expiration.toInstant());
+                    invalidatedTokenRepository.save(invalidatedToken);
+                }
+            } catch (Exception e) {
+                // Token đã hết hạn hoặc invalid, bỏ qua
+            }
+        }
+
         // Revoke refresh token cũ (rotation)
         refreshToken.revoke();
         refreshTokenRepository.update(refreshToken);
@@ -129,7 +144,7 @@ public class AuthService {
         // Tạo access token và refresh token mới
         String jti = UUID.randomUUID().toString();
         String newAccessToken = tokenService.generateAccessToken(user, jti);
-        RefreshToken newRefreshToken = tokenService.generateRefreshToken(user, jti);
+        RefreshToken newRefreshToken = tokenService.generateRefreshToken(user, jti, newAccessToken);
 
         return new AuthResponse(
             newAccessToken,
