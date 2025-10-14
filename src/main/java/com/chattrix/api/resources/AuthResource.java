@@ -1,14 +1,13 @@
 package com.chattrix.api.resources;
 
-import com.chattrix.api.dto.requests.ChangePasswordRequest;
-import com.chattrix.api.dto.requests.LoginRequest;
-import com.chattrix.api.dto.requests.RefreshTokenRequest;
-import com.chattrix.api.dto.requests.RegisterRequest;
+import com.chattrix.api.dto.requests.*;
 import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.dto.responses.AuthResponse;
 import com.chattrix.api.dto.responses.UserDto;
+import com.chattrix.api.filters.RateLimited;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.services.AuthService;
+import com.chattrix.api.services.VerificationService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -22,16 +21,21 @@ public class AuthResource {
     @Inject
     private AuthService authService;
 
+    @Inject
+    private VerificationService verificationService;
+
     @POST
     @Path("/register")
+    @RateLimited(maxRequests = 3, windowSeconds = 300) // 3 requests per 5 minutes
     public Response register(@Valid RegisterRequest request) {
         authService.register(request);
-        ApiResponse<Void> response = ApiResponse.success(null, "Registration successful");
+        ApiResponse<Void> response = ApiResponse.success(null, "Registration successful. Please check your email to verify your account.");
         return Response.status(Response.Status.CREATED).entity(response).build();
     }
 
     @POST
     @Path("/login")
+    @RateLimited(maxRequests = 10) // 10 requests per minute
     public Response login(@Valid LoginRequest request) {
         AuthResponse authResponse = authService.login(request);
         ApiResponse<AuthResponse> response = ApiResponse.success(authResponse, "Login successful");
@@ -87,6 +91,42 @@ public class AuthResource {
         String username = securityContext.getUserPrincipal().getName();
         authService.changePassword(username, request);
         ApiResponse<Void> response = ApiResponse.success(null, "Password changed successfully");
+        return Response.ok(response).build();
+    }
+
+    @POST
+    @Path("/verify-email")
+    @RateLimited(maxRequests = 5, windowSeconds = 300) // 5 requests per 5 minutes
+    public Response verifyEmail(@Valid VerifyEmailRequest request) {
+        verificationService.verifyEmail(request.getEmail(), request.getOtp());
+        ApiResponse<Void> response = ApiResponse.success(null, "Email verified successfully. You can now login.");
+        return Response.ok(response).build();
+    }
+
+    @POST
+    @Path("/resend-verification")
+    @RateLimited(maxRequests = 3, windowSeconds = 600) // 3 requests per 10 minutes
+    public Response resendVerification(@Valid ResendVerificationRequest request) {
+        verificationService.sendVerificationEmail(request.getEmail());
+        ApiResponse<Void> response = ApiResponse.success(null, "Verification email sent successfully");
+        return Response.ok(response).build();
+    }
+
+    @POST
+    @Path("/forgot-password")
+    @RateLimited(maxRequests = 3, windowSeconds = 600) // 3 requests per 10 minutes
+    public Response forgotPassword(@Valid ForgotPasswordRequest request) {
+        verificationService.sendPasswordResetEmail(request.getEmail());
+        ApiResponse<Void> response = ApiResponse.success(null, "Password reset email sent successfully");
+        return Response.ok(response).build();
+    }
+
+    @POST
+    @Path("/reset-password")
+    @RateLimited(maxRequests = 5, windowSeconds = 300) // 5 requests per 5 minutes
+    public Response resetPassword(@Valid ResetPasswordRequest request) {
+        verificationService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
+        ApiResponse<Void> response = ApiResponse.success(null, "Password reset successfully");
         return Response.ok(response).build();
     }
 }

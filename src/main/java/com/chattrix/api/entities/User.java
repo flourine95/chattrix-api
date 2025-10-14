@@ -11,7 +11,13 @@ import java.util.UUID;
 @Getter
 @Setter
 @Entity
-@Table(name = "users")
+@Table(
+        name = "users",
+        indexes = {
+                @Index(name = "idx_users_username", columnList = "username"),
+                @Index(name = "idx_users_email", columnList = "email")
+        }
+)
 public class User {
 
     @Id
@@ -21,11 +27,17 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "display_name", nullable = false, length = 100)
-    private String displayName;
+    @Column(name = "full_name", nullable = false, length = 100)
+    private String fullName;
 
     @Column(name = "avatar_url")
     private String avatarUrl;

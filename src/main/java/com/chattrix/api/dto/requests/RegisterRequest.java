@@ -1,6 +1,8 @@
 package com.chattrix.api.dto.requests;
 
+import com.chattrix.api.validations.UniqueEmail;
 import com.chattrix.api.validations.UniqueUsername;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -19,11 +21,16 @@ public class RegisterRequest {
     @UniqueUsername
     private String username;
 
+    @NotBlank(message = "Email cannot be blank")
+    @Email(message = "Email must be valid")
+    @UniqueEmail
+    private String email;
+
     @NotBlank(message = "Password cannot be blank")
     @Size(min = 6, max = 100, message = "Password must be at least 6 characters")
     private String password;
 
-    @NotBlank(message = "Display name cannot be blank")
-    @Size(min = 1, max = 50, message = "Display name must be between 1 and 50 characters")
-    private String displayName;
+    @NotBlank(message = "Full name cannot be blank")
+    @Size(min = 1, max = 100, message = "Full name must be between 1 and 100 characters")
+    private String fullName;
 }

@@ -25,10 +25,38 @@ public class UserRepository {
                 .getSingleResult() > 0;
     }
 
+    public boolean existsEmail(String email) {
+        return em.createQuery("SELECT COUNT(u) FROM User u WHERE u.email = :email", Long.class)
+                .setParameter("email", email)
+                .getSingleResult() > 0;
+    }
+
     public Optional<User> findByUsername(String username) {
         try {
             User user = em.createQuery("SELECT u FROM User u WHERE u.username = :username", User.class)
                     .setParameter("username", username)
+                    .getSingleResult();
+            return Optional.of(user);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<User> findByEmail(String email) {
+        try {
+            User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                    .setParameter("email", email)
+                    .getSingleResult();
+            return Optional.of(user);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<User> findByUsernameOrEmail(String usernameOrEmail) {
+        try {
+            User user = em.createQuery("SELECT u FROM User u WHERE u.username = :usernameOrEmail OR u.email = :usernameOrEmail", User.class)
+                    .setParameter("usernameOrEmail", usernameOrEmail)
                     .getSingleResult();
             return Optional.of(user);
         } catch (NoResultException e) {
@@ -50,7 +78,7 @@ public class UserRepository {
     }
 
     public List<User> findByIsOnlineTrue() {
-        return em.createQuery("SELECT u FROM User u WHERE u.isOnline = true ORDER BY u.displayName", User.class)
+        return em.createQuery("SELECT u FROM User u WHERE u.isOnline = true ORDER BY u.fullName", User.class)
                 .getResultList();
     }
 
@@ -59,7 +87,7 @@ public class UserRepository {
                         "SELECT DISTINCT u FROM User u " +
                                 "JOIN u.conversationParticipants cp " +
                                 "WHERE cp.conversation.id = :conversationId AND u.isOnline = true " +
-                                "ORDER BY u.displayName", User.class)
+                                "ORDER BY u.fullName", User.class)
                 .setParameter("conversationId", conversationId)
                 .getResultList();
     }

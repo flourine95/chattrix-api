@@ -38,23 +38,34 @@ public class AuthService {
     @Inject
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Inject
+    private VerificationService verificationService;
+
     @Transactional
     public void register(RegisterRequest registerRequest) {
         User newUser = new User();
         newUser.setUsername(registerRequest.getUsername().trim());
-        newUser.setDisplayName(registerRequest.getDisplayName().trim());
+        newUser.setEmail(registerRequest.getEmail().trim());
+        newUser.setFullName(registerRequest.getFullName().trim());
         String hashedPassword = BCrypt.hashpw(registerRequest.getPassword(), BCrypt.gensalt());
         newUser.setPassword(hashedPassword);
         userRepository.save(newUser);
+
+        // Send verification email
+        verificationService.sendVerificationEmail(newUser.getEmail());
     }
 
     @Transactional
     public AuthResponse login(LoginRequest loginRequest) {
-        User user = userRepository.findByUsername(loginRequest.getUsername().trim())
-                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
+        User user = userRepository.findByUsernameOrEmail(loginRequest.getUsernameOrEmail().trim())
+                .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password"));
 
         if (!BCrypt.checkpw(loginRequest.getPassword(), user.getPassword())) {
-            throw new UnauthorizedException("Invalid username or password");
+            throw new UnauthorizedException("Invalid username/email or password");
+        }
+
+        if (!user.isEmailVerified()) {
+            throw new UnauthorizedException("Email not verified. Please check your email to verify your account.");
         }
 
         user.setOnline(true);

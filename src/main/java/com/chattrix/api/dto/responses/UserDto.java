@@ -12,7 +12,8 @@ import java.util.UUID;
 public class UserDto {
     private UUID id;
     private String username;
-    private String displayName;
+    private String email;
+    private String fullName;
     private String avatarUrl;
     private boolean isOnline;
     private Instant lastSeen;
@@ -21,7 +22,8 @@ public class UserDto {
         UserDto dto = new UserDto();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
-        dto.setDisplayName(user.getDisplayName());
+        dto.setEmail(user.getEmail());
+        dto.setFullName(user.getFullName());
         dto.setAvatarUrl(user.getAvatarUrl());
         dto.setOnline(user.isOnline());
         dto.setLastSeen(user.getLastSeen());

@@ -211,7 +211,7 @@ public class ChatServerEndpoint {
                 .map(userId -> {
                     User user = userRepository.findById(userId).orElse(null);
                     if (user != null) {
-                        return new TypingUserDto(user.getId(), user.getUsername(), user.getDisplayName());
+                        return new TypingUserDto(user.getId(), user.getUsername(), user.getFullName());
                     }
                     return null;
                 })
@@ -241,7 +241,7 @@ public class ChatServerEndpoint {
         WebSocketMessage<Map<String, Object>> statusMessage = new WebSocketMessage<>("user.status", Map.of(
                 "userId", userId.toString(),
                 "username", user.getUsername(),
-                "displayName", user.getDisplayName(),
+                "displayName", user.getFullName(),
                 "isOnline", isOnline,
                 "lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null
         ));

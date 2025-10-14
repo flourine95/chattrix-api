@@ -1,5 +1,8 @@
 package com.chattrix.api.exceptions;
 
+import lombok.Getter;
+
+@Getter
 public class BusinessException extends RuntimeException {
     private final String errorCode;
 
@@ -13,7 +16,4 @@ public class BusinessException extends RuntimeException {
         this.errorCode = "BUSINESS_ERROR";
     }
 
-    public String getErrorCode() {
-        return errorCode;
-    }
 }

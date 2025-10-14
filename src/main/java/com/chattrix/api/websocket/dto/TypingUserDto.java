@@ -14,5 +14,5 @@ import java.util.UUID;
 public class TypingUserDto {
     private UUID userId;
     private String username;
-    private String displayName;
+    private String fullName;
 }
