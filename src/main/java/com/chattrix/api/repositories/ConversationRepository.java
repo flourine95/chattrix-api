@@ -6,6 +6,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,10 +20,10 @@ public class ConversationRepository {
     public Optional<Conversation> findByIdWithParticipants(UUID conversationId) {
         try {
             Conversation conversation = em.createQuery(
-                    "SELECT DISTINCT c FROM Conversation c " +
-                    "LEFT JOIN FETCH c.participants " +
-                    "LEFT JOIN FETCH c.participants.user " +
-                    "WHERE c.id = :id", Conversation.class)
+                            "SELECT DISTINCT c FROM Conversation c " +
+                                    "LEFT JOIN FETCH c.participants " +
+                                    "LEFT JOIN FETCH c.participants.user " +
+                                    "WHERE c.id = :id", Conversation.class)
                     .setParameter("id", conversationId)
                     .getSingleResult();
             return Optional.of(conversation);
@@ -33,11 +34,11 @@ public class ConversationRepository {
 
     public List<Conversation> findByUserId(UUID userId) {
         return em.createQuery(
-                "SELECT DISTINCT c FROM Conversation c " +
-                "LEFT JOIN FETCH c.participants " +
-                "LEFT JOIN FETCH c.participants.user " +
-                "WHERE EXISTS (SELECT 1 FROM ConversationParticipant cp WHERE cp.conversation = c AND cp.user.id = :userId) " +
-                "ORDER BY c.updatedAt DESC", Conversation.class)
+                        "SELECT DISTINCT c FROM Conversation c " +
+                                "LEFT JOIN FETCH c.participants " +
+                                "LEFT JOIN FETCH c.participants.user " +
+                                "WHERE EXISTS (SELECT 1 FROM ConversationParticipant cp WHERE cp.conversation = c AND cp.user.id = :userId) " +
+                                "ORDER BY c.updatedAt DESC", Conversation.class)
                 .setParameter("userId", userId)
                 .getResultList();
     }

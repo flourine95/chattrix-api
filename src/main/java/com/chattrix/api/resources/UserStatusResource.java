@@ -1,9 +1,11 @@
 package com.chattrix.api.resources;
 
+import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.dto.responses.UserDto;
+import com.chattrix.api.dto.responses.UserStatusDto;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.services.UserStatusService;
 import com.chattrix.api.filters.Secured;
+import com.chattrix.api.services.UserStatusService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -31,11 +33,11 @@ public class UserStatusResource {
                     .map(UserDto::fromUser)
                     .collect(Collectors.toList());
 
-            return Response.ok(userDtos).build();
+            ApiResponse<List<UserDto>> response = ApiResponse.success(userDtos, "Online users retrieved successfully");
+            return Response.ok(response).build();
         } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error retrieving online users")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Error retrieving online users", "INTERNAL_SERVER_ERROR");
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorResponse).build();
         }
     }
 
@@ -50,15 +52,14 @@ public class UserStatusResource {
                     .map(UserDto::fromUser)
                     .collect(Collectors.toList());
 
-            return Response.ok(userDtos).build();
+            ApiResponse<List<UserDto>> response = ApiResponse.success(userDtos, "Online users in conversation retrieved successfully");
+            return Response.ok(response).build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Invalid conversation ID format")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Invalid conversation ID format", "INVALID_FORMAT");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error retrieving online users for conversation")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Error retrieving online users", "INTERNAL_SERVER_ERROR");
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorResponse).build();
         }
     }
 
@@ -71,40 +72,16 @@ public class UserStatusResource {
             boolean isOnline = userStatusService.isUserOnline(userId);
             int sessionCount = userStatusService.getActiveSessionCount(userId);
 
-            return Response.ok(new UserStatusDto(userId, isOnline, sessionCount)).build();
+            UserStatusDto statusDto = new UserStatusDto(userId, isOnline, sessionCount);
+            ApiResponse<UserStatusDto> response = ApiResponse.success(statusDto, "User status retrieved successfully");
+            return Response.ok(response).build();
         } catch (IllegalArgumentException e) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Invalid user ID format")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Invalid user ID format", "INVALID_FORMAT");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         } catch (Exception e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error retrieving user status")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Error retrieving user status", "INTERNAL_SERVER_ERROR");
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(errorResponse).build();
         }
     }
 
-    // Inner DTO class for user status response
-    public static class UserStatusDto {
-        private UUID userId;
-        private boolean isOnline;
-        private int activeSessionCount;
-
-        public UserStatusDto() {}
-
-        public UserStatusDto(UUID userId, boolean isOnline, int activeSessionCount) {
-            this.userId = userId;
-            this.isOnline = isOnline;
-            this.activeSessionCount = activeSessionCount;
-        }
-
-        // Getters and setters
-        public UUID getUserId() { return userId; }
-        public void setUserId(UUID userId) { this.userId = userId; }
-
-        public boolean isOnline() { return isOnline; }
-        public void setOnline(boolean online) { isOnline = online; }
-
-        public int getActiveSessionCount() { return activeSessionCount; }
-        public void setActiveSessionCount(int activeSessionCount) { this.activeSessionCount = activeSessionCount; }
-    }
 }

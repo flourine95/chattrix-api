@@ -26,11 +26,11 @@ public class MessageRepository {
 
     public List<Message> findByConversationIdOrderBySentAtDesc(UUID conversationId, int page, int size) {
         TypedQuery<Message> query = em.createQuery(
-            "SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "WHERE m.conversation.id = :conversationId " +
-            "ORDER BY m.sentAt DESC",
-            Message.class
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.conversation.id = :conversationId " +
+                        "ORDER BY m.sentAt DESC",
+                Message.class
         );
         query.setParameter("conversationId", conversationId);
         query.setFirstResult(page * size);
@@ -41,8 +41,8 @@ public class MessageRepository {
 
     public long countByConversationId(UUID conversationId) {
         TypedQuery<Long> query = em.createQuery(
-            "SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId",
-            Long.class
+                "SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId",
+                Long.class
         );
         query.setParameter("conversationId", conversationId);
         return query.getSingleResult();
@@ -51,14 +51,14 @@ public class MessageRepository {
     public Optional<Message> findById(UUID messageId) {
         try {
             Message message = em.createQuery(
-                "SELECT m FROM Message m " +
-                "LEFT JOIN FETCH m.sender " +
-                "LEFT JOIN FETCH m.conversation " +
-                "WHERE m.id = :messageId",
-                Message.class
-            )
-            .setParameter("messageId", messageId)
-            .getSingleResult();
+                            "SELECT m FROM Message m " +
+                                    "LEFT JOIN FETCH m.sender " +
+                                    "LEFT JOIN FETCH m.conversation " +
+                                    "WHERE m.id = :messageId",
+                            Message.class
+                    )
+                    .setParameter("messageId", messageId)
+                    .getSingleResult();
             return Optional.of(message);
         } catch (NoResultException e) {
             return Optional.empty();
@@ -67,13 +67,13 @@ public class MessageRepository {
 
     public List<Message> findByConversationId(UUID conversationId) {
         return em.createQuery(
-            "SELECT m FROM Message m " +
-            "LEFT JOIN FETCH m.sender " +
-            "WHERE m.conversation.id = :conversationId " +
-            "ORDER BY m.sentAt ASC",
-            Message.class
-        )
-        .setParameter("conversationId", conversationId)
-        .getResultList();
+                        "SELECT m FROM Message m " +
+                                "LEFT JOIN FETCH m.sender " +
+                                "WHERE m.conversation.id = :conversationId " +
+                                "ORDER BY m.sentAt ASC",
+                        Message.class
+                )
+                .setParameter("conversationId", conversationId)
+                .getResultList();
     }
 }

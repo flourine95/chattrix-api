@@ -1,5 +1,6 @@
 package com.chattrix.api.resources;
 
+import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.dto.responses.UserDto;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.filters.Secured;
@@ -28,7 +29,8 @@ public class UserResource {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User not found but was authenticated"));
 
-        return Response.ok(UserDto.fromUser(user)).build();
+        UserDto userDto = UserDto.fromUser(user);
+        ApiResponse<UserDto> response = ApiResponse.success(userDto, "User retrieved successfully");
+        return Response.ok(response).build();
     }
 }
-

@@ -1,5 +1,6 @@
 package com.chattrix.api.resources;
 
+import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.dto.responses.MessageResponse;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
@@ -37,79 +38,86 @@ public class MessageResource {
 
     @GET
     public Response getMessages(
-        @Context HttpHeaders headers,
-        @PathParam("conversationId") UUID conversationId,
-        @QueryParam("page") @DefaultValue("0") int page,
-        @QueryParam("size") @DefaultValue("50") int size) {
+            @Context HttpHeaders headers,
+            @PathParam("conversationId") UUID conversationId,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("50") int size) {
 
         // Authenticate user
         String token = extractTokenFromHeaders(headers);
         if (token == null || !tokenService.validateToken(token)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
+            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
         }
 
         String username = tokenService.getUsernameFromToken(token);
         User currentUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
 
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-            .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
 
         boolean isParticipant = conversation.getParticipants().stream()
-            .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
+                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
 
         if (!isParticipant) {
-            return Response.status(Response.Status.FORBIDDEN).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("You do not have access to this conversation", "FORBIDDEN");
+            return Response.status(Response.Status.FORBIDDEN).entity(errorResponse).build();
         }
 
         // Get messages (need to add pagination to repository)
         List<Message> messages = messageRepository.findByConversationId(conversationId);
         List<MessageResponse> responses = messages.stream()
-            .map(MessageResponse::fromEntity)
-            .toList();
+                .map(MessageResponse::fromEntity)
+                .toList();
 
-        return Response.ok(responses).build();
+        ApiResponse<List<MessageResponse>> response = ApiResponse.success(responses, "Messages retrieved successfully");
+        return Response.ok(response).build();
     }
 
     @GET
     @Path("/{messageId}")
     public Response getMessage(
-        @Context HttpHeaders headers,
-        @PathParam("conversationId") UUID conversationId,
-        @PathParam("messageId") UUID messageId) {
+            @Context HttpHeaders headers,
+            @PathParam("conversationId") UUID conversationId,
+            @PathParam("messageId") UUID messageId) {
 
         // Authenticate user
         String token = extractTokenFromHeaders(headers);
         if (token == null || !tokenService.validateToken(token)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
+            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
         }
 
         String username = tokenService.getUsernameFromToken(token);
         User currentUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
 
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-            .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
 
         boolean isParticipant = conversation.getParticipants().stream()
-            .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
+                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
 
         if (!isParticipant) {
-            return Response.status(Response.Status.FORBIDDEN).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("You do not have access to this conversation", "FORBIDDEN");
+            return Response.status(Response.Status.FORBIDDEN).entity(errorResponse).build();
         }
 
         // Get specific message
         Message message = messageRepository.findById(messageId)
-            .orElseThrow(() -> new WebApplicationException("Message not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("Message not found", Response.Status.NOT_FOUND));
 
         // Verify message belongs to this conversation
         if (!message.getConversation().getId().equals(conversationId)) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Message not found", "NOT_FOUND");
+            return Response.status(Response.Status.NOT_FOUND).entity(errorResponse).build();
         }
 
-        MessageResponse response = MessageResponse.fromEntity(message);
+        MessageResponse messageResponse = MessageResponse.fromEntity(message);
+        ApiResponse<MessageResponse> response = ApiResponse.success(messageResponse, "Message retrieved successfully");
         return Response.ok(response).build();
     }
 

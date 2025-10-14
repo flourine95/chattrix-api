@@ -1,6 +1,7 @@
 package com.chattrix.api.resources;
 
 import com.chattrix.api.dto.requests.CreateConversationRequest;
+import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.dto.responses.ConversationResponse;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
@@ -10,6 +11,7 @@ import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.TokenService;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
@@ -37,22 +39,22 @@ public class ConversationResource {
 
     @POST
     @Transactional
-    public Response createConversation(@Context HttpHeaders headers, CreateConversationRequest request) {
+    public Response createConversation(@Context HttpHeaders headers, @Valid CreateConversationRequest request) {
         // Get current user from JWT token
         String token = extractTokenFromHeaders(headers);
         if (token == null || !tokenService.validateToken(token)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
+            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
         }
 
         String username = tokenService.getUsernameFromToken(token);
         User currentUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
 
         // Validate request
         if (request.getParticipantIds() == null || request.getParticipantIds().isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity("At least one participant is required")
-                .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("At least one participant is required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         // Create conversation
@@ -74,7 +76,7 @@ public class ConversationResource {
         for (UUID participantId : request.getParticipantIds()) {
             if (!participantId.equals(currentUser.getId())) { // Don't add current user twice
                 User participant = userRepository.findById(participantId)
-                    .orElseThrow(() -> new WebApplicationException("Participant not found: " + participantId, Response.Status.BAD_REQUEST));
+                        .orElseThrow(() -> new WebApplicationException("Participant not found: " + participantId, Response.Status.BAD_REQUEST));
 
                 ConversationParticipant conversationParticipant = new ConversationParticipant();
                 conversationParticipant.setUser(participant);
@@ -87,7 +89,8 @@ public class ConversationResource {
         conversation.setParticipants(participants);
         conversationRepository.save(conversation);
 
-        ConversationResponse response = ConversationResponse.fromEntity(conversation);
+        ConversationResponse conversationResponse = ConversationResponse.fromEntity(conversation);
+        ApiResponse<ConversationResponse> response = ApiResponse.success(conversationResponse, "Conversation created successfully");
         return Response.status(Response.Status.CREATED).entity(response).build();
     }
 
@@ -96,19 +99,21 @@ public class ConversationResource {
         // Get current user from JWT token
         String token = extractTokenFromHeaders(headers);
         if (token == null || !tokenService.validateToken(token)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
+            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
         }
 
         String username = tokenService.getUsernameFromToken(token);
         User currentUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
 
         List<Conversation> conversations = conversationRepository.findByUserId(currentUser.getId());
         List<ConversationResponse> responses = conversations.stream()
-            .map(ConversationResponse::fromEntity)
-            .toList();
+                .map(ConversationResponse::fromEntity)
+                .toList();
 
-        return Response.ok(responses).build();
+        ApiResponse<List<ConversationResponse>> response = ApiResponse.success(responses, "Conversations retrieved successfully");
+        return Response.ok(response).build();
     }
 
     @GET
@@ -117,25 +122,28 @@ public class ConversationResource {
         // Get current user from JWT token
         String token = extractTokenFromHeaders(headers);
         if (token == null || !tokenService.validateToken(token)) {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
+            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
         }
 
         String username = tokenService.getUsernameFromToken(token);
         User currentUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
 
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-            .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
+                .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
 
         // Check if user is participant
         boolean isParticipant = conversation.getParticipants().stream()
-            .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
+                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
 
         if (!isParticipant) {
-            return Response.status(Response.Status.FORBIDDEN).build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("You do not have access to this conversation", "FORBIDDEN");
+            return Response.status(Response.Status.FORBIDDEN).entity(errorResponse).build();
         }
 
-        ConversationResponse response = ConversationResponse.fromEntity(conversation);
+        ConversationResponse conversationResponse = ConversationResponse.fromEntity(conversation);
+        ApiResponse<ConversationResponse> response = ApiResponse.success(conversationResponse, "Conversation retrieved successfully");
         return Response.ok(response).build();
     }
 

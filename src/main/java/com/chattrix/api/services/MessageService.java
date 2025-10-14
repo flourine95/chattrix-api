@@ -2,9 +2,7 @@ package com.chattrix.api.services;
 
 import com.chattrix.api.dto.responses.MessageDto;
 import com.chattrix.api.entities.Conversation;
-import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
-import com.chattrix.api.entities.User;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;

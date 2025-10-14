@@ -1,6 +1,7 @@
 package com.chattrix.api.filters;
 
 import com.chattrix.api.entities.User;
+import com.chattrix.api.exceptions.UnauthorizedException;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.TokenService;
 import jakarta.annotation.Priority;
@@ -9,7 +10,6 @@ import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.ext.Provider;
 
@@ -21,7 +21,6 @@ import java.security.Principal;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthenticationFilter implements ContainerRequestFilter {
 
-    private static final String REALM = "Chattrix API";
     private static final String AUTHENTICATION_SCHEME = "Bearer";
 
     @Inject
@@ -35,21 +34,19 @@ public class AuthenticationFilter implements ContainerRequestFilter {
         String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
 
         if (!isTokenBasedAuthentication(authorizationHeader)) {
-            abortWithUnauthorized(requestContext);
-            return;
+            throw new UnauthorizedException("Missing or invalid Authorization header");
         }
 
         String token = authorizationHeader.substring(AUTHENTICATION_SCHEME.length()).trim();
 
         try {
             if (!tokenService.validateToken(token)) {
-                abortWithUnauthorized(requestContext);
-                return;
+                throw new UnauthorizedException("Invalid or expired token");
             }
 
             String username = tokenService.getUsernameFromToken(token);
             User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new SecurityException("User not found"));
+                    .orElseThrow(() -> new UnauthorizedException("User not found"));
 
             final SecurityContext currentSecurityContext = requestContext.getSecurityContext();
             requestContext.setSecurityContext(new SecurityContext() {
@@ -74,21 +71,16 @@ public class AuthenticationFilter implements ContainerRequestFilter {
                 }
             });
 
+        } catch (UnauthorizedException e) {
+            // Re-throw UnauthorizedException to be handled by BusinessExceptionMapper
+            throw e;
         } catch (Exception e) {
-            abortWithUnauthorized(requestContext);
+            throw new UnauthorizedException("Authentication failed");
         }
     }
 
     private boolean isTokenBasedAuthentication(String authorizationHeader) {
         return authorizationHeader != null && authorizationHeader.toLowerCase()
                 .startsWith(AUTHENTICATION_SCHEME.toLowerCase() + " ");
-    }
-
-    private void abortWithUnauthorized(ContainerRequestContext requestContext) {
-        requestContext.abortWith(
-                Response.status(Response.Status.UNAUTHORIZED)
-                        .header(HttpHeaders.WWW_AUTHENTICATE,
-                                AUTHENTICATION_SCHEME + " realm=\"" + REALM + "\"")
-                        .build());
     }
 }

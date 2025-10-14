@@ -55,9 +55,9 @@ public class ConversationResponse {
 
         if (conversation.getParticipants() != null) {
             response.setParticipants(
-                conversation.getParticipants().stream()
-                    .map(ParticipantResponse::fromEntity)
-                    .toList()
+                    conversation.getParticipants().stream()
+                            .map(ParticipantResponse::fromEntity)
+                            .toList()
             );
         }
 

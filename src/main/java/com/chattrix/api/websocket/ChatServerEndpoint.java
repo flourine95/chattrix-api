@@ -12,12 +12,7 @@ import com.chattrix.api.services.TypingIndicatorService;
 import com.chattrix.api.services.UserStatusService;
 import com.chattrix.api.websocket.codec.MessageDecoder;
 import com.chattrix.api.websocket.codec.MessageEncoder;
-import com.chattrix.api.websocket.dto.ChatMessageDto;
-import com.chattrix.api.websocket.dto.OutgoingMessageDto;
-import com.chattrix.api.websocket.dto.TypingIndicatorDto;
-import com.chattrix.api.websocket.dto.TypingIndicatorResponseDto;
-import com.chattrix.api.websocket.dto.TypingUserDto;
-import com.chattrix.api.websocket.dto.WebSocketMessage;
+import com.chattrix.api.websocket.dto.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -224,7 +219,7 @@ public class ChatServerEndpoint {
                 .collect(java.util.stream.Collectors.toList());
 
         System.out.println("DEBUG: Final typing users to broadcast: " + typingUsers.size() + " users - " +
-                          typingUsers.stream().map(u -> u.getUsername()).collect(java.util.stream.Collectors.toList()));
+                typingUsers.stream().map(u -> u.getUsername()).collect(java.util.stream.Collectors.toList()));
 
         // Create response DTO
         TypingIndicatorResponseDto responseDto = new TypingIndicatorResponseDto(conversationId, typingUsers);
@@ -244,11 +239,11 @@ public class ChatServerEndpoint {
 
         // Create status change message
         WebSocketMessage<Map<String, Object>> statusMessage = new WebSocketMessage<>("user.status", Map.of(
-            "userId", userId.toString(),
-            "username", user.getUsername(),
-            "displayName", user.getDisplayName(),
-            "isOnline", isOnline,
-            "lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null
+                "userId", userId.toString(),
+                "username", user.getUsername(),
+                "displayName", user.getDisplayName(),
+                "isOnline", isOnline,
+                "lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null
         ));
 
         // Broadcast to all connected users

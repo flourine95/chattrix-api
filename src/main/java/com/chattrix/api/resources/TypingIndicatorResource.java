@@ -1,20 +1,15 @@
 package com.chattrix.api.resources;
 
-import com.chattrix.api.entities.Conversation;
+import com.chattrix.api.dto.responses.ApiResponse;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.services.TypingIndicatorService;
-import com.chattrix.api.websocket.dto.TypingIndicatorDto;
-import com.chattrix.api.websocket.dto.TypingIndicatorResponseDto;
-import com.chattrix.api.websocket.dto.TypingUserDto;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Path("v1/typing")
 @Produces(MediaType.APPLICATION_JSON)
@@ -35,23 +30,23 @@ public class TypingIndicatorResource {
     public Response startTyping(@QueryParam("userId") UUID userId,
                                @QueryParam("conversationId") UUID conversationId) {
         if (userId == null || conversationId == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("userId and conversationId are required")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("userId and conversationId are required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         // Validate conversation exists
         if (conversationRepository.findById(conversationId).isEmpty()) {
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity("Conversation not found")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("Conversation not found", "NOT_FOUND");
+            return Response.status(Response.Status.NOT_FOUND).entity(errorResponse).build();
         }
 
         typingIndicatorService.startTyping(conversationId, userId);
 
-        return Response.ok()
-                .entity("User " + userId + " started typing in conversation " + conversationId)
-                .build();
+        ApiResponse<String> response = ApiResponse.success(
+            "User " + userId + " started typing in conversation " + conversationId,
+            "Started typing successfully"
+        );
+        return Response.ok(response).build();
     }
 
     /**
@@ -62,16 +57,17 @@ public class TypingIndicatorResource {
     public Response stopTyping(@QueryParam("userId") UUID userId,
                               @QueryParam("conversationId") UUID conversationId) {
         if (userId == null || conversationId == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("userId and conversationId are required")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("userId and conversationId are required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         typingIndicatorService.stopTyping(conversationId, userId);
 
-        return Response.ok()
-                .entity("User " + userId + " stopped typing in conversation " + conversationId)
-                .build();
+        ApiResponse<String> response = ApiResponse.success(
+            "User " + userId + " stopped typing in conversation " + conversationId,
+            "Stopped typing successfully"
+        );
+        return Response.ok(response).build();
     }
 
     /**
@@ -82,17 +78,15 @@ public class TypingIndicatorResource {
     public Response getTypingStatus(@PathParam("conversationId") UUID conversationId,
                                    @QueryParam("excludeUserId") UUID excludeUserId) {
         if (conversationId == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("conversationId is required")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("conversationId is required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         Set<UUID> typingUserIds = typingIndicatorService.getTypingUsersInConversation(conversationId, excludeUserId);
 
-        // For testing purposes, just return the user IDs
-        return Response.ok()
-                .entity(new TypingStatusResponse(conversationId, typingUserIds))
-                .build();
+        TypingStatusResponse statusResponse = new TypingStatusResponse(conversationId, typingUserIds);
+        ApiResponse<TypingStatusResponse> response = ApiResponse.success(statusResponse, "Typing status retrieved successfully");
+        return Response.ok(response).build();
     }
 
     /**
@@ -103,16 +97,15 @@ public class TypingIndicatorResource {
     public Response checkUserTyping(@QueryParam("userId") UUID userId,
                                    @QueryParam("conversationId") UUID conversationId) {
         if (userId == null || conversationId == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("userId and conversationId are required")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("userId and conversationId are required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         boolean isTyping = typingIndicatorService.isUserTyping(conversationId, userId);
 
-        return Response.ok()
-                .entity(new UserTypingStatus(userId, conversationId, isTyping))
-                .build();
+        UserTypingStatus userStatus = new UserTypingStatus(userId, conversationId, isTyping);
+        ApiResponse<UserTypingStatus> response = ApiResponse.success(userStatus, "Typing status checked successfully");
+        return Response.ok(response).build();
     }
 
     /**
@@ -122,16 +115,17 @@ public class TypingIndicatorResource {
     @Path("/clear/{userId}")
     public Response clearUserTyping(@PathParam("userId") UUID userId) {
         if (userId == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("userId is required")
-                    .build();
+            ApiResponse<Void> errorResponse = ApiResponse.error("userId is required", "VALIDATION_ERROR");
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
         }
 
         typingIndicatorService.removeUserFromAllConversations(userId);
 
-        return Response.ok()
-                .entity("Cleared all typing indicators for user " + userId)
-                .build();
+        ApiResponse<String> response = ApiResponse.success(
+            "Cleared all typing indicators for user " + userId,
+            "Typing indicators cleared successfully"
+        );
+        return Response.ok(response).build();
     }
 
     // Response DTOs for testing
