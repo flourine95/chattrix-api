@@ -15,14 +15,11 @@ import java.util.Date;
 @ApplicationScoped
 public class TokenService {
 
-    // Generate a secure key for HS256
     private final SecretKey key = Jwts.SIG.HS256.key().build();
 
-    // Access token: 15 phút
-    private final static long ACCESS_TOKEN_VALIDITY = 900000; // 15 minutes
+    private final static long ACCESS_TOKEN_VALIDITY = 900000;
 
-    // Refresh token: 7 ngày
-    private final static long REFRESH_TOKEN_VALIDITY = 604800000; // 7 days
+    private final static long REFRESH_TOKEN_VALIDITY = 604800000;
 
     @Inject
     private InvalidatedTokenRepository invalidatedTokenRepository;
@@ -37,7 +34,7 @@ public class TokenService {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("userId", user.getId().toString())
-                .id(jti)  // JWT ID để link với refresh token
+                .id(jti)
                 .issuedAt(now)
                 .expiration(validity)
                 .signWith(key)
@@ -48,7 +45,7 @@ public class TokenService {
         Instant expiresAt = Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY);
         RefreshToken refreshToken = new RefreshToken(user, expiresAt);
         refreshToken.setAccessTokenId(accessTokenId);
-        refreshToken.setAccessToken(accessToken);  // Lưu access token string
+        refreshToken.setAccessToken(accessToken);
         refreshTokenRepository.save(refreshToken);
         return refreshToken;
     }
@@ -90,7 +87,6 @@ public class TokenService {
 
     public boolean validateToken(String token) {
         try {
-            // Kiểm tra token có trong blacklist không
             if (invalidatedTokenRepository.isTokenInvalidated(token)) {
                 return false;
             }

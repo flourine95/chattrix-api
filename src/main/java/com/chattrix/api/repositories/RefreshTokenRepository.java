@@ -94,7 +94,7 @@ public class RefreshTokenRepository {
     public int deleteRevokedTokens() {
         return entityManager
                 .createQuery("DELETE FROM RefreshToken rt WHERE rt.isRevoked = true AND rt.revokedAt < :threshold")
-                .setParameter("threshold", Instant.now().minusSeconds(86400 * 7)) // Xóa token đã revoke > 7 ngày
+                .setParameter("threshold", Instant.now().minusSeconds(86400 * 7))
                 .executeUpdate();
     }
 }

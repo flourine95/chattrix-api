@@ -12,10 +12,7 @@ import com.chattrix.api.services.AuthService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.SecurityContext;
+import jakarta.ws.rs.core.*;
 
 @Path("/v1/auth")
 @Produces(MediaType.APPLICATION_JSON)
@@ -54,10 +51,9 @@ public class AuthResource {
     @POST
     @Path("/logout")
     @Secured
-    public Response logout(@Context SecurityContext securityContext, @Context jakarta.ws.rs.core.HttpHeaders headers) {
+    public Response logout(@Context SecurityContext securityContext, @Context HttpHeaders headers) {
         String username = securityContext.getUserPrincipal().getName();
 
-        // Lấy token từ Authorization header
         String authorizationHeader = headers.getHeaderString("Authorization");
         String token = authorizationHeader.substring("Bearer ".length()).trim();
 

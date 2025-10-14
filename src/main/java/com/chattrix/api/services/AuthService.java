@@ -61,15 +61,14 @@ public class AuthService {
         user.setLastSeen(Instant.now());
         userRepository.save(user);
 
-        // Tạo access token và refresh token với linking
         String jti = UUID.randomUUID().toString();
         String accessToken = tokenService.generateAccessToken(user, jti);
         RefreshToken refreshToken = tokenService.generateRefreshToken(user, jti, accessToken);
 
         return new AuthResponse(
-            accessToken,
-            refreshToken.getToken(),
-            tokenService.getAccessTokenValidityInSeconds()
+                accessToken,
+                refreshToken.getToken(),
+                tokenService.getAccessTokenValidityInSeconds()
         );
     }
 
@@ -88,12 +87,10 @@ public class AuthService {
         user.setLastSeen(Instant.now());
         userRepository.save(user);
 
-        // Thêm access token vào blacklist
         Date expiration = tokenService.getExpirationFromToken(accessToken);
         InvalidatedToken invalidatedToken = new InvalidatedToken(accessToken, expiration.toInstant());
         invalidatedTokenRepository.save(invalidatedToken);
 
-        // Chỉ revoke refresh token tương ứng với access token này (single device logout)
         String tokenId = tokenService.getTokenId(accessToken);
         refreshTokenRepository.findByAccessTokenId(tokenId).ifPresent(refreshToken -> {
             refreshToken.revoke();
@@ -110,24 +107,20 @@ public class AuthService {
         user.setLastSeen(Instant.now());
         userRepository.save(user);
 
-        // Revoke tất cả refresh tokens của user
         refreshTokenRepository.revokeAllByUser(user);
     }
 
     @Transactional
     public AuthResponse refreshToken(String refreshTokenString) {
-        // Tìm refresh token trong database
         RefreshToken refreshToken = refreshTokenRepository.findValidToken(refreshTokenString)
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired refresh token"));
 
         User user = refreshToken.getUser();
 
-        // BLACKLIST access token cũ khi refresh (bảo mật cao hơn)
         String oldAccessToken = refreshToken.getAccessToken();
         if (oldAccessToken != null && !oldAccessToken.isEmpty()) {
             try {
                 Date expiration = tokenService.getExpirationFromToken(oldAccessToken);
-                // Chỉ blacklist nếu token chưa hết hạn
                 if (expiration.after(new Date())) {
                     InvalidatedToken invalidatedToken = new InvalidatedToken(oldAccessToken, expiration.toInstant());
                     invalidatedTokenRepository.save(invalidatedToken);
@@ -137,34 +130,29 @@ public class AuthService {
             }
         }
 
-        // Revoke refresh token cũ (rotation)
         refreshToken.revoke();
         refreshTokenRepository.update(refreshToken);
 
-        // Tạo access token và refresh token mới
         String jti = UUID.randomUUID().toString();
         String newAccessToken = tokenService.generateAccessToken(user, jti);
         RefreshToken newRefreshToken = tokenService.generateRefreshToken(user, jti, newAccessToken);
 
         return new AuthResponse(
-            newAccessToken,
-            newRefreshToken.getToken(),
-            tokenService.getAccessTokenValidityInSeconds()
+                newAccessToken,
+                newRefreshToken.getToken(),
+                tokenService.getAccessTokenValidityInSeconds()
         );
     }
 
     @Transactional
     public void changePassword(String username, ChangePasswordRequest request) {
-        // Bean Validation đã xử lý NotBlank và Size cho passwords
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Verify current password
         if (!BCrypt.checkpw(request.getCurrentPassword(), user.getPassword())) {
             throw new BadRequestException("Current password is incorrect");
         }
 
-        // Check if new password is same as current
         if (request.getNewPassword().equals(request.getCurrentPassword())) {
             throw new BadRequestException("New password must be different from current password");
         }

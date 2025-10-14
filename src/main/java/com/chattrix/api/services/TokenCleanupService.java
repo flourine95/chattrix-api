@@ -21,9 +21,8 @@ public class TokenCleanupService {
 
     /**
      * Tự động xóa các access token đã hết hạn khỏi blacklist mỗi giờ
-     * Giúp tối ưu hiệu suất database
      */
-    @Schedule(hour = "*", minute = "0", persistent = false)
+    @Schedule(hour = "*", persistent = false)
     public void cleanupExpiredTokens() {
         try {
             int deletedCount = invalidatedTokenRepository.deleteExpiredTokens();
@@ -36,7 +35,7 @@ public class TokenCleanupService {
     /**
      * Tự động xóa refresh tokens đã hết hạn và đã bị revoke mỗi ngày
      */
-    @Schedule(hour = "2", minute = "0", persistent = false)
+    @Schedule(hour = "2", persistent = false)
     public void cleanupRefreshTokens() {
         try {
             int expiredCount = refreshTokenRepository.deleteExpiredTokens();
