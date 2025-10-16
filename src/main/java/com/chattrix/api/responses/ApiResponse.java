@@ -1,4 +1,4 @@
-package com.chattrix.api.dto.responses;
+package com.chattrix.api.responses;
 
 import lombok.*;
 

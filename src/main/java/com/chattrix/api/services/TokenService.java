@@ -15,12 +15,12 @@ import java.util.Date;
 @ApplicationScoped
 public class TokenService {
 
+    private static final int MINUTE = 60 * 1000;
+    private static final int HOUR = 60 * MINUTE;
+    private static final int DAY = 24 * HOUR;
+    private static final long REFRESH_TOKEN_VALIDITY = 7 * DAY;
+    private static final long ACCESS_TOKEN_VALIDITY = 15 * MINUTE;
     private final SecretKey key = Jwts.SIG.HS256.key().build();
-
-    private final static long ACCESS_TOKEN_VALIDITY = 900000;
-
-    private final static long REFRESH_TOKEN_VALIDITY = 604800000;
-
     @Inject
     private InvalidatedTokenRepository invalidatedTokenRepository;
 
@@ -32,8 +32,8 @@ public class TokenService {
         Date validity = new Date(now.getTime() + ACCESS_TOKEN_VALIDITY);
 
         return Jwts.builder()
-                .subject(user.getUsername())
-                .claim("userId", user.getId().toString())
+                .subject(user.getId().toString())
+                .claim("username", user.getUsername())
                 .id(jti)
                 .issuedAt(now)
                 .expiration(validity)
@@ -58,13 +58,23 @@ public class TokenService {
         return REFRESH_TOKEN_VALIDITY / 1000;
     }
 
+    public Long getUserIdFromToken(String token) {
+        String subject = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
+        return Long.parseLong(subject);
+    }
+
     public String getUsernameFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload()
-                .getSubject();
+                .get("username", String.class);
     }
 
     public Date getExpirationFromToken(String token) {

@@ -3,6 +3,7 @@ package com.chattrix.api.websocket;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -23,8 +24,8 @@ import jakarta.websocket.server.ServerEndpoint;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 @ApplicationScoped
 @ServerEndpoint(value = "/v1/chat",
@@ -33,6 +34,7 @@ import java.util.UUID;
         decoders = MessageDecoder.class)
 public class ChatServerEndpoint {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     @Inject
     private TokenService tokenService;
     @Inject
@@ -47,8 +49,8 @@ public class ChatServerEndpoint {
     private TypingIndicatorService typingIndicatorService;
     @Inject
     private UserStatusService userStatusService;
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    @Inject
+    private WebSocketMapper webSocketMapper;
 
     @OnOpen
     public void onOpen(Session session) throws IOException {
@@ -58,8 +60,8 @@ public class ChatServerEndpoint {
             return;
         }
 
-        String username = tokenService.getUsernameFromToken(token);
-        User user = userRepository.findByUsername(username).orElse(null);
+        Long userId = tokenService.getUserIdFromToken(token);
+        User user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             session.close(new CloseReason(CloseReason.CloseCodes.VIOLATED_POLICY, "User not found"));
             return;
@@ -80,7 +82,7 @@ public class ChatServerEndpoint {
     @OnMessage
     @Transactional
     public void onMessage(Session session, WebSocketMessage<?> message) throws IOException {
-        UUID userId = (UUID) session.getUserProperties().get("userId");
+        Long userId = (Long) session.getUserProperties().get("userId");
         if (userId == null) return;
 
         // Update last seen when user sends any message
@@ -100,7 +102,7 @@ public class ChatServerEndpoint {
 
     @OnClose
     public void onClose(Session session) {
-        UUID userId = (UUID) session.getUserProperties().get("userId");
+        Long userId = (Long) session.getUserProperties().get("userId");
         if (userId != null) {
             chatSessionService.removeSession(userId, session);
 
@@ -116,12 +118,12 @@ public class ChatServerEndpoint {
 
     @OnError
     public void onError(Session session, Throwable throwable) {
-        UUID userId = (UUID) session.getUserProperties().get("userId");
+        Long userId = (Long) session.getUserProperties().get("userId");
         System.err.println("WebSocket error for user " + userId + ": " + throwable.getMessage());
         throwable.printStackTrace();
     }
 
-    private void processChatMessage(UUID senderId, ChatMessageDto chatMessageDto) {
+    private void processChatMessage(Long senderId, ChatMessageDto chatMessageDto) {
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database."));
 
@@ -138,19 +140,19 @@ public class ChatServerEndpoint {
         newMessage.setType(Message.MessageType.TEXT);
         messageRepository.save(newMessage);
 
-        // 2. Prepare the outgoing message DTO
-        OutgoingMessageDto outgoingDto = OutgoingMessageDto.fromEntity(newMessage);
+        // 2. Prepare the outgoing message DTO using mapper
+        OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(newMessage);
         WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>("chat.message", outgoingDto);
 
         // 3. Broadcast the message to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {
-            UUID participantId = participant.getUser().getId();
+            Long participantId = participant.getUser().getId();
             chatSessionService.sendMessageToUser(participantId, outgoingWebSocketMessage);
         });
     }
 
-    private void processTypingStart(UUID userId, TypingIndicatorDto typingDto) {
-        UUID conversationId = typingDto.getConversationId();
+    private void processTypingStart(Long userId, TypingIndicatorDto typingDto) {
+        Long conversationId = typingDto.getConversationId();
 
         System.out.println("DEBUG: processTypingStart - userId: " + userId + ", conversationId: " + conversationId);
 
@@ -168,8 +170,8 @@ public class ChatServerEndpoint {
         broadcastTypingIndicator(conversation, userId);
     }
 
-    private void processTypingStop(UUID userId, TypingIndicatorDto typingDto) {
-        UUID conversationId = typingDto.getConversationId();
+    private void processTypingStop(Long userId, TypingIndicatorDto typingDto) {
+        Long conversationId = typingDto.getConversationId();
 
         System.out.println("DEBUG: processTypingStop - userId: " + userId + ", conversationId: " + conversationId);
 
@@ -185,16 +187,16 @@ public class ChatServerEndpoint {
         broadcastTypingIndicator(conversation, userId);
     }
 
-    private void broadcastTypingIndicator(Conversation conversation, UUID excludeUserId) {
-        UUID conversationId = conversation.getId();
+    private void broadcastTypingIndicator(Conversation conversation, Long excludeUserId) {
+        Long conversationId = conversation.getId();
 
         // Get ALL typing users first (for debugging)
-        Set<UUID> allTypingUsers = typingIndicatorService.getTypingUsersInConversation(conversationId, null);
+        Set<Long> allTypingUsers = typingIndicatorService.getTypingUsersInConversation(conversationId, null);
         System.out.println("DEBUG: All typing users in conversation " + conversationId + ": " + allTypingUsers);
 
         // For typing indicators, we want to show OTHER users who are typing
         // But if we're testing with single user, we might want to see our own typing for debugging
-        Set<UUID> typingUserIds;
+        Set<Long> typingUserIds;
 
         // If there's only one participant (testing scenario), include all typing users
         if (conversation.getParticipants().size() <= 1) {
@@ -206,34 +208,30 @@ public class ChatServerEndpoint {
             System.out.println("DEBUG: Multi-user conversation - typing users (excluding " + excludeUserId + "): " + typingUserIds);
         }
 
-        // Convert user IDs to detailed user information
+        // Convert user IDs to detailed user information using mapper
         List<TypingUserDto> typingUsers = typingUserIds.stream()
-                .map(userId -> {
-                    User user = userRepository.findById(userId).orElse(null);
-                    if (user != null) {
-                        return new TypingUserDto(user.getId(), user.getUsername(), user.getFullName());
-                    }
-                    return null;
-                })
-                .filter(typingUser -> typingUser != null)
+                .map(userRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(webSocketMapper::toTypingUserResponse)
                 .collect(java.util.stream.Collectors.toList());
 
         System.out.println("DEBUG: Final typing users to broadcast: " + typingUsers.size() + " users - " +
-                typingUsers.stream().map(u -> u.getUsername()).collect(java.util.stream.Collectors.toList()));
+                typingUsers.stream().map(TypingUserDto::getUsername).collect(java.util.stream.Collectors.toList()));
 
-        // Create response DTO
-        TypingIndicatorResponseDto responseDto = new TypingIndicatorResponseDto(conversationId, typingUsers);
-        WebSocketMessage<TypingIndicatorResponseDto> message = new WebSocketMessage<>("typing.indicator", responseDto);
+        // Create response
+        TypingIndicatorResponseDto response = new TypingIndicatorResponseDto(conversationId, typingUsers);
+        WebSocketMessage<TypingIndicatorResponseDto> message = new WebSocketMessage<>("typing.indicator", response);
 
         // Broadcast to all participants
         conversation.getParticipants().forEach(participant -> {
-            UUID participantId = participant.getUser().getId();
+            Long participantId = participant.getUser().getId();
             System.out.println("DEBUG: Broadcasting typing indicator to participant: " + participantId);
             chatSessionService.sendMessageToUser(participantId, message);
         });
     }
 
-    private void broadcastUserStatusChange(UUID userId, boolean isOnline) {
+    private void broadcastUserStatusChange(Long userId, boolean isOnline) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return;
 

@@ -1,7 +1,7 @@
 package com.chattrix.api.filters;
 
 import com.chattrix.api.config.JacksonConfig;
-import com.chattrix.api.dto.responses.ApiResponse;
+import com.chattrix.api.responses.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Priority;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,16 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Priority(Priorities.USER - 100)
 public class RateLimitedFilter implements ContainerRequestFilter {
 
+    private static final ObjectMapper OBJECT_MAPPER = new JacksonConfig().getContext(null);
+    private final Map<String, Map<Long, AtomicInteger>> rateLimitCache = new ConcurrentHashMap<>();
     @Context
     private ResourceInfo resourceInfo;
-
     @Context
     private HttpServletRequest request;
-
-    private static final ObjectMapper OBJECT_MAPPER = new JacksonConfig().getContext(null);
-
-    // Cache structure: Map<endpoint:key, Map<timeWindow, AtomicInteger>>
-    private final Map<String, Map<Long, AtomicInteger>> rateLimitCache = new ConcurrentHashMap<>();
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
@@ -79,7 +75,6 @@ public class RateLimitedFilter implements ContainerRequestFilter {
 
         Map<Long, AtomicInteger> windowCounts = rateLimitCache.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
 
-        // Clean up old windows
         windowCounts.entrySet().removeIf(entry -> entry.getKey() < currentWindow - 1);
 
         AtomicInteger count = windowCounts.computeIfAbsent(currentWindow, k -> new AtomicInteger(0));

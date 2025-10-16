@@ -1,7 +1,7 @@
 package com.chattrix.api.exceptions;
 
-import com.chattrix.api.dto.responses.ApiResponse;
-import com.chattrix.api.dto.responses.ErrorDetail;
+import com.chattrix.api.responses.ApiResponse;
+import com.chattrix.api.responses.ErrorDetail;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.core.Response;

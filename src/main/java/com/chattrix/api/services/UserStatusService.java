@@ -8,21 +8,19 @@ import jakarta.transaction.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 @ApplicationScoped
 public class UserStatusService {
 
+    // Track active sessions for each user
+    private final ConcurrentMap<Long, Integer> activeSessionsCount = new ConcurrentHashMap<>();
     @Inject
     private UserRepository userRepository;
 
-    // Track active sessions for each user
-    private final ConcurrentMap<UUID, Integer> activeSessionsCount = new ConcurrentHashMap<>();
-
     @Transactional
-    public void setUserOnline(UUID userId) {
+    public void setUserOnline(Long userId) {
         // Increment session count
         activeSessionsCount.merge(userId, 1, Integer::sum);
 
@@ -36,7 +34,7 @@ public class UserStatusService {
     }
 
     @Transactional
-    public void setUserOffline(UUID userId) {
+    public void setUserOffline(Long userId) {
         // Decrement session count
         activeSessionsCount.compute(userId, (key, count) -> {
             if (count == null || count <= 1) {
@@ -57,7 +55,7 @@ public class UserStatusService {
     }
 
     @Transactional
-    public void updateLastSeen(UUID userId) {
+    public void updateLastSeen(Long userId) {
         User user = userRepository.findById(userId).orElse(null);
         if (user != null) {
             user.setLastSeen(Instant.now());
@@ -69,15 +67,15 @@ public class UserStatusService {
         return userRepository.findByIsOnlineTrue();
     }
 
-    public List<User> getOnlineUsersInConversation(UUID conversationId) {
+    public List<User> getOnlineUsersInConversation(Long conversationId) {
         return userRepository.findOnlineUsersByConversationId(conversationId);
     }
 
-    public boolean isUserOnline(UUID userId) {
+    public boolean isUserOnline(Long userId) {
         return activeSessionsCount.containsKey(userId);
     }
 
-    public int getActiveSessionCount(UUID userId) {
+    public int getActiveSessionCount(Long userId) {
         return activeSessionsCount.getOrDefault(userId, 0);
     }
 

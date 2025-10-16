@@ -1,19 +1,21 @@
 package com.chattrix.api.services;
 
-import com.chattrix.api.dto.responses.MessageDto;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
+import com.chattrix.api.entities.User;
+import com.chattrix.api.exceptions.BadRequestException;
+import com.chattrix.api.exceptions.ResourceNotFoundException;
+import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.requests.ChatMessageRequest;
+import com.chattrix.api.responses.MessageResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.ForbiddenException;
-import jakarta.ws.rs.NotFoundException;
+import jakarta.transaction.Transactional;
 
 import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MessageService {
@@ -25,41 +27,77 @@ public class MessageService {
     private ConversationRepository conversationRepository;
 
     @Inject
+    private MessageMapper messageMapper;
+
+    @Inject
     private UserRepository userRepository;
 
-    public List<MessageDto> getConversationMessages(UUID conversationId, UUID userId, int page, int size) {
-        // Verify conversation exists
+    public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Verify user is a participant in the conversation
         boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(participant -> participant.getUser().getId().equals(userId));
+                .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new ForbiddenException("You are not a participant in this conversation");
+            throw new BadRequestException("You do not have access to this conversation");
         }
 
-        // Get messages
-        List<Message> messages = messageRepository.findByConversationIdOrderBySentAtDesc(conversationId, page, size);
-
+        List<Message> messages = messageRepository.findByConversationId(conversationId);
         return messages.stream()
-                .map(MessageDto::fromEntity)
-                .collect(Collectors.toList());
+                .map(messageMapper::toResponse)
+                .toList();
     }
 
-    public long getConversationMessageCount(UUID conversationId, UUID userId) {
-        // Verify conversation exists and user is participant
+    public MessageResponse getMessage(Long userId, Long conversationId, Long messageId) {
+        // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
         boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(participant -> participant.getUser().getId().equals(userId));
+                .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new ForbiddenException("You are not a participant in this conversation");
+            throw new BadRequestException("You do not have access to this conversation");
         }
 
-        return messageRepository.countByConversationId(conversationId);
+        // Get specific message
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+
+        // Verify message belongs to this conversation
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message not found");
+        }
+
+        return messageMapper.toResponse(message);
+    }
+
+    @Transactional
+    public MessageResponse sendMessage(Long userId, Long conversationId, ChatMessageRequest request) {
+        // Check if conversation exists and user is participant
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+
+        boolean isParticipant = conversation.getParticipants().stream()
+                .anyMatch(p -> p.getUser().getId().equals(userId));
+
+        if (!isParticipant) {
+            throw new BadRequestException("You do not have access to this conversation");
+        }
+
+        // Get sender
+        User sender = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // Create and save message
+        Message message = new Message();
+        message.setContent(request.content());
+        message.setSender(sender);
+        message.setConversation(conversation);
+        message.setType(Message.MessageType.TEXT);
+        messageRepository.save(message);
+
+        return messageMapper.toResponse(message);
     }
 }

@@ -9,7 +9,6 @@ import jakarta.transaction.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @ApplicationScoped
 public class ConversationRepository {
@@ -17,7 +16,7 @@ public class ConversationRepository {
     @PersistenceContext
     private EntityManager em;
 
-    public Optional<Conversation> findByIdWithParticipants(UUID conversationId) {
+    public Optional<Conversation> findByIdWithParticipants(Long conversationId) {
         try {
             Conversation conversation = em.createQuery(
                             "SELECT DISTINCT c FROM Conversation c " +
@@ -32,7 +31,7 @@ public class ConversationRepository {
         }
     }
 
-    public List<Conversation> findByUserId(UUID userId) {
+    public List<Conversation> findByUserId(Long userId) {
         return em.createQuery(
                         "SELECT DISTINCT c FROM Conversation c " +
                                 "LEFT JOIN FETCH c.participants " +
@@ -53,7 +52,7 @@ public class ConversationRepository {
         }
     }
 
-    public Optional<Object> findById(UUID conversationId) {
+    public Optional<Object> findById(Long conversationId) {
         Conversation conversation = em.find(Conversation.class, conversationId);
         return Optional.ofNullable(conversation);
     }

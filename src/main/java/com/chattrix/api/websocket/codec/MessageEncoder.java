@@ -25,4 +25,3 @@ public class MessageEncoder implements Encoder.Text<WebSocketMessage> {
         // Close resources
     }
 }
-

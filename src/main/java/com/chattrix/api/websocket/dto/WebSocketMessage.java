@@ -5,6 +5,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Generic wrapper for all WebSocket messages
+ *
+ * @param <T> The payload type
+ */
 @Getter
 @Setter
 @NoArgsConstructor

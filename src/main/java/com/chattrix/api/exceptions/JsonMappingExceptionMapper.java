@@ -1,6 +1,6 @@
 package com.chattrix.api.exceptions;
 
-import com.chattrix.api.dto.responses.ApiResponse;
+import com.chattrix.api.responses.ApiResponse;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;

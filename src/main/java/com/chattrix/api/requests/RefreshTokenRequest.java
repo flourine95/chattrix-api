@@ -1,4 +1,4 @@
-package com.chattrix.api.dto.requests;
+package com.chattrix.api.requests;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;

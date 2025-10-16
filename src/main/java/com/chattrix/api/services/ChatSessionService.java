@@ -8,29 +8,28 @@ import jakarta.websocket.Session;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class ChatSessionService {
 
     // Lưu trữ các session đang hoạt động, map từ UserId sang Session
-    private final Map<UUID, Session> activeSessions = new ConcurrentHashMap<>();
+    private final Map<Long, Session> activeSessions = new ConcurrentHashMap<>();
 
-    public void addSession(UUID userId, Session session) {
+    public void addSession(Long userId, Session session) {
         activeSessions.put(userId, session);
     }
 
-    public void removeSession(UUID userId) {
+    public void removeSession(Long userId) {
         activeSessions.remove(userId);
     }
 
-    public void removeSession(UUID userId, Session session) {
+    public void removeSession(Long userId, Session session) {
         // Remove only if the session matches
         activeSessions.remove(userId, session);
     }
 
-    public void sendMessageToUser(UUID userId, String message) {
+    public void sendMessageToUser(Long userId, String message) {
         Session session = activeSessions.get(userId);
         if (session != null && session.isOpen()) {
             try {
@@ -44,7 +43,7 @@ public class ChatSessionService {
         }
     }
 
-    public <T> void sendMessageToUser(UUID userId, WebSocketMessage<T> message) {
+    public <T> void sendMessageToUser(Long userId, WebSocketMessage<T> message) {
         Session session = activeSessions.get(userId);
         if (session != null && session.isOpen()) {
             try {
@@ -75,12 +74,12 @@ public class ChatSessionService {
         });
     }
 
-    public boolean isUserOnline(UUID userId) {
+    public boolean isUserOnline(Long userId) {
         Session session = activeSessions.get(userId);
         return session != null && session.isOpen();
     }
 
-    public Set<UUID> getOnlineUserIds() {
+    public Set<Long> getOnlineUserIds() {
         // Clean up invalid sessions and return active user IDs
         activeSessions.entrySet().removeIf(entry -> {
             Session session = entry.getValue();

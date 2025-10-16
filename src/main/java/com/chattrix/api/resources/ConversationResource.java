@@ -1,157 +1,57 @@
 package com.chattrix.api.resources;
 
-import com.chattrix.api.dto.requests.CreateConversationRequest;
-import com.chattrix.api.dto.responses.ApiResponse;
-import com.chattrix.api.dto.responses.ConversationResponse;
-import com.chattrix.api.entities.Conversation;
-import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.repositories.ConversationRepository;
-import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.services.TokenService;
+import com.chattrix.api.filters.Secured;
+import com.chattrix.api.filters.UserPrincipal;
+import com.chattrix.api.requests.CreateConversationRequest;
+import com.chattrix.api.responses.ApiResponse;
+import com.chattrix.api.responses.ConversationResponse;
+import com.chattrix.api.services.ConversationService;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.SecurityContext;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 @Path("/v1/conversations")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Secured
 public class ConversationResource {
 
     @Inject
-    private ConversationRepository conversationRepository;
-
-    @Inject
-    private UserRepository userRepository;
-
-    @Inject
-    private TokenService tokenService;
+    private ConversationService conversationService;
 
     @POST
-    @Transactional
-    public Response createConversation(@Context HttpHeaders headers, @Valid CreateConversationRequest request) {
-        // Get current user from JWT token
-        String token = extractTokenFromHeaders(headers);
-        if (token == null || !tokenService.validateToken(token)) {
-            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
-            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
-        }
-
-        String username = tokenService.getUsernameFromToken(token);
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
-
-        // Validate request
-        if (request.getParticipantIds() == null || request.getParticipantIds().isEmpty()) {
-            ApiResponse<Void> errorResponse = ApiResponse.error("At least one participant is required", "VALIDATION_ERROR");
-            return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
-        }
-
-        // Create conversation
-        Conversation conversation = new Conversation();
-        conversation.setName(request.getName());
-        conversation.setType("GROUP".equals(request.getType()) ? Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT);
-
-        // Add participants
-        Set<ConversationParticipant> participants = new HashSet<>();
-
-        // Add current user as admin/member
-        ConversationParticipant currentUserParticipant = new ConversationParticipant();
-        currentUserParticipant.setUser(currentUser);
-        currentUserParticipant.setConversation(conversation);
-        currentUserParticipant.setRole(ConversationParticipant.Role.ADMIN);
-        participants.add(currentUserParticipant);
-
-        // Add other participants
-        for (UUID participantId : request.getParticipantIds()) {
-            if (!participantId.equals(currentUser.getId())) { // Don't add current user twice
-                User participant = userRepository.findById(participantId)
-                        .orElseThrow(() -> new WebApplicationException("Participant not found: " + participantId, Response.Status.BAD_REQUEST));
-
-                ConversationParticipant conversationParticipant = new ConversationParticipant();
-                conversationParticipant.setUser(participant);
-                conversationParticipant.setConversation(conversation);
-                conversationParticipant.setRole(ConversationParticipant.Role.MEMBER);
-                participants.add(conversationParticipant);
-            }
-        }
-
-        conversation.setParticipants(participants);
-        conversationRepository.save(conversation);
-
-        ConversationResponse conversationResponse = ConversationResponse.fromEntity(conversation);
-        ApiResponse<ConversationResponse> response = ApiResponse.success(conversationResponse, "Conversation created successfully");
-        return Response.status(Response.Status.CREATED).entity(response).build();
+    public Response createConversation(@Context SecurityContext securityContext, @Valid CreateConversationRequest request) {
+        User currentUser = getCurrentUser(securityContext);
+        ConversationResponse conversation = conversationService.createConversation(currentUser.getId(), request);
+        return Response.status(Response.Status.CREATED)
+                .entity(ApiResponse.success(conversation, "Conversation created successfully"))
+                .build();
     }
 
     @GET
-    public Response getConversations(@Context HttpHeaders headers) {
-        // Get current user from JWT token
-        String token = extractTokenFromHeaders(headers);
-        if (token == null || !tokenService.validateToken(token)) {
-            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
-            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
-        }
-
-        String username = tokenService.getUsernameFromToken(token);
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
-
-        List<Conversation> conversations = conversationRepository.findByUserId(currentUser.getId());
-        List<ConversationResponse> responses = conversations.stream()
-                .map(ConversationResponse::fromEntity)
-                .toList();
-
-        ApiResponse<List<ConversationResponse>> response = ApiResponse.success(responses, "Conversations retrieved successfully");
-        return Response.ok(response).build();
+    public Response getConversations(@Context SecurityContext securityContext) {
+        User currentUser = getCurrentUser(securityContext);
+        List<ConversationResponse> conversations = conversationService.getConversations(currentUser.getId());
+        return Response.ok(ApiResponse.success(conversations, "Conversations retrieved successfully")).build();
     }
 
     @GET
     @Path("/{conversationId}")
-    public Response getConversation(@Context HttpHeaders headers, @PathParam("conversationId") UUID conversationId) {
-        // Get current user from JWT token
-        String token = extractTokenFromHeaders(headers);
-        if (token == null || !tokenService.validateToken(token)) {
-            ApiResponse<Void> errorResponse = ApiResponse.error("Unauthorized access", "UNAUTHORIZED");
-            return Response.status(Response.Status.UNAUTHORIZED).entity(errorResponse).build();
-        }
-
-        String username = tokenService.getUsernameFromToken(token);
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new WebApplicationException("User not found", Response.Status.NOT_FOUND));
-
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new WebApplicationException("Conversation not found", Response.Status.NOT_FOUND));
-
-        // Check if user is participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(currentUser.getId()));
-
-        if (!isParticipant) {
-            ApiResponse<Void> errorResponse = ApiResponse.error("You do not have access to this conversation", "FORBIDDEN");
-            return Response.status(Response.Status.FORBIDDEN).entity(errorResponse).build();
-        }
-
-        ConversationResponse conversationResponse = ConversationResponse.fromEntity(conversation);
-        ApiResponse<ConversationResponse> response = ApiResponse.success(conversationResponse, "Conversation retrieved successfully");
-        return Response.ok(response).build();
+    public Response getConversation(@Context SecurityContext securityContext, @PathParam("conversationId") Long conversationId) {
+        User currentUser = getCurrentUser(securityContext);
+        ConversationResponse conversation = conversationService.getConversation(currentUser.getId(), conversationId);
+        return Response.ok(ApiResponse.success(conversation, "Conversation retrieved successfully")).build();
     }
 
-    private String extractTokenFromHeaders(HttpHeaders headers) {
-        String authHeader = headers.getHeaderString("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
-        return null;
+    private User getCurrentUser(SecurityContext securityContext) {
+        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
+        return userPrincipal.user();
     }
 }

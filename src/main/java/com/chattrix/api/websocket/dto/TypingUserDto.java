@@ -5,14 +5,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.UUID;
-
+/**
+ * DTO for user typing information
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class TypingUserDto {
-    private UUID userId;
+    private Long userId;
     private String username;
     private String fullName;
 }
+

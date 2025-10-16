@@ -10,7 +10,6 @@ import jakarta.transaction.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @ApplicationScoped
 public class MessageRepository {
@@ -24,7 +23,7 @@ public class MessageRepository {
         return message;
     }
 
-    public List<Message> findByConversationIdOrderBySentAtDesc(UUID conversationId, int page, int size) {
+    public List<Message> findByConversationIdOrderBySentAtDesc(Long conversationId, int page, int size) {
         TypedQuery<Message> query = em.createQuery(
                 "SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
@@ -39,7 +38,7 @@ public class MessageRepository {
         return query.getResultList();
     }
 
-    public long countByConversationId(UUID conversationId) {
+    public long countByConversationId(Long conversationId) {
         TypedQuery<Long> query = em.createQuery(
                 "SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId",
                 Long.class
@@ -48,7 +47,7 @@ public class MessageRepository {
         return query.getSingleResult();
     }
 
-    public Optional<Message> findById(UUID messageId) {
+    public Optional<Message> findById(Long messageId) {
         try {
             Message message = em.createQuery(
                             "SELECT m FROM Message m " +
@@ -65,7 +64,7 @@ public class MessageRepository {
         }
     }
 
-    public List<Message> findByConversationId(UUID conversationId) {
+    public List<Message> findByConversationId(Long conversationId) {
         return em.createQuery(
                         "SELECT m FROM Message m " +
                                 "LEFT JOIN FETCH m.sender " +

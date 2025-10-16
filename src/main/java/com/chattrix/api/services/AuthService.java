@@ -1,19 +1,21 @@
 package com.chattrix.api.services;
 
-import com.chattrix.api.dto.requests.ChangePasswordRequest;
-import com.chattrix.api.dto.requests.LoginRequest;
-import com.chattrix.api.dto.requests.RegisterRequest;
-import com.chattrix.api.dto.responses.AuthResponse;
-import com.chattrix.api.dto.responses.UserDto;
 import com.chattrix.api.entities.InvalidatedToken;
 import com.chattrix.api.entities.RefreshToken;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.exceptions.UnauthorizedException;
+import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.InvalidatedTokenRepository;
 import com.chattrix.api.repositories.RefreshTokenRepository;
 import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.requests.ChangePasswordRequest;
+import com.chattrix.api.requests.LoginRequest;
+import com.chattrix.api.requests.RegisterRequest;
+import com.chattrix.api.requests.ResendVerificationRequest;
+import com.chattrix.api.responses.AuthResponse;
+import com.chattrix.api.responses.UserResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -41,6 +43,9 @@ public class AuthService {
     @Inject
     private VerificationService verificationService;
 
+    @Inject
+    private UserMapper userMapper;
+
     @Transactional
     public void register(RegisterRequest registerRequest) {
         User newUser = new User();
@@ -51,8 +56,9 @@ public class AuthService {
         newUser.setPassword(hashedPassword);
         userRepository.save(newUser);
 
-        // Send verification email
-        verificationService.sendVerificationEmail(newUser.getEmail());
+        ResendVerificationRequest resendVerificationRequest = new ResendVerificationRequest();
+        resendVerificationRequest.setEmail(registerRequest.getEmail());
+        verificationService.sendVerificationEmail(resendVerificationRequest);
     }
 
     @Transactional
@@ -83,15 +89,16 @@ public class AuthService {
         );
     }
 
-    public UserDto getCurrentUser(String username) {
-        User user = userRepository.findByUsername(username)
+
+    public UserResponse getCurrentUserById(Long userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return UserDto.fromUser(user);
+        return userMapper.toResponse(user);
     }
 
     @Transactional
-    public void logout(String username, String accessToken) {
-        User user = userRepository.findByUsername(username)
+    public void logout(Long userId, String accessToken) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setOnline(false);
@@ -110,8 +117,8 @@ public class AuthService {
     }
 
     @Transactional
-    public void logoutAllDevices(String username) {
-        User user = userRepository.findByUsername(username)
+    public void logoutAllDevices(Long userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setOnline(false);
@@ -156,8 +163,8 @@ public class AuthService {
     }
 
     @Transactional
-    public void changePassword(String username, ChangePasswordRequest request) {
-        User user = userRepository.findByUsername(username)
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (!BCrypt.checkpw(request.getCurrentPassword(), user.getPassword())) {

@@ -8,6 +8,10 @@ import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.repositories.PasswordResetTokenRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.repositories.VerificationTokenRepository;
+import com.chattrix.api.requests.ForgotPasswordRequest;
+import com.chattrix.api.requests.ResendVerificationRequest;
+import com.chattrix.api.requests.ResetPasswordRequest;
+import com.chattrix.api.requests.VerifyEmailRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -19,25 +23,21 @@ import java.time.temporal.ChronoUnit;
 @ApplicationScoped
 public class VerificationService {
 
+    private static final int VERIFICATION_TOKEN_EXPIRY_MINUTES = 15;
+    private static final int PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15;
     @Inject
     private UserRepository userRepository;
-
     @Inject
     private VerificationTokenRepository verificationTokenRepository;
-
     @Inject
     private PasswordResetTokenRepository passwordResetTokenRepository;
-
     @Inject
     private EmailService emailService;
 
-    private static final int VERIFICATION_TOKEN_EXPIRY_MINUTES = 15;
-    private static final int PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15;
-
     @Transactional
-    public void sendVerificationEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+    public void sendVerificationEmail(ResendVerificationRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
         if (user.isEmailVerified()) {
             throw new BadRequestException("Email is already verified");
@@ -61,15 +61,15 @@ public class VerificationService {
     }
 
     @Transactional
-    public void verifyEmail(String email, String otp) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+    public void verifyEmail(VerifyEmailRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
         if (user.isEmailVerified()) {
             throw new BadRequestException("Email is already verified");
         }
 
-        VerificationToken token = verificationTokenRepository.findByToken(otp)
+        VerificationToken token = verificationTokenRepository.findByToken(request.getOtp())
                 .orElseThrow(() -> new BadRequestException("Invalid verification code"));
 
         if (!token.getUser().getId().equals(user.getId())) {
@@ -90,9 +90,9 @@ public class VerificationService {
     }
 
     @Transactional
-    public void sendPasswordResetEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+    public void sendPasswordResetEmail(ForgotPasswordRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
         // Delete old password reset tokens for this user
         passwordResetTokenRepository.deleteByUser(user);
@@ -112,11 +112,11 @@ public class VerificationService {
     }
 
     @Transactional
-    public void resetPassword(String email, String otp, String newPassword) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+    public void resetPassword(ResetPasswordRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(otp)
+        PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getOtp())
                 .orElseThrow(() -> new BadRequestException("Invalid reset code"));
 
         if (!token.getUser().getId().equals(user.getId())) {
@@ -132,7 +132,7 @@ public class VerificationService {
         passwordResetTokenRepository.save(token);
 
         // Update password
-        String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        String hashedPassword = BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt());
         user.setPassword(hashedPassword);
         userRepository.save(user);
     }

@@ -1,20 +1,15 @@
-package com.chattrix.api.websocket.dto;
+package com.chattrix.api.requests;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * DTO for typing indicator sent via WebSocket
- * Used for both client->server and server->client communication
- */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TypingIndicatorDto {
+public class TypingIndicatorRequest {
     private Long conversationId;
     private boolean typing; // true = start typing, false = stop typing
 }
-

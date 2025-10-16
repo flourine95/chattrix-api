@@ -6,13 +6,16 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
-import java.util.UUID;
 
+/**
+ * DTO for typing indicator response broadcast to clients via WebSocket
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class TypingIndicatorResponseDto {
-    private UUID conversationId;
-    private List<TypingUserDto> typingUsers; // List of users currently typing with their details
+    private Long conversationId;
+    private List<TypingUserDto> typingUsers;
 }
+

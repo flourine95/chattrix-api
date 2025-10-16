@@ -1,81 +1,97 @@
 package com.chattrix.api.services;
 
-import com.chattrix.api.dto.requests.CreateConversationRequest;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.exceptions.BadRequestException;
+import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.requests.CreateConversationRequest;
+import com.chattrix.api.responses.ConversationResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.BadRequestException;
-import jakarta.ws.rs.NotFoundException;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ConversationService {
 
     @Inject
-    private UserRepository userRepository;
-
-    @Inject
     private ConversationRepository conversationRepository;
 
+    @Inject
+    private UserRepository userRepository;
+
     @Transactional
-    public Conversation createConversation(CreateConversationRequest request, UUID creatorId) {
-        // Add creator to the list of participants if not already present
-        Set<UUID> participantIds = new HashSet<>(request.getParticipantIds());
-        participantIds.add(creatorId);
-
-        if (participantIds.size() < 2) {
-            throw new BadRequestException("A conversation needs at least two participants.");
+    public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
+        // Validate request
+        if (request.getParticipantIds() == null || request.getParticipantIds().isEmpty()) {
+            throw new BadRequestException("At least one participant is required");
         }
 
-        // Fetch all user entities
-        List<User> participants = userRepository.findByIds(participantIds);
-        if (participants.size() != participantIds.size()) {
-            throw new BadRequestException("One or more participant IDs are invalid.");
-        }
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Create Conversation
+        // Create conversation
         Conversation conversation = new Conversation();
-        conversation.setType(participants.size() > 2 ? Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT);
+        conversation.setName(request.getName());
+        conversation.setType("GROUP".equals(request.getType()) ?
+                Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT);
 
-        // Set name for group chat
-        if (conversation.getType() == Conversation.ConversationType.GROUP) {
-            if (request.getName() == null || request.getName().trim().isEmpty()) {
-                throw new BadRequestException("Group conversations must have a name.");
+        // Add participants
+        Set<ConversationParticipant> participants = new HashSet<>();
+
+        // Add current user as admin
+        ConversationParticipant currentUserParticipant = new ConversationParticipant();
+        currentUserParticipant.setUser(currentUser);
+        currentUserParticipant.setConversation(conversation);
+        currentUserParticipant.setRole(ConversationParticipant.Role.ADMIN);
+        participants.add(currentUserParticipant);
+
+        // Add other participants
+        for (Long participantId : request.getParticipantIds()) {
+            if (!participantId.equals(currentUserId)) {
+                User participant = userRepository.findById(participantId)
+                        .orElseThrow(() -> new BadRequestException("Participant not found: " + participantId));
+
+                ConversationParticipant conversationParticipant = new ConversationParticipant();
+                conversationParticipant.setUser(participant);
+                conversationParticipant.setConversation(conversation);
+                conversationParticipant.setRole(ConversationParticipant.Role.MEMBER);
+                participants.add(conversationParticipant);
             }
-            conversation.setName(request.getName());
         }
 
-        // Create ConversationParticipants
-        Set<ConversationParticipant> conversationParticipants = participants.stream().map(user -> {
-            ConversationParticipant participant = new ConversationParticipant();
-            participant.setUser(user);
-            participant.setConversation(conversation);
-            // For now, everyone is a member. Creator could be an admin in the future.
-            participant.setRole(ConversationParticipant.Role.MEMBER);
-            return participant;
-        }).collect(Collectors.toSet());
+        conversation.setParticipants(participants);
+        conversationRepository.save(conversation);
 
-        conversation.setParticipants(conversationParticipants);
-
-        return conversationRepository.save(conversation);
+        return ConversationResponse.fromEntity(conversation);
     }
 
-    public Conversation getConversationById(UUID conversationId) {
-        return conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new NotFoundException("Conversation not found."));
+    public List<ConversationResponse> getConversations(Long userId) {
+        List<Conversation> conversations = conversationRepository.findByUserId(userId);
+        return conversations.stream()
+                .map(ConversationResponse::fromEntity)
+                .toList();
     }
 
-    public List<Conversation> getUserConversations(UUID userId) {
-        return conversationRepository.findByUserId(userId);
+    public ConversationResponse getConversation(Long userId, Long conversationId) {
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+
+        // Check if user is participant
+        boolean isParticipant = conversation.getParticipants().stream()
+                .anyMatch(p -> p.getUser().getId().equals(userId));
+
+        if (!isParticipant) {
+            throw new BadRequestException("You do not have access to this conversation");
+        }
+
+        return ConversationResponse.fromEntity(conversation);
     }
 }
+

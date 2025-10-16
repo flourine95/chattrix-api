@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 @ApplicationScoped
 public class UserRepository {
@@ -29,17 +28,6 @@ public class UserRepository {
         return em.createQuery("SELECT COUNT(u) FROM User u WHERE u.email = :email", Long.class)
                 .setParameter("email", email)
                 .getSingleResult() > 0;
-    }
-
-    public Optional<User> findByUsername(String username) {
-        try {
-            User user = em.createQuery("SELECT u FROM User u WHERE u.username = :username", User.class)
-                    .setParameter("username", username)
-                    .getSingleResult();
-            return Optional.of(user);
-        } catch (NoResultException e) {
-            return Optional.empty();
-        }
     }
 
     public Optional<User> findByEmail(String email) {
@@ -64,11 +52,11 @@ public class UserRepository {
         }
     }
 
-    public Optional<User> findById(UUID id) {
+    public Optional<User> findById(Long id) {
         return Optional.ofNullable(em.find(User.class, id));
     }
 
-    public List<User> findByIds(Set<UUID> ids) {
+    public List<User> findByIds(Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -82,7 +70,7 @@ public class UserRepository {
                 .getResultList();
     }
 
-    public List<User> findOnlineUsersByConversationId(UUID conversationId) {
+    public List<User> findOnlineUsersByConversationId(Long conversationId) {
         return em.createQuery(
                         "SELECT DISTINCT u FROM User u " +
                                 "JOIN u.conversationParticipants cp " +

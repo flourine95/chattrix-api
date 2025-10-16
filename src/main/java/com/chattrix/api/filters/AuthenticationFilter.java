@@ -44,15 +44,17 @@ public class AuthenticationFilter implements ContainerRequestFilter {
                 throw new UnauthorizedException("Invalid or expired token");
             }
 
-            String username = tokenService.getUsernameFromToken(token);
-            User user = userRepository.findByUsername(username)
+            Long userId = tokenService.getUserIdFromToken(token);
+            User user = userRepository.findById(userId)
                     .orElseThrow(() -> new UnauthorizedException("User not found"));
 
             final SecurityContext currentSecurityContext = requestContext.getSecurityContext();
+            final UserPrincipal userPrincipal = new UserPrincipal(user, token);
+
             requestContext.setSecurityContext(new SecurityContext() {
                 @Override
                 public Principal getUserPrincipal() {
-                    return user::getUsername;
+                    return userPrincipal;
                 }
 
                 @Override

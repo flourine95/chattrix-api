@@ -1,4 +1,4 @@
-package com.chattrix.api.dto.requests;
+package com.chattrix.api.requests;
 
 import com.chattrix.api.validations.UniqueEmail;
 import com.chattrix.api.validations.UniqueUsername;
