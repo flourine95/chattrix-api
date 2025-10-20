@@ -13,7 +13,7 @@ import java.util.List;
 public interface ConversationMapper {
 
     @Mapping(target = "type", expression = "java(conversation.getType().name())")
-    @Mapping(target = "title", source = "name")
+    @Mapping(target = "name", source = "name")
     @Mapping(target = "lastMessage", source = "lastMessage")
     ConversationResponse toResponse(Conversation conversation);
 

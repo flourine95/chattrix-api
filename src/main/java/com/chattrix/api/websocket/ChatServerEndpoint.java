@@ -28,7 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @ApplicationScoped
-@ServerEndpoint(value = "/v1/chat",
+@ServerEndpoint(value = "/ws/chat",
         configurator = CdiAwareConfigurator.class,
         encoders = MessageEncoder.class,
         decoders = MessageDecoder.class)

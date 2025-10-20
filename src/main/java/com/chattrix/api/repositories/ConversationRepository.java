@@ -56,4 +56,23 @@ public class ConversationRepository {
         Conversation conversation = em.find(Conversation.class, conversationId);
         return Optional.ofNullable(conversation);
     }
+
+    public Optional<Conversation> findDirectConversationBetweenUsers(Long userId1, Long userId2) {
+        try {
+            Conversation conversation = em.createQuery(
+                            "SELECT DISTINCT c FROM Conversation c " +
+                                    "JOIN c.participants p1 " +
+                                    "JOIN c.participants p2 " +
+                                    "WHERE c.type = 'DIRECT' " +
+                                    "AND p1.user.id = :userId1 " +
+                                    "AND p2.user.id = :userId2 " +
+                                    "AND p1.user.id != p2.user.id", Conversation.class)
+                    .setParameter("userId1", userId1)
+                    .setParameter("userId2", userId2)
+                    .getSingleResult();
+            return Optional.of(conversation);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
 }

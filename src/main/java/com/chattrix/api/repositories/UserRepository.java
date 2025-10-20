@@ -88,6 +88,31 @@ public class UserRepository {
                 .getResultList();
     }
 
+    public List<User> searchUsers(String query, Long excludeUserId, int limit) {
+        String searchPattern = "%" + query.toLowerCase() + "%";
+        return em.createQuery(
+                        "SELECT u FROM User u " +
+                                "WHERE u.id != :excludeUserId " +
+                                "AND (LOWER(u.username) LIKE :query " +
+                                "OR LOWER(u.fullName) LIKE :query " +
+                                "OR LOWER(u.email) LIKE :query) " +
+                                "ORDER BY " +
+                                "CASE " +
+                                "  WHEN LOWER(u.username) = :exactQuery THEN 1 " +
+                                "  WHEN LOWER(u.fullName) = :exactQuery THEN 2 " +
+                                "  WHEN LOWER(u.username) LIKE :startQuery THEN 3 " +
+                                "  WHEN LOWER(u.fullName) LIKE :startQuery THEN 4 " +
+                                "  ELSE 5 " +
+                                "END, " +
+                                "u.fullName ASC", User.class)
+                .setParameter("excludeUserId", excludeUserId)
+                .setParameter("query", searchPattern)
+                .setParameter("exactQuery", query.toLowerCase())
+                .setParameter("startQuery", query.toLowerCase() + "%")
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
     @Transactional
     public User save(User user) {
         if (user.getId() == null) {

@@ -13,7 +13,7 @@ import java.util.List;
 public class ConversationResponse {
     private Long id;
     private String type;
-    private String title;
+    private String name;
     private Instant createdAt;
     private Instant updatedAt;
     private List<ParticipantResponse> participants;
@@ -23,6 +23,7 @@ public class ConversationResponse {
         ConversationResponse response = new ConversationResponse();
         response.setId(conversation.getId());
         response.setType(conversation.getType().name());
+        response.setName(conversation.getName());
         response.setCreatedAt(conversation.getCreatedAt());
         response.setUpdatedAt(conversation.getUpdatedAt());
 
