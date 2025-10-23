@@ -75,4 +75,20 @@ public class MessageRepository {
                 .setParameter("conversationId", conversationId)
                 .getResultList();
     }
+
+    public List<Message> findByConversationIdWithSort(Long conversationId, int page, int size, String sortDirection) {
+        String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
+        TypedQuery<Message> query = em.createQuery(
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.conversation.id = :conversationId " +
+                        "ORDER BY m.sentAt " + orderClause,
+                Message.class
+        );
+        query.setParameter("conversationId", conversationId);
+        query.setFirstResult(page * size);
+        query.setMaxResults(size);
+
+        return query.getResultList();
+    }
 }

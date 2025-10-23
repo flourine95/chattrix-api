@@ -32,7 +32,7 @@ public class MessageService {
     @Inject
     private UserRepository userRepository;
 
-    public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size) {
+    public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
@@ -43,7 +43,7 @@ public class MessageService {
             throw new BadRequestException("You do not have access to this conversation");
         }
 
-        List<Message> messages = messageRepository.findByConversationId(conversationId);
+        List<Message> messages = messageRepository.findByConversationIdWithSort(conversationId, page, size, sort);
         return messages.stream()
                 .map(messageMapper::toResponse)
                 .toList();
@@ -97,6 +97,10 @@ public class MessageService {
         message.setConversation(conversation);
         message.setType(Message.MessageType.TEXT);
         messageRepository.save(message);
+
+        // Update conversation's lastMessage and updatedAt
+        conversation.setLastMessage(message);
+        conversationRepository.save(conversation);
 
         return messageMapper.toResponse(message);
     }

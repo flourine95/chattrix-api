@@ -35,6 +35,11 @@ public class ConversationResponse {
             );
         }
 
+        // Map lastMessage if exists
+        if (conversation.getLastMessage() != null) {
+            response.setLastMessage(MessageResponse.fromEntity(conversation.getLastMessage()));
+        }
+
         return response;
     }
 
@@ -59,8 +64,22 @@ public class ConversationResponse {
     public static class MessageResponse {
         private Long id;
         private String content;
+        private Long senderId;
         private String senderUsername;
         private Instant sentAt;
         private String type;
+
+        public static MessageResponse fromEntity(com.chattrix.api.entities.Message message) {
+            if (message == null) return null;
+
+            MessageResponse response = new MessageResponse();
+            response.setId(message.getId());
+            response.setContent(message.getContent());
+            response.setSenderId(message.getSender().getId());
+            response.setSenderUsername(message.getSender().getUsername());
+            response.setSentAt(message.getSentAt());
+            response.setType(message.getType().name());
+            return response;
+        }
     }
 }

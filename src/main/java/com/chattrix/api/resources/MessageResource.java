@@ -31,10 +31,11 @@ public class MessageResource {
             @Context SecurityContext securityContext,
             @PathParam("conversationId") Long conversationId,
             @QueryParam("page") @DefaultValue("0") int page,
-            @QueryParam("size") @DefaultValue("50") int size) {
+            @QueryParam("size") @DefaultValue("50") int size,
+            @QueryParam("sort") @DefaultValue("DESC") String sort) {
 
         User currentUser = getCurrentUser(securityContext);
-        List<MessageResponse> messages = messageService.getMessages(currentUser.getId(), conversationId, page, size);
+        List<MessageResponse> messages = messageService.getMessages(currentUser.getId(), conversationId, page, size, sort);
         return Response.ok(ApiResponse.success(messages, "Messages retrieved successfully")).build();
     }
 

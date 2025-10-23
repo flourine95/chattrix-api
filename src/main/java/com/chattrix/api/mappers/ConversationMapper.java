@@ -24,6 +24,7 @@ public interface ConversationMapper {
     @Mapping(target = "role", expression = "java(participant.getRole().name())")
     ConversationResponse.ParticipantResponse toParticipantResponse(ConversationParticipant participant);
 
+    @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderUsername", source = "sender.username")
     @Mapping(target = "sentAt", source = "sentAt")
     @Mapping(target = "type", expression = "java(message.getType().name())")

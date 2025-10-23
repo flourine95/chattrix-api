@@ -97,6 +97,10 @@ public class ChatServerEndpoint {
         } else if ("typing.stop".equals(message.getType())) {
             TypingIndicatorDto typingDto = objectMapper.convertValue(message.getPayload(), TypingIndicatorDto.class);
             processTypingStop(userId, typingDto);
+        } else if ("heartbeat".equals(message.getType())) {
+            // Client sends heartbeat to keep connection alive and update last_seen
+            // last_seen is already updated above, just send acknowledgment
+            processHeartbeat(session, userId);
         }
     }
 
@@ -140,15 +144,22 @@ public class ChatServerEndpoint {
         newMessage.setType(Message.MessageType.TEXT);
         messageRepository.save(newMessage);
 
-        // 2. Prepare the outgoing message DTO using mapper
+        // 2. Update conversation's lastMessage and updatedAt
+        conversation.setLastMessage(newMessage);
+        conversationRepository.save(conversation);
+
+        // 3. Prepare the outgoing message DTO using mapper
         OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(newMessage);
         WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>("chat.message", outgoingDto);
 
-        // 3. Broadcast the message to all participants in the conversation
+        // 4. Broadcast the message to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {
             Long participantId = participant.getUser().getId();
             chatSessionService.sendMessageToUser(participantId, outgoingWebSocketMessage);
         });
+
+        // 5. Broadcast conversation update (lastMessage changed) to all participants
+        broadcastConversationUpdate(conversation);
     }
 
     private void processTypingStart(Long userId, TypingIndicatorDto typingDto) {
@@ -227,6 +238,47 @@ public class ChatServerEndpoint {
         conversation.getParticipants().forEach(participant -> {
             Long participantId = participant.getUser().getId();
             System.out.println("DEBUG: Broadcasting typing indicator to participant: " + participantId);
+            chatSessionService.sendMessageToUser(participantId, message);
+        });
+    }
+
+    private void processHeartbeat(Session session, Long userId) {
+        // Send acknowledgment back to client
+        WebSocketMessage<Map<String, Object>> ackMessage = new WebSocketMessage<>("heartbeat.ack", Map.of(
+                "userId", userId.toString(),
+                "timestamp", java.time.Instant.now().toString()
+        ));
+
+        try {
+            session.getBasicRemote().sendObject(ackMessage);
+        } catch (IOException | EncodeException e) {
+            System.err.println("Error sending heartbeat acknowledgment: " + e.getMessage());
+        }
+    }
+
+    private void broadcastConversationUpdate(Conversation conversation) {
+        ConversationUpdateDto updateDto = new ConversationUpdateDto();
+        updateDto.setConversationId(conversation.getId());
+        updateDto.setUpdatedAt(conversation.getUpdatedAt());
+
+        // Map lastMessage if exists
+        if (conversation.getLastMessage() != null) {
+            Message lastMsg = conversation.getLastMessage();
+            ConversationUpdateDto.LastMessageDto lastMessageDto = new ConversationUpdateDto.LastMessageDto();
+            lastMessageDto.setId(lastMsg.getId());
+            lastMessageDto.setContent(lastMsg.getContent());
+            lastMessageDto.setSenderId(lastMsg.getSender().getId());
+            lastMessageDto.setSenderUsername(lastMsg.getSender().getUsername());
+            lastMessageDto.setSentAt(lastMsg.getSentAt());
+            lastMessageDto.setType(lastMsg.getType().name());
+            updateDto.setLastMessage(lastMessageDto);
+        }
+
+        WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>("conversation.update", updateDto);
+
+        // Broadcast to all participants in the conversation
+        conversation.getParticipants().forEach(participant -> {
+            Long participantId = participant.getUser().getId();
             chatSessionService.sendMessageToUser(participantId, message);
         });
     }
