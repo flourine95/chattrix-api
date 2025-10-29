@@ -15,6 +15,33 @@ import java.util.Map;
 @Setter
 @Entity
 @Table(name = "messages")
+@NamedEntityGraph(
+        name = "Message.withSenderAndReply",
+        attributeNodes = {
+                @NamedAttributeNode("sender"),
+                @NamedAttributeNode(value = "replyToMessage", subgraph = "replySubgraph")
+        },
+        subgraphs = {
+                @NamedSubgraph(
+                        name = "replySubgraph",
+                        attributeNodes = @NamedAttributeNode("sender")
+                )
+        }
+)
+@NamedEntityGraph(
+        name = "Message.withSenderAndConversation",
+        attributeNodes = {
+                @NamedAttributeNode("sender"),
+                @NamedAttributeNode("conversation"),
+                @NamedAttributeNode(value = "replyToMessage", subgraph = "replySubgraph")
+        },
+        subgraphs = {
+                @NamedSubgraph(
+                        name = "replySubgraph",
+                        attributeNodes = @NamedAttributeNode("sender")
+                )
+        }
+)
 public class Message {
 
     @Id

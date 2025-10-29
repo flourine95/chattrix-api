@@ -2,6 +2,7 @@ package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Message;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.EntityGraph;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
@@ -49,15 +50,15 @@ public class MessageRepository {
 
     public Optional<Message> findById(Long messageId) {
         try {
+            // Use EntityGraph to fetch nested relationships without alias
+            EntityGraph<?> entityGraph = em.getEntityGraph("Message.withSenderAndConversation");
+
             Message message = em.createQuery(
                             "SELECT m FROM Message m " +
-                                    "LEFT JOIN FETCH m.sender " +
-                                    "LEFT JOIN FETCH m.conversation " +
-                                    "LEFT JOIN FETCH m.replyToMessage rm " +
-                                    "LEFT JOIN FETCH rm.sender " +
                                     "WHERE m.id = :messageId",
                             Message.class
                     )
+                    .setHint("jakarta.persistence.fetchgraph", entityGraph)
                     .setParameter("messageId", messageId)
                     .getSingleResult();
             return Optional.of(message);
@@ -80,15 +81,17 @@ public class MessageRepository {
 
     public List<Message> findByConversationIdWithSort(Long conversationId, int page, int size, String sortDirection) {
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
+
+        // Use EntityGraph to fetch nested relationships without alias
+        EntityGraph<?> entityGraph = em.getEntityGraph("Message.withSenderAndReply");
+
         TypedQuery<Message> query = em.createQuery(
                 "SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "LEFT JOIN FETCH m.replyToMessage rm " +
-                        "LEFT JOIN FETCH rm.sender " +
                         "WHERE m.conversation.id = :conversationId " +
                         "ORDER BY m.sentAt " + orderClause,
                 Message.class
         );
+        query.setHint("jakarta.persistence.fetchgraph", entityGraph);
         query.setParameter("conversationId", conversationId);
         query.setFirstResult(page * size);
         query.setMaxResults(size);
