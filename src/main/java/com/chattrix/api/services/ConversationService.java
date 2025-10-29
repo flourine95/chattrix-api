@@ -5,9 +5,11 @@ import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
+import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.CreateConversationRequest;
+import com.chattrix.api.responses.ConversationMemberResponse;
 import com.chattrix.api.responses.ConversationResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -25,6 +27,9 @@ public class ConversationService {
 
     @Inject
     private UserRepository userRepository;
+
+    @Inject
+    private MessageMapper messageMapper;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -92,6 +97,26 @@ public class ConversationService {
         }
 
         return ConversationResponse.fromEntity(conversation);
+    }
+
+    public List<ConversationMemberResponse> getConversationMembers(Long userId, Long conversationId) {
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+
+        // Check if user is participant
+        boolean isParticipant = conversation.getParticipants().stream()
+                .anyMatch(p -> p.getUser().getId().equals(userId));
+
+        if (!isParticipant) {
+            throw new BadRequestException("You do not have access to this conversation");
+        }
+
+        // Get all participant users
+        List<User> users = conversation.getParticipants().stream()
+                .map(ConversationParticipant::getUser)
+                .toList();
+
+        return messageMapper.toConversationMemberResponseList(users);
     }
 }
 

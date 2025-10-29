@@ -8,11 +8,15 @@ import com.chattrix.api.websocket.dto.TypingUserDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "cdi")
+@Mapper(componentModel = "cdi", uses = {MessageMapper.class})
 public interface WebSocketMapper {
 
     @Mapping(target = "conversationId", source = "conversation.id")
     @Mapping(target = "sender", source = "sender")
+    @Mapping(target = "type", expression = "java(message.getType().name())")
+    @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
+    @Mapping(target = "replyToMessage", source = "replyToMessage")
+    @Mapping(target = "mentionedUsers", ignore = true)
     OutgoingMessageDto toOutgoingMessageResponse(Message message);
 
     @Mapping(target = "userId", source = "id")

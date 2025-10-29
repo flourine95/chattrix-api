@@ -122,4 +122,13 @@ public class UserRepository {
             return em.merge(user);
         }
     }
+
+    public List<User> findByIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("SELECT u FROM User u WHERE u.id IN :userIds", User.class)
+                .setParameter("userIds", userIds)
+                .getResultList();
+    }
 }

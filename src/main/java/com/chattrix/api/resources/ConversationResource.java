@@ -5,6 +5,7 @@ import com.chattrix.api.filters.Secured;
 import com.chattrix.api.filters.UserPrincipal;
 import com.chattrix.api.requests.CreateConversationRequest;
 import com.chattrix.api.responses.ApiResponse;
+import com.chattrix.api.responses.ConversationMemberResponse;
 import com.chattrix.api.responses.ConversationResponse;
 import com.chattrix.api.services.ConversationService;
 import jakarta.inject.Inject;
@@ -48,6 +49,14 @@ public class ConversationResource {
         User currentUser = getCurrentUser(securityContext);
         ConversationResponse conversation = conversationService.getConversation(currentUser.getId(), conversationId);
         return Response.ok(ApiResponse.success(conversation, "Conversation retrieved successfully")).build();
+    }
+
+    @GET
+    @Path("/{conversationId}/members")
+    public Response getConversationMembers(@Context SecurityContext securityContext, @PathParam("conversationId") Long conversationId) {
+        User currentUser = getCurrentUser(securityContext);
+        List<ConversationMemberResponse> members = conversationService.getConversationMembers(currentUser.getId(), conversationId);
+        return Response.ok(ApiResponse.success(members, "Conversation members retrieved successfully")).build();
     }
 
     private User getCurrentUser(SecurityContext securityContext) {

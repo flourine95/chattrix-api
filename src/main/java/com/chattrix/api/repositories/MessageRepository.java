@@ -53,6 +53,8 @@ public class MessageRepository {
                             "SELECT m FROM Message m " +
                                     "LEFT JOIN FETCH m.sender " +
                                     "LEFT JOIN FETCH m.conversation " +
+                                    "LEFT JOIN FETCH m.replyToMessage rm " +
+                                    "LEFT JOIN FETCH rm.sender " +
                                     "WHERE m.id = :messageId",
                             Message.class
                     )
@@ -81,6 +83,8 @@ public class MessageRepository {
         TypedQuery<Message> query = em.createQuery(
                 "SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
+                        "LEFT JOIN FETCH m.replyToMessage rm " +
+                        "LEFT JOIN FETCH rm.sender " +
                         "WHERE m.conversation.id = :conversationId " +
                         "ORDER BY m.sentAt " + orderClause,
                 Message.class
@@ -90,5 +94,14 @@ public class MessageRepository {
         query.setMaxResults(size);
 
         return query.getResultList();
+    }
+
+    public Optional<Message> findByIdSimple(Long messageId) {
+        try {
+            Message message = em.find(Message.class, messageId);
+            return Optional.ofNullable(message);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 }

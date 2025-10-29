@@ -45,7 +45,7 @@ public class MessageService {
 
         List<Message> messages = messageRepository.findByConversationIdWithSort(conversationId, page, size, sort);
         return messages.stream()
-                .map(messageMapper::toResponse)
+                .map(this::mapMessageToResponse)
                 .toList();
     }
 
@@ -70,7 +70,7 @@ public class MessageService {
             throw new ResourceNotFoundException("Message not found");
         }
 
-        return messageMapper.toResponse(message);
+        return mapMessageToResponse(message);
     }
 
     @Transactional
@@ -90,18 +90,82 @@ public class MessageService {
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        // Validate reply to message if provided
+        Message replyToMessage = null;
+        if (request.replyToMessageId() != null) {
+            replyToMessage = messageRepository.findByIdSimple(request.replyToMessageId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Reply to message not found"));
+
+            // Verify reply message belongs to same conversation
+            if (!replyToMessage.getConversation().getId().equals(conversationId)) {
+                throw new BadRequestException("Cannot reply to message from different conversation");
+            }
+        }
+
+        // Validate mentions if provided
+        if (request.mentions() != null && !request.mentions().isEmpty()) {
+            List<Long> participantIds = conversation.getParticipants().stream()
+                    .map(p -> p.getUser().getId())
+                    .toList();
+
+            for (Long mentionedUserId : request.mentions()) {
+                if (!participantIds.contains(mentionedUserId)) {
+                    throw new BadRequestException("Cannot mention user who is not in this conversation");
+                }
+            }
+        }
+
         // Create and save message
         Message message = new Message();
         message.setContent(request.content());
         message.setSender(sender);
         message.setConversation(conversation);
-        message.setType(Message.MessageType.TEXT);
+
+        // Set message type
+        Message.MessageType messageType = Message.MessageType.TEXT;
+        if (request.type() != null) {
+            try {
+                messageType = Message.MessageType.valueOf(request.type().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid message type: " + request.type());
+            }
+        }
+        message.setType(messageType);
+
+        // Set rich media fields
+        message.setMediaUrl(request.mediaUrl());
+        message.setThumbnailUrl(request.thumbnailUrl());
+        message.setFileName(request.fileName());
+        message.setFileSize(request.fileSize());
+        message.setDuration(request.duration());
+
+        // Set location fields
+        message.setLatitude(request.latitude());
+        message.setLongitude(request.longitude());
+        message.setLocationName(request.locationName());
+
+        // Set reply and mentions
+        message.setReplyToMessage(replyToMessage);
+        message.setMentions(request.mentions());
+
         messageRepository.save(message);
 
         // Update conversation's lastMessage and updatedAt
         conversation.setLastMessage(message);
         conversationRepository.save(conversation);
 
-        return messageMapper.toResponse(message);
+        return mapMessageToResponse(message);
+    }
+
+    private MessageResponse mapMessageToResponse(Message message) {
+        MessageResponse response = messageMapper.toResponse(message);
+
+        // Map mentioned users if mentions exist
+        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
+            List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
+            response.setMentionedUsers(messageMapper.toMentionedUserResponseList(mentionedUsers));
+        }
+
+        return response;
     }
 }
