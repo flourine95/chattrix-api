@@ -35,8 +35,8 @@ public class VerificationToken {
 
     private Instant verifiedAt;
 
-    @Column(nullable = false)
-    private boolean used = false;
+    @Column(name = "is_used", nullable = false)
+    private boolean isUsed = false;
 
     @PrePersist
     protected void onCreate() {
@@ -48,11 +48,11 @@ public class VerificationToken {
     }
 
     public boolean isValid() {
-        return !used && !isExpired() && verifiedAt == null;
+        return !isUsed && !isExpired() && verifiedAt == null;
     }
 
     public void markAsUsed() {
-        this.used = true;
+        this.isUsed = true;
         this.verifiedAt = Instant.now();
     }
 }

@@ -35,8 +35,8 @@ public class PasswordResetToken {
 
     private Instant usedAt;
 
-    @Column(nullable = false)
-    private boolean used = false;
+    @Column(name = "is_used", nullable = false)
+    private boolean isUsed = false;
 
     @PrePersist
     protected void onCreate() {
@@ -48,11 +48,11 @@ public class PasswordResetToken {
     }
 
     public boolean isValid() {
-        return !used && !isExpired();
+        return !isUsed && !isExpired();
     }
 
     public void markAsUsed() {
-        this.used = true;
+        this.isUsed = true;
         this.usedAt = Instant.now();
     }
 }

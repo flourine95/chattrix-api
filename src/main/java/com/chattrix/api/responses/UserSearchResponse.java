@@ -1,5 +1,6 @@
 package com.chattrix.api.responses;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,6 +14,7 @@ public class UserSearchResponse {
     private String email;
     private String fullName;
     private String avatarUrl;
+    @JsonProperty("isOnline")
     private boolean isOnline;
     private Instant lastSeen;
     private boolean contact;
