@@ -3,6 +3,7 @@ package com.chattrix.api.websocket;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
@@ -16,6 +17,7 @@ import com.chattrix.api.websocket.codec.MessageEncoder;
 import com.chattrix.api.websocket.dto.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.websocket.*;
@@ -213,8 +215,8 @@ public class ChatServerEndpoint {
             outgoingDto.setMentionedUsers(
                 messageRepository.findById(newMessage.getId())
                     .map(msg -> {
-                        com.chattrix.api.mappers.MessageMapper messageMapper =
-                            jakarta.enterprise.inject.spi.CDI.current().select(com.chattrix.api.mappers.MessageMapper.class).get();
+                        MessageMapper messageMapper =
+                            CDI.current().select(MessageMapper.class).get();
                         return messageMapper.toMentionedUserResponseList(mentionedUsers);
                     })
                     .orElse(List.of())
@@ -316,7 +318,7 @@ public class ChatServerEndpoint {
                 .collect(java.util.stream.Collectors.toList());
 
         System.out.println("DEBUG: Final typing users to broadcast: " + typingUsers.size() + " users - " +
-                typingUsers.stream().map(TypingUserDto::getUsername).collect(java.util.stream.Collectors.toList()));
+                typingUsers.stream().map(TypingUserDto::getUsername).toList());
 
         // Create response
         TypingIndicatorResponseDto response = new TypingIndicatorResponseDto(conversationId, typingUsers);

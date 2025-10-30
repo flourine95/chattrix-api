@@ -6,11 +6,16 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.websocket.dto.ConversationUpdateDto;
+import com.chattrix.api.websocket.dto.MentionEventDto;
+import com.chattrix.api.websocket.dto.OutgoingMessageDto;
+import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -31,6 +36,12 @@ public class MessageService {
 
     @Inject
     private UserRepository userRepository;
+
+    @Inject
+    private ChatSessionService chatSessionService;
+
+    @Inject
+    private WebSocketMapper webSocketMapper;
 
     public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -154,7 +165,76 @@ public class MessageService {
         conversation.setLastMessage(message);
         conversationRepository.save(conversation);
 
+        // Broadcast message to all participants via WebSocket
+        broadcastMessage(message, conversation);
+
+        // Broadcast conversation update
+        broadcastConversationUpdate(conversation);
+
         return mapMessageToResponse(message);
+    }
+
+    private void broadcastMessage(Message message, Conversation conversation) {
+        // Prepare the outgoing message DTO using mapper
+        OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(message);
+
+        // Populate mentioned users if mentions exist
+        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
+            List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
+            outgoingDto.setMentionedUsers(messageMapper.toMentionedUserResponseList(mentionedUsers));
+        }
+
+        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>("chat.message", outgoingDto);
+
+        // Broadcast the message to all participants in the conversation
+        conversation.getParticipants().forEach(participant -> {
+            Long participantId = participant.getUser().getId();
+            chatSessionService.sendMessageToUser(participantId, outgoingWebSocketMessage);
+        });
+
+        // Send mention notifications to mentioned users
+        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
+            for (Long mentionedUserId : message.getMentions()) {
+                MentionEventDto mentionEvent = new MentionEventDto();
+                mentionEvent.setMessageId(message.getId());
+                mentionEvent.setConversationId(conversation.getId());
+                mentionEvent.setSenderId(message.getSender().getId());
+                mentionEvent.setSenderName(message.getSender().getFullName());
+                mentionEvent.setContent(message.getContent());
+                mentionEvent.setMentionedUserId(mentionedUserId);
+                mentionEvent.setCreatedAt(message.getCreatedAt());
+
+                WebSocketMessage<MentionEventDto> mentionMessage = new WebSocketMessage<>("message.mention", mentionEvent);
+                chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
+            }
+        }
+    }
+
+    private void broadcastConversationUpdate(Conversation conversation) {
+        ConversationUpdateDto updateDto = new ConversationUpdateDto();
+        updateDto.setConversationId(conversation.getId());
+        updateDto.setUpdatedAt(conversation.getUpdatedAt());
+
+        // Map lastMessage if exists
+        if (conversation.getLastMessage() != null) {
+            Message lastMsg = conversation.getLastMessage();
+            ConversationUpdateDto.LastMessageDto lastMessageDto = new ConversationUpdateDto.LastMessageDto();
+            lastMessageDto.setId(lastMsg.getId());
+            lastMessageDto.setContent(lastMsg.getContent());
+            lastMessageDto.setSenderId(lastMsg.getSender().getId());
+            lastMessageDto.setSenderUsername(lastMsg.getSender().getUsername());
+            lastMessageDto.setSentAt(lastMsg.getSentAt());
+            lastMessageDto.setType(lastMsg.getType().name());
+            updateDto.setLastMessage(lastMessageDto);
+        }
+
+        WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>("conversation.update", updateDto);
+
+        // Broadcast to all participants in the conversation
+        conversation.getParticipants().forEach(participant -> {
+            Long participantId = participant.getUser().getId();
+            chatSessionService.sendMessageToUser(participantId, message);
+        });
     }
 
     private MessageResponse mapMessageToResponse(Message message) {
