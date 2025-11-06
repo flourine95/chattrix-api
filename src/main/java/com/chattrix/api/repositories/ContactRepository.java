@@ -30,7 +30,7 @@ public class ContactRepository {
         return em.createQuery(
                         "SELECT c FROM Contact c " +
                                 "JOIN FETCH c.contactUser " +
-                                "WHERE c.user.id = :userId AND c.isBlocked = false " +
+                                "WHERE c.user.id = :userId AND c.status = 'ACCEPTED' " +
                                 "ORDER BY c.isFavorite DESC, c.contactUser.fullName ASC",
                         Contact.class)
                 .setParameter("userId", userId)
@@ -41,8 +41,41 @@ public class ContactRepository {
         return em.createQuery(
                         "SELECT c FROM Contact c " +
                                 "JOIN FETCH c.contactUser " +
-                                "WHERE c.user.id = :userId AND c.isFavorite = true AND c.isBlocked = false " +
+                                "WHERE c.user.id = :userId AND c.isFavorite = true AND c.status = 'ACCEPTED' " +
                                 "ORDER BY c.contactUser.fullName ASC",
+                        Contact.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    public List<Contact> findPendingRequestsReceived(Long userId) {
+        return em.createQuery(
+                        "SELECT c FROM Contact c " +
+                                "JOIN FETCH c.user " +
+                                "WHERE c.contactUser.id = :userId AND c.status = 'PENDING' " +
+                                "ORDER BY c.requestedAt DESC",
+                        Contact.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    public List<Contact> findPendingRequestsSent(Long userId) {
+        return em.createQuery(
+                        "SELECT c FROM Contact c " +
+                                "JOIN FETCH c.contactUser " +
+                                "WHERE c.user.id = :userId AND c.status = 'PENDING' " +
+                                "ORDER BY c.requestedAt DESC",
+                        Contact.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    public List<Contact> findBlockedByUserId(Long userId) {
+        return em.createQuery(
+                        "SELECT c FROM Contact c " +
+                                "JOIN FETCH c.contactUser " +
+                                "WHERE c.user.id = :userId AND c.status = 'BLOCKED' " +
+                                "ORDER BY c.updatedAt DESC",
                         Contact.class)
                 .setParameter("userId", userId)
                 .getResultList();

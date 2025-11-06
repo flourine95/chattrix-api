@@ -7,10 +7,12 @@ import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
+import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ChatMessageRequest;
+import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;
@@ -20,7 +22,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class MessageService {
@@ -42,6 +46,9 @@ public class MessageService {
 
     @Inject
     private WebSocketMapper webSocketMapper;
+
+    @Inject
+    private ConversationParticipantRepository participantRepository;
 
     public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -246,6 +253,75 @@ public class MessageService {
             response.setMentionedUsers(messageMapper.toMentionedUserResponseList(mentionedUsers));
         }
 
+        return response;
+    }
+
+    // ==================== CHAT INFO METHODS ====================
+
+    public Map<String, Object> searchMessages(Long userId, Long conversationId, String query, String type, Long senderId, int page, int size, String sort) {
+        // Check if user is participant
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw new BadRequestException("You do not have access to this conversation");
+        }
+
+        List<Message> messages = messageRepository.searchMessages(conversationId, query, type, senderId, page, size, sort);
+        long totalElements = messageRepository.countSearchMessages(conversationId, query, type, senderId);
+        long totalPages = (totalElements + size - 1) / size;
+
+        List<MessageResponse> messageResponses = messages.stream()
+                .map(this::mapMessageToResponse)
+                .toList();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("data", messageResponses);
+        result.put("pagination", Map.of(
+                "page", page,
+                "size", size,
+                "totalElements", totalElements,
+                "totalPages", totalPages
+        ));
+
+        return result;
+    }
+
+    public Map<String, Object> getMediaFiles(Long userId, Long conversationId, String type, int page, int size) {
+        // Check if user is participant
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw new BadRequestException("You do not have access to this conversation");
+        }
+
+        List<Message> messages = messageRepository.findMediaByConversationId(conversationId, type, page, size);
+        long totalElements = messageRepository.countMediaByConversationId(conversationId, type);
+        long totalPages = (totalElements + size - 1) / size;
+
+        List<MediaResponse> mediaResponses = messages.stream()
+                .map(this::mapMessageToMediaResponse)
+                .toList();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("data", mediaResponses);
+        result.put("pagination", Map.of(
+                "page", page,
+                "size", size,
+                "totalElements", totalElements,
+                "totalPages", totalPages
+        ));
+
+        return result;
+    }
+
+    private MediaResponse mapMessageToMediaResponse(Message message) {
+        MediaResponse response = new MediaResponse();
+        response.setId(message.getId());
+        response.setType(message.getType().name());
+        response.setMediaUrl(message.getMediaUrl());
+        response.setThumbnailUrl(message.getThumbnailUrl());
+        response.setFileName(message.getFileName());
+        response.setFileSize(message.getFileSize());
+        response.setDuration(message.getDuration());
+        response.setSenderId(message.getSender().getId());
+        response.setSenderUsername(message.getSender().getUsername());
+        response.setSentAt(message.getSentAt());
         return response;
     }
 }

@@ -95,12 +95,11 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.20.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-core -->
         <dependency>
-            <groupId>org.hibernate</groupId>
+            <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
             <version>6.6.34.Final</version>
-        </dependency><!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-validator -->
+        </dependency>
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-validator</artifactId>
@@ -111,9 +110,27 @@
         <finalName>chattrix-api</finalName>
         <plugins>
             <plugin>
+                <groupId>org.wildfly.plugins</groupId>
+                <artifactId>wildfly-maven-plugin</artifactId>
+                <version>5.1.5.Final</version>
+                <configuration>
+                    <jbossHome>C:\wildfly-38.0.0.Final</jbossHome>
+                    <hostname>localhost</hostname>
+                    <port>9990</port>
+                    <username>long</username>
+                    <password>long</password>
+                    <debug>true</debug>
+                    <debugPort>8787</debugPort>
+                </configuration>
+            </plugin>
+
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.4.0</version>
+                <configuration>
+                    <warName>ROOT</warName>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

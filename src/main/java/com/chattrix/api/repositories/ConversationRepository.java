@@ -52,7 +52,7 @@ public class ConversationRepository {
         }
     }
 
-    public Optional<Object> findById(Long conversationId) {
+    public Optional<Conversation> findById(Long conversationId) {
         Conversation conversation = em.find(Conversation.class, conversationId);
         return Optional.ofNullable(conversation);
     }

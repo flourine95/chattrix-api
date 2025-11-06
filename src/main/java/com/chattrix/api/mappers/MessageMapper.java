@@ -25,6 +25,9 @@ public interface MessageMapper {
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "replyToMessage", source = "replyToMessage")
     @Mapping(target = "mentionedUsers", ignore = true)
+    @Mapping(target = "originalMessageId", source = "originalMessage.id")
+    @Mapping(target = "readCount", ignore = true)
+    @Mapping(target = "readBy", ignore = true)
     MessageResponse toResponse(Message message);
 
     @Mapping(target = "senderId", source = "sender.id")

@@ -21,6 +21,9 @@ public class Conversation {
     @Column(length = 150)
     private String name; // Tên nhóm, null nếu 1-1
 
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl; // Avatar URL cho nhóm
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ConversationType type; // DIRECT hoặc GROUP

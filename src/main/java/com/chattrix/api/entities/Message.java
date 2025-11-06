@@ -113,6 +113,35 @@ public class Message {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    // Message editing
+    @Column(name = "is_edited", nullable = false)
+    private boolean isEdited = false;
+
+    @Column(name = "edited_at")
+    private Instant editedAt;
+
+    // Message deletion (soft delete)
+    @Column(name = "is_deleted", nullable = false)
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by")
+    private User deletedBy;
+
+    // Message forwarding
+    @Column(name = "is_forwarded", nullable = false)
+    private boolean isForwarded = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_message_id")
+    private Message originalMessage;
+
+    @Column(name = "forward_count")
+    private Integer forwardCount = 0;
+
     @PrePersist
     protected void onPrePersist() {
         this.sentAt = Instant.now();

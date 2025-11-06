@@ -33,6 +33,16 @@ public class ConversationParticipant {
     @Column(name = "joined_at")
     private Instant joinedAt;
 
+    // Unread count tracking
+    @Column(name = "unread_count", nullable = false)
+    private int unreadCount = 0;
+
+    @Column(name = "last_read_message_id")
+    private Long lastReadMessageId;
+
+    @Column(name = "last_read_at")
+    private Instant lastReadAt;
+
     @PrePersist
     protected void onPrePersist() {
         this.joinedAt = Instant.now();

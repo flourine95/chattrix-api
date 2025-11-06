@@ -14,6 +14,7 @@ public class ConversationResponse {
     private Long id;
     private String type;
     private String name;
+    private String avatarUrl;
     private Instant createdAt;
     private Instant updatedAt;
     private List<ParticipantResponse> participants;
@@ -24,6 +25,7 @@ public class ConversationResponse {
         response.setId(conversation.getId());
         response.setType(conversation.getType().name());
         response.setName(conversation.getName());
+        response.setAvatarUrl(conversation.getAvatarUrl());
         response.setCreatedAt(conversation.getCreatedAt());
         response.setUpdatedAt(conversation.getUpdatedAt());
 

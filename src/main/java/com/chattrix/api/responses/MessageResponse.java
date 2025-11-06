@@ -44,4 +44,17 @@ public class MessageResponse {
     private Instant sentAt;
     private Instant createdAt;
     private Instant updatedAt;
+
+    // Edit/Delete/Forward
+    private boolean isEdited;
+    private Instant editedAt;
+    private boolean isDeleted;
+    private Instant deletedAt;
+    private boolean isForwarded;
+    private Long originalMessageId;
+    private Integer forwardCount;
+
+    // Read receipts
+    private Long readCount;
+    private List<ReadReceiptResponse> readBy;
 }

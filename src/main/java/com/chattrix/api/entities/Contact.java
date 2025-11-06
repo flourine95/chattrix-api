@@ -35,8 +35,18 @@ public class Contact {
     @Column(name = "is_favorite", nullable = false)
     private boolean isFavorite = false;
 
-    @Column(name = "is_blocked", nullable = false)
-    private boolean isBlocked = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private ContactStatus status = ContactStatus.ACCEPTED;
+
+    @Column(name = "requested_at")
+    private Instant requestedAt;
+
+    @Column(name = "accepted_at")
+    private Instant acceptedAt;
+
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -52,5 +62,12 @@ public class Contact {
     @PreUpdate
     protected void onPreUpdate() {
         this.updatedAt = Instant.now();
+    }
+
+    public enum ContactStatus {
+        PENDING,    // Lời mời đang chờ
+        ACCEPTED,   // Đã chấp nhận (là bạn bè)
+        REJECTED,   // Đã từ chối
+        BLOCKED     // Đã chặn
     }
 }
