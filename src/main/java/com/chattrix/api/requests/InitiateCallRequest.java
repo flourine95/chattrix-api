@@ -1,0 +1,30 @@
+package com.chattrix.api.requests;
+
+import com.chattrix.api.entities.CallType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+
+/**
+ * Request DTO for initiating a new call.
+ * Validates: Requirements 1.1
+ */
+@Getter
+@Setter
+public class InitiateCallRequest {
+    
+    @NotBlank(message = "Call ID cannot be blank")
+    private String callId;
+    
+    @NotBlank(message = "Callee ID cannot be blank")
+    private String calleeId;
+    
+    @NotNull(message = "Call type cannot be null")
+    private CallType callType;
+    
+    @NotBlank(message = "Channel ID cannot be blank")
+    @Size(max = 64, message = "Channel ID must not exceed 64 characters")
+    private String channelId;
+}

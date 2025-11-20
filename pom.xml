@@ -16,6 +16,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <junit.version>5.10.2</junit.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <flyway.version>10.21.0</flyway.version>
     </properties>
 
     <dependencies>
@@ -104,6 +105,36 @@
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-validator</artifactId>
             <version>8.0.3.Final</version>
+        </dependency>
+        <!-- Agora RTC SDK for token generation -->
+        <dependency>
+            <groupId>io.agora</groupId>
+            <artifactId>authentication</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <!-- Flyway for database migrations -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <version>${flyway.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <version>${flyway.version}</version>
+        </dependency>
+        <!-- JUnit QuickCheck for property-based testing -->
+        <dependency>
+            <groupId>com.pholser</groupId>
+            <artifactId>junit-quickcheck-core</artifactId>
+            <version>1.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.pholser</groupId>
+            <artifactId>junit-quickcheck-generators</artifactId>
+            <version>1.0</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>

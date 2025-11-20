@@ -1,6 +1,7 @@
 package com.chattrix.api.exceptions;
 
 import com.chattrix.api.responses.ApiResponse;
+import com.chattrix.api.responses.ErrorResponse;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import jakarta.json.bind.JsonbException;
@@ -11,6 +12,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -21,13 +23,15 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
     @Override
     public Response toResponse(Throwable exception) {
-        LOGGER.log(Level.SEVERE, "Exception occurred: " + exception.getMessage(), exception);
+        String requestId = UUID.randomUUID().toString();
+        LOGGER.log(Level.SEVERE, "Exception occurred [requestId: " + requestId + "]: " + exception.getMessage(), exception);
 
         // Handle Jackson JSON parsing errors
         if (exception instanceof JsonParseException) {
-            ApiResponse<Void> response = ApiResponse.error(
+            ErrorResponse response = ErrorResponse.of(
+                    "JSON_PARSE_ERROR",
                     "Malformed JSON - syntax error in request body",
-                    "JSON_PARSE_ERROR"
+                    requestId
             );
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(response)
@@ -36,9 +40,10 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
         // Handle Jackson JSON mapping errors
         if (exception instanceof JsonMappingException) {
-            ApiResponse<Void> response = ApiResponse.error(
+            ErrorResponse response = ErrorResponse.of(
+                    "JSON_MAPPING_ERROR",
                     "Invalid JSON structure - field mapping failed",
-                    "JSON_MAPPING_ERROR"
+                    requestId
             );
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(response)
@@ -47,9 +52,10 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
         // Handle JSON-B parsing errors
         if (exception instanceof JsonbException) {
-            ApiResponse<Void> response = ApiResponse.error(
+            ErrorResponse response = ErrorResponse.of(
+                    "JSON_PARSE_ERROR",
                     "Invalid JSON format",
-                    "JSON_PARSE_ERROR"
+                    requestId
             );
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(response)
@@ -58,9 +64,10 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
         // Handle ProcessingException with JsonParseException cause
         if (exception instanceof ProcessingException && exception.getCause() instanceof JsonParseException) {
-            ApiResponse<Void> response = ApiResponse.error(
+            ErrorResponse response = ErrorResponse.of(
+                    "JSON_PARSE_ERROR",
                     "Malformed JSON input",
-                    "JSON_PARSE_ERROR"
+                    requestId
             );
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(response)
@@ -79,16 +86,17 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
                         ? "Invalid or missing path parameter: " + paramName
                         : "Invalid request path or missing required parameter";
 
-                ApiResponse<Void> response = ApiResponse.error(message, "INVALID_PATH_PARAMETER");
+                ErrorResponse response = ErrorResponse.of("INVALID_PATH_PARAMETER", message, requestId);
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(response)
                         .build();
             }
 
             // Regular 404 - resource not found
-            ApiResponse<Void> response = ApiResponse.error(
+            ErrorResponse response = ErrorResponse.of(
+                    "RESOURCE_NOT_FOUND",
                     "Resource not found",
-                    "RESOURCE_NOT_FOUND"
+                    requestId
             );
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(response)
@@ -102,16 +110,17 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
             }
 
             String message = exception.getMessage() != null ? exception.getMessage() : "Request failed";
-            ApiResponse<Void> response = ApiResponse.error(message, "REQUEST_ERROR");
+            ErrorResponse response = ErrorResponse.of("REQUEST_ERROR", message, requestId);
             return Response.status(webEx.getResponse().getStatus())
                     .entity(response)
                     .build();
         }
 
         // Handle all other unexpected errors
-        ApiResponse<Void> response = ApiResponse.error(
+        ErrorResponse response = ErrorResponse.of(
+                "INTERNAL_SERVER_ERROR",
                 "An unexpected error occurred",
-                "INTERNAL_ERROR"
+                requestId
         );
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(response)
