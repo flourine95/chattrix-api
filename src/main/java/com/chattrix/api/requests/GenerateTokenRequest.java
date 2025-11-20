@@ -20,7 +20,7 @@ public class GenerateTokenRequest {
     @Size(max = 64, message = "Channel ID must not exceed 64 characters")
     private String channelId;
     
-    @NotBlank(message = "User ID cannot be blank")
+    // User ID is set by the backend from JWT token, not validated from client request
     private String userId;
     
     @NotBlank(message = "Role cannot be blank")

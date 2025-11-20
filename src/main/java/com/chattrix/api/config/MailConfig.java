@@ -31,13 +31,17 @@ public class MailConfig {
 
     @PostConstruct
     public void init() {
-        // Load SMTP settings
+        // Load SMTP settings (default to Gmail SMTP)
         smtpHost = appConfig.get("mail.smtp.host");
+        if (smtpHost == null || smtpHost.isEmpty()) {
+            smtpHost = "smtp.gmail.com";
+        }
+        
         smtpPort = appConfig.getInt("mail.smtp.port", 587);
         starttlsEnable = appConfig.getBoolean("mail.smtp.starttls.enable", true);
         smtpAuth = appConfig.getBoolean("mail.smtp.auth", true);
 
-        // Load credentials (username is optional, password required if username is set)
+        // Load credentials
         username = appConfig.get("mail.username");
         password = appConfig.get("mail.password");
 

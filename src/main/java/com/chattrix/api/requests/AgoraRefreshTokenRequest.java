@@ -15,7 +15,7 @@ public class AgoraRefreshTokenRequest {
     @NotBlank(message = "Channel ID cannot be blank")
     private String channelId;
     
-    @NotBlank(message = "User ID cannot be blank")
+    // User ID is set by the backend from JWT token, not validated from client request
     private String userId;
     
     @NotBlank(message = "Old token cannot be blank")
