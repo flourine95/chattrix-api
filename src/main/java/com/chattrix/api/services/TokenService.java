@@ -1,35 +1,44 @@
 package com.chattrix.api.services;
 
+import com.chattrix.api.config.JwtConfig;
 import com.chattrix.api.entities.RefreshToken;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.repositories.InvalidatedTokenRepository;
 import com.chattrix.api.repositories.RefreshTokenRepository;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
 @ApplicationScoped
 public class TokenService {
 
-    private static final int MINUTE = 60 * 1000;
-    private static final int HOUR = 60 * MINUTE;
-    private static final int DAY = 24 * HOUR;
-    private static final long REFRESH_TOKEN_VALIDITY = 7 * DAY;
-    private static final long ACCESS_TOKEN_VALIDITY = 15 * MINUTE;
-    private final SecretKey key = Jwts.SIG.HS256.key().build();
+    @Inject
+    private JwtConfig jwtConfig;
+
     @Inject
     private InvalidatedTokenRepository invalidatedTokenRepository;
 
     @Inject
     private RefreshTokenRepository refreshTokenRepository;
 
+    private SecretKey key;
+
+    @PostConstruct
+    public void init() {
+        // Generate SecretKey from JWT secret string
+        this.key = Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes(StandardCharsets.UTF_8));
+    }
+
     public String generateAccessToken(User user, String jti) {
         Date now = new Date();
-        Date validity = new Date(now.getTime() + ACCESS_TOKEN_VALIDITY);
+        Date validity = new Date(now.getTime() + jwtConfig.getAccessExpirationMillis());
 
         return Jwts.builder()
                 .subject(user.getId().toString())
@@ -42,7 +51,7 @@ public class TokenService {
     }
 
     public RefreshToken generateRefreshToken(User user, String accessTokenId, String accessToken) {
-        Instant expiresAt = Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY);
+        Instant expiresAt = Instant.now().plusMillis(jwtConfig.getRefreshExpirationMillis());
         RefreshToken refreshToken = new RefreshToken(user, expiresAt);
         refreshToken.setAccessTokenId(accessTokenId);
         refreshToken.setAccessToken(accessToken);
@@ -51,11 +60,11 @@ public class TokenService {
     }
 
     public long getAccessTokenValidityInSeconds() {
-        return ACCESS_TOKEN_VALIDITY / 1000;
+        return jwtConfig.getAccessExpirationMillis() / 1000;
     }
 
     public long getRefreshTokenValidityInSeconds() {
-        return REFRESH_TOKEN_VALIDITY / 1000;
+        return jwtConfig.getRefreshExpirationMillis() / 1000;
     }
 
     public Long getUserIdFromToken(String token) {

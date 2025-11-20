@@ -1,7 +1,9 @@
 package com.chattrix.api.services;
 
+import com.chattrix.api.config.MailConfig;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -19,36 +21,32 @@ public class EmailService {
     private static final Logger LOGGER = Logger.getLogger(EmailService.class.getName());
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static final String SMTP_HOST = "smtp.gmail.com";
-    private static final String SMTP_PORT = "587";
-    private static final String SMTP_USERNAME = System.getenv("SMTP_USERNAME");
-    private static final String SMTP_PASSWORD = System.getenv("SMTP_PASSWORD");
-    private static final String FROM_EMAIL = System.getenv("FROM_EMAIL") != null ? System.getenv("FROM_EMAIL") : "noreply@chattrix.com";
-    private static final String FROM_NAME = "Chattrix";
+    @Inject
+    private MailConfig mailConfig;
 
     private Session mailSession;
 
     @PostConstruct
     public void init() {
         Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", SMTP_HOST);
-        props.put("mail.smtp.port", SMTP_PORT);
+        props.put("mail.smtp.auth", String.valueOf(mailConfig.isSmtpAuth()));
+        props.put("mail.smtp.starttls.enable", String.valueOf(mailConfig.isStarttlsEnable()));
+        props.put("mail.smtp.host", mailConfig.getSmtpHost());
+        props.put("mail.smtp.port", String.valueOf(mailConfig.getSmtpPort()));
         props.put("mail.smtp.ssl.protocols", "TLSv1.2");
 
         // Check if SMTP credentials are configured
-        if (SMTP_USERNAME != null && SMTP_PASSWORD != null) {
+        if (mailConfig.isConfigured()) {
             mailSession = Session.getInstance(props, new Authenticator() {
                 @Override
                 protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(SMTP_USERNAME, SMTP_PASSWORD);
+                    return new PasswordAuthentication(mailConfig.getUsername(), mailConfig.getPassword());
                 }
             });
             LOGGER.info("Email service initialized with SMTP configuration");
         } else {
             LOGGER.warning("SMTP credentials not configured. Email sending will be simulated (logged to console).");
-            LOGGER.warning("Please set environment variables: SMTP_USERNAME, SMTP_PASSWORD, FROM_EMAIL");
+            LOGGER.warning("Please configure mail settings in application.properties or environment variables");
         }
     }
 
@@ -105,7 +103,7 @@ public class EmailService {
 
         try {
             Message message = new MimeMessage(mailSession);
-            message.setFrom(new InternetAddress(FROM_EMAIL, FROM_NAME));
+            message.setFrom(new InternetAddress(mailConfig.getFromAddress(), mailConfig.getFromName()));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
             // Encode subject with UTF-8 to support Vietnamese characters
             message.setSubject(MimeUtility.encodeText(subject, "UTF-8", "B"));
