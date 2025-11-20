@@ -1,0 +1,112 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: chattrix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chattrix
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chattrix-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # CloudBeaver - Modern Database Web UI
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: chattrix-cloudbeaver
+    restart: unless-stopped
+    ports:
+      - "8978:8978"
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    networks:
+      - chattrix-network
+    depends_on:
+      - postgres
+
+  # Chattrix API (WildFly)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chattrix-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # WildFly Admin Console Credentials
+      WILDFLY_ADMIN_USER: ${WILDFLY_ADMIN_USER:-admin}
+      WILDFLY_ADMIN_PASSWORD: ${WILDFLY_ADMIN_PASSWORD:-admin123}
+      
+      # Agora Configuration
+      AGORA_APP_ID: ${AGORA_APP_ID}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE}
+      AGORA_DEFAULT_TOKEN_EXPIRATION: ${AGORA_DEFAULT_TOKEN_EXPIRATION:-3600}
+      AGORA_MAX_TOKEN_EXPIRATION: ${AGORA_MAX_TOKEN_EXPIRATION:-86400}
+      AGORA_MIN_TOKEN_EXPIRATION: ${AGORA_MIN_TOKEN_EXPIRATION:-60}
+      
+      # Call Configuration
+      CALL_TIMEOUT_SECONDS: ${CALL_TIMEOUT_SECONDS:-60}
+      CALL_MAX_DURATION_SECONDS: ${CALL_MAX_DURATION_SECONDS:-14400}
+      
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION_MINUTES: ${JWT_ACCESS_EXPIRATION_MINUTES:-15}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-7}
+      
+      # Database Configuration
+      DB_URL: jdbc:postgresql://postgres:5432/chattrix
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      
+      # Email Configuration (Optional)
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.gmail.com}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}
+      MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE:-true}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@chattrix.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Chattrix}
+      
+      # Application Configuration
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      APP_NAME: ${APP_NAME:-Chattrix}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-dev}
+      
+      # Cloudinary Configuration (Optional)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    ports:
+      - "8080:8080"
+      - "9990:9990"
+    networks:
+      - chattrix-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  chattrix-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  cloudbeaver_data:
+    driver: local

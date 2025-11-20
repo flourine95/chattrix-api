@@ -1,0 +1,47 @@
+# Configure PostgreSQL datasource for Chattrix
+embed-server --server-config=standalone.xml --std-out=echo
+
+# Add PostgreSQL JDBC driver
+/subsystem=datasources/jdbc-driver=postgresql:add( \
+    driver-name=postgresql, \
+    driver-module-name=org.postgresql, \
+    driver-class-name=org.postgresql.Driver, \
+    driver-xa-datasource-class-name=org.postgresql.xa.PGXADataSource \
+)
+
+# Remove default H2 datasource (ExampleDS) and replace with PostgreSQL
+/subsystem=datasources/data-source=ExampleDS:remove
+/subsystem=datasources/data-source=ExampleDS:add( \
+    jndi-name=java:jboss/datasources/ExampleDS, \
+    driver-name=postgresql, \
+    connection-url=jdbc:postgresql://postgres:5432/chattrix, \
+    user-name=postgres, \
+    password=postgres123, \
+    use-java-context=true, \
+    enabled=true, \
+    validate-on-match=true, \
+    background-validation=false, \
+    valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker, \
+    exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter \
+)
+
+# Add ChattrixDS as alias
+/subsystem=datasources/data-source=ChattrixDS:add( \
+    jndi-name=java:jboss/datasources/ChattrixDS, \
+    driver-name=postgresql, \
+    connection-url=jdbc:postgresql://postgres:5432/chattrix, \
+    user-name=postgres, \
+    password=postgres123, \
+    use-java-context=true, \
+    enabled=true, \
+    validate-on-match=true, \
+    background-validation=false, \
+    valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker, \
+    exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter \
+)
+
+# Test the connections
+/subsystem=datasources/data-source=ExampleDS:test-connection-in-pool
+/subsystem=datasources/data-source=ChattrixDS:test-connection-in-pool
+
+stop-embedded-server
