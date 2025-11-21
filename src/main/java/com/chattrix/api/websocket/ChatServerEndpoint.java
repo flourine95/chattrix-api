@@ -3,15 +3,15 @@ package com.chattrix.api.websocket;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.exceptions.BadRequestException;
+import com.chattrix.api.exceptions.ResourceNotFoundException;
+import com.chattrix.api.exceptions.UnauthorizedException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.services.ChatSessionService;
-import com.chattrix.api.services.TokenService;
-import com.chattrix.api.services.TypingIndicatorService;
-import com.chattrix.api.services.UserStatusService;
+import com.chattrix.api.services.*;
 import com.chattrix.api.websocket.codec.MessageDecoder;
 import com.chattrix.api.websocket.codec.MessageEncoder;
 import com.chattrix.api.websocket.dto.*;
@@ -53,6 +53,8 @@ public class ChatServerEndpoint {
     private UserStatusService userStatusService;
     @Inject
     private WebSocketMapper webSocketMapper;
+    @Inject
+    private CallService callService;
 
     @OnOpen
     public void onOpen(Session session) throws IOException {
@@ -103,6 +105,12 @@ public class ChatServerEndpoint {
             // Client sends heartbeat to keep connection alive and update last_seen
             // last_seen is already updated above, just send acknowledgment
             processHeartbeat(session, userId);
+        } else if ("call.accept".equals(message.getType())) {
+            processCallAccept(session, userId, message);
+        } else if ("call.reject".equals(message.getType())) {
+            processCallReject(session, userId, message);
+        } else if ("call.end".equals(message.getType())) {
+            processCallEnd(session, userId, message);
         }
     }
 
@@ -213,13 +221,13 @@ public class ChatServerEndpoint {
         if (newMessage.getMentions() != null && !newMessage.getMentions().isEmpty()) {
             List<User> mentionedUsers = userRepository.findByIds(newMessage.getMentions());
             outgoingDto.setMentionedUsers(
-                messageRepository.findById(newMessage.getId())
-                    .map(msg -> {
-                        MessageMapper messageMapper =
-                            CDI.current().select(MessageMapper.class).get();
-                        return messageMapper.toMentionedUserResponseList(mentionedUsers);
-                    })
-                    .orElse(List.of())
+                    messageRepository.findById(newMessage.getId())
+                            .map(msg -> {
+                                MessageMapper messageMapper =
+                                        CDI.current().select(MessageMapper.class).get();
+                                return messageMapper.toMentionedUserResponseList(mentionedUsers);
+                            })
+                            .orElse(List.of())
             );
         }
 
@@ -396,5 +404,204 @@ public class ChatServerEndpoint {
             return params.get("token").get(0);
         }
         return null;
+    }
+
+    /**
+     * Process call accept message from WebSocket
+     * Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 8.2, 8.4, 10.3, 10.4
+     */
+    private void processCallAccept(Session session, Long userId, WebSocketMessage<?> message) {
+        try {
+            // Parse CallAcceptDto from message payload
+            CallAcceptDto callAcceptDto = objectMapper.convertValue(message.getPayload(), CallAcceptDto.class);
+
+            // Extract callId from DTO
+            String callId = callAcceptDto.getCallId();
+
+            if (callId == null || callId.trim().isEmpty()) {
+                sendCallError(session, null, "invalid_request", "Call ID is required");
+                return;
+            }
+
+            System.out.println("Processing call accept for call: " + callId + " by user: " + userId);
+
+            // Invoke CallService to process the acceptance
+            callService.acceptCallViaWebSocket(callId, String.valueOf(userId));
+
+            System.out.println("Call accepted successfully: " + callId);
+
+        } catch (ResourceNotFoundException e) {
+            // Call not found
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "call_not_found", e.getMessage());
+            System.err.println("Call not found: " + e.getMessage());
+        } catch (UnauthorizedException e) {
+            // User is not authorized (not the callee)
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "unauthorized", e.getMessage());
+            System.err.println("Unauthorized call accept: " + e.getMessage());
+        } catch (BadRequestException e) {
+            // Invalid call status or call has timed out
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "invalid_status", e.getMessage());
+            System.err.println("Invalid call status: " + e.getMessage());
+        } catch (Exception e) {
+            // Generic error
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "service_error", "An unexpected error occurred");
+            System.err.println("Error processing call accept: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Process call reject message from WebSocket
+     * Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 8.2, 8.4, 10.3, 10.4
+     */
+    private void processCallReject(Session session, Long userId, WebSocketMessage<?> message) {
+        try {
+            // Parse CallRejectDto from message payload
+            CallRejectDto callRejectDto = objectMapper.convertValue(message.getPayload(), CallRejectDto.class);
+
+            // Extract callId and reason from DTO
+            String callId = callRejectDto.getCallId();
+            String reason = callRejectDto.getReason();
+
+            if (callId == null || callId.trim().isEmpty()) {
+                sendCallError(session, null, "invalid_request", "Call ID is required");
+                return;
+            }
+
+            System.out.println("Processing call reject for call: " + callId + " by user: " + userId + " with reason: " + reason);
+
+            // Invoke CallService to process the rejection
+            callService.rejectCallViaWebSocket(callId, String.valueOf(userId), reason);
+
+            System.out.println("Call rejected successfully: " + callId);
+
+        } catch (com.chattrix.api.exceptions.ResourceNotFoundException e) {
+            // Call not found
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "call_not_found", e.getMessage());
+            System.err.println("Call not found: " + e.getMessage());
+        } catch (com.chattrix.api.exceptions.UnauthorizedException e) {
+            // User is not authorized (not the callee)
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "unauthorized", e.getMessage());
+            System.err.println("Unauthorized call reject: " + e.getMessage());
+        } catch (com.chattrix.api.exceptions.BadRequestException e) {
+            // Invalid call status
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "invalid_status", e.getMessage());
+            System.err.println("Invalid call status: " + e.getMessage());
+        } catch (Exception e) {
+            // Generic error
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "service_error", "An unexpected error occurred");
+            System.err.println("Error processing call reject: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Process call end message from WebSocket
+     * Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 8.2, 8.4, 10.3, 10.4
+     */
+    private void processCallEnd(Session session, Long userId, WebSocketMessage<?> message) {
+        try {
+            // Parse CallEndDto from message payload
+            CallEndDto callEndDto = objectMapper.convertValue(message.getPayload(), CallEndDto.class);
+
+            // Extract callId and durationSeconds from DTO
+            String callId = callEndDto.getCallId();
+            Integer durationSeconds = callEndDto.getDurationSeconds();
+
+            if (callId == null || callId.trim().isEmpty()) {
+                sendCallError(session, null, "invalid_request", "Call ID is required");
+                return;
+            }
+
+            System.out.println("Processing call end for call: " + callId + " by user: " + userId +
+                    " with duration: " + durationSeconds);
+
+            // Invoke CallService to process the call ending
+            callService.endCallViaWebSocket(callId, String.valueOf(userId), durationSeconds);
+
+            System.out.println("Call ended successfully: " + callId);
+
+        } catch (com.chattrix.api.exceptions.ResourceNotFoundException e) {
+            // Call not found
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "call_not_found", e.getMessage());
+            System.err.println("Call not found: " + e.getMessage());
+        } catch (com.chattrix.api.exceptions.UnauthorizedException e) {
+            // User is not authorized (not a participant)
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "unauthorized", e.getMessage());
+            System.err.println("Unauthorized call end: " + e.getMessage());
+        } catch (com.chattrix.api.exceptions.BadRequestException e) {
+            // Invalid call status (call already ended)
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "invalid_status", e.getMessage());
+            System.err.println("Invalid call status: " + e.getMessage());
+        } catch (Exception e) {
+            // Generic error
+            String callId = extractCallIdFromPayload(message.getPayload());
+            sendCallError(session, callId, "service_error", "An unexpected error occurred");
+            System.err.println("Error processing call end: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Send call error message to client
+     * Validates: Requirements 8.2, 8.3, 8.4, 8.5
+     */
+    private void sendCallError(Session session, String callId, String errorType, String errorMessage) {
+        try {
+            CallErrorDto errorDto = new CallErrorDto();
+            errorDto.setCallId(callId);
+            errorDto.setErrorType(errorType);
+            errorDto.setMessage(errorMessage);
+
+            WebSocketMessage<CallErrorDto> wsMessage = new WebSocketMessage<>("call_error", errorDto);
+            session.getBasicRemote().sendObject(wsMessage);
+
+            System.err.println("Sent call error to user: " + errorType + " - " + errorMessage);
+        } catch (Exception e) {
+            System.err.println("Failed to send error message: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Helper method to extract callId from payload for error handling
+     */
+    private String extractCallIdFromPayload(Object payload) {
+        try {
+            if (payload instanceof Map) {
+                Object callId = ((Map<?, ?>) payload).get("callId");
+                return callId != null ? callId.toString() : null;
+            }
+            // Try to extract as CallAcceptDto, CallRejectDto, or CallEndDto
+            try {
+                CallAcceptDto acceptDto = objectMapper.convertValue(payload, CallAcceptDto.class);
+                return acceptDto.getCallId();
+            } catch (Exception e1) {
+                try {
+                    CallRejectDto rejectDto = objectMapper.convertValue(payload, CallRejectDto.class);
+                    return rejectDto.getCallId();
+                } catch (Exception e2) {
+                    try {
+                        CallEndDto endDto = objectMapper.convertValue(payload, CallEndDto.class);
+                        return endDto.getCallId();
+                    } catch (Exception e3) {
+                        return null;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

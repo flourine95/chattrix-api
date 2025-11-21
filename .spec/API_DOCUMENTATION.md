@@ -366,5 +366,22 @@ Server gửi tin nhắn đến client với cùng cấu trúc `{"type": "...", "
   - Sự kiện này được phát đến tất cả các client được kết nối khi một người dùng kết nối hoặc ngắt kết nối.
 
 ---
+
+## 5. Call API
+
+Chattrix hỗ trợ cuộc gọi video và audio thông qua cả REST API và WebSocket. Để biết tài liệu chi tiết về API cuộc gọi, vui lòng xem:
+
+**[📞 Call API Documentation](./CALL_API_DOCUMENTATION.md)**
+
+Tài liệu này bao gồm:
+- REST API endpoints cho quản lý cuộc gọi
+- WebSocket signaling cho giao tiếp thời gian thực
+- Các loại tin nhắn và cấu trúc payload
+- Xử lý lỗi và ví dụ sử dụng
+- Hướng dẫn tích hợp cho client
+
+**Lưu ý:** WebSocket được khuyến nghị sử dụng cho các thao tác cuộc gọi (accept, reject, end) do có độ trễ thấp hơn. REST API endpoints vẫn được duy trì để tương thích ngược.
+
+---
 *Lưu ý: Các endpoint trong `TypingIndicatorResource.java` được đánh dấu là "Test endpoint" và có vẻ không dành cho client chính thức sử dụng, vì các chức năng này được xử lý qua WebSocket. Do đó, chúng không được đưa vào tài liệu này.*
 

@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chattrix WebSocket Test Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #1877f2;
+            margin-bottom: 20px;
+        }
+        
+        .clients-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .client-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .client-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e4e6eb;
+        }
+        
+        .client-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #050505;
+        }
+        
+        .status {
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .config-section {
+            margin-bottom: 15px;
+        }
+        
+        .config-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #65676b;
+            font-size: 13px;
+        }
+        
+        .config-section input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .config-section input:focus {
+            outline: none;
+            border-color: #1877f2;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: #1877f2;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #166fe5;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .message-section {
+            margin-top: 20px;
+        }
+        
+        .message-section h3 {
+            font-size: 14px;
+            color: #65676b;
+            margin-bottom: 10px;
+        }
+        
+        .message-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .message-input-group input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .message-input-group button {
+            padding: 8px 16px;
+        }
+        
+        .call-section {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f7f8fa;
+            border-radius: 6px;
+        }
+        
+        .call-section h3 {
+            font-size: 14px;
+            color: #65676b;
+            margin-bottom: 10px;
+        }
+        
+        .call-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .call-actions button {
+            flex: 1;
+            min-width: 100px;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        
+        .log-section {
+            margin-top: 20px;
+        }
+        
+        .log-section h3 {
+            font-size: 14px;
+            color: #65676b;
+            margin-bottom: 10px;
+        }
+        
+        .log-container {
+            background: #f7f8fa;
+            border: 1px solid #e4e6eb;
+            border-radius: 6px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e4e6eb;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-time {
+            color: #65676b;
+            margin-right: 8px;
+        }
+        
+        .log-type {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .log-type.sent {
+            color: #1877f2;
+        }
+        
+        .log-type.received {
+            color: #28a745;
+        }
+        
+        .log-type.error {
+            color: #dc3545;
+        }
+        
+        .log-type.info {
+            color: #6c757d;
+        }
+        
+        .log-content {
+            color: #050505;
+        }
+        
+        .clear-log {
+            margin-top: 10px;
+        }
+        
+        .instructions {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .instructions h2 {
+            color: #1877f2;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+            color: #65676b;
+        }
+        
+        .instructions code {
+            background: #f7f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Chattrix WebSocket Test Client</h1>
+        
+        <div class="instructions">
+            <h2>📋 Hướng dẫn sử dụng:</h2>
+            <ol>
+                <li>Nhập <code>WebSocket URL</code> (mặc định: ws://localhost:8080/ws/chat)</li>
+                <li>Nhập <code>JWT Token</code> cho mỗi user (lấy từ API login)</li>
+                <li>Nhập <code>Conversation ID</code> để test chat</li>
+                <li>Click <strong>Connect</strong> để kết nối WebSocket</li>
+                <li>Test các tính năng: Send Message, Typing, Call operations</li>
+                <li>Xem logs để theo dõi messages được gửi/nhận</li>
+            </ol>
+        </div>
+        
+        <div class="clients-container">
+            <!-- Client 1 -->
+            <div class="client-panel">
+                <div class="client-header">
+                    <div class="client-title">👤 User 1</div>
+                    <div class="status disconnected" id="status1">Disconnected</div>
+                </div>
+                
+                <div class="config-section">
+                    <label>WebSocket URL:</label>
+                    <input type="text" id="wsUrl1" value="ws://localhost:8080/ws/chat" placeholder="ws://localhost:8080/ws/chat">
+                </div>
+                
+                <div class="config-section">
+                    <label>JWT Token:</label>
+                    <input type="text" id="token1" placeholder="Paste JWT token here">
+                </div>
+                
+                <div class="config-section">
+                    <label>Conversation ID:</label>
+                    <input type="text" id="conversationId1" placeholder="Enter conversation ID">
+                </div>
+                
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="connect(1)">Connect</button>
+                    <button class="btn btn-danger" onclick="disconnect(1)">Disconnect</button>
+                    <button class="btn btn-secondary" onclick="sendHeartbeat(1)">Heartbeat</button>
+                </div>
+                
+                <div class="message-section">
+                    <h3>💬 Chat Messages</h3>
+                    <div class="message-input-group">
+                        <input type="text" id="message1" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage(1)">
+                        <button class="btn btn-primary" onclick="sendMessage(1)">Send</button>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-warning" onclick="startTyping(1)">Start Typing</button>
+                        <button class="btn btn-secondary" onclick="stopTyping(1)">Stop Typing</button>
+                    </div>
+                </div>
+                
+                <div class="call-section">
+                    <h3>📞 Call Operations</h3>
+                    <div class="config-section">
+                        <label>Call ID:</label>
+                        <input type="text" id="callId1" placeholder="Enter call ID">
+                    </div>
+                    <div class="call-actions">
+                        <button class="btn btn-success" onclick="acceptCall(1)">Accept Call</button>
+                        <button class="btn btn-danger" onclick="rejectCall(1, 'declined')">Reject Call</button>
+                        <button class="btn btn-warning" onclick="endCall(1)">End Call</button>
+                    </div>
+                </div>
+                
+                <div class="log-section">
+                    <h3>📝 Message Log</h3>
+                    <div class="log-container" id="log1"></div>
+                    <button class="btn btn-secondary clear-log" onclick="clearLog(1)">Clear Log</button>
+                </div>
+            </div>
+            
+            <!-- Client 2 -->
+            <div class="client-panel">
+                <div class="client-header">
+                    <div class="client-title">👤 User 2</div>
+                    <div class="status disconnected" id="status2">Disconnected</div>
+                </div>
+                
+                <div class="config-section">
+                    <label>WebSocket URL:</label>
+                    <input type="text" id="wsUrl2" value="ws://localhost:8080/ws/chat" placeholder="ws://localhost:8080/ws/chat">
+                </div>
+                
+                <div class="config-section">
+                    <label>JWT Token:</label>
+                    <input type="text" id="token2" placeholder="Paste JWT token here">
+                </div>
+                
+                <div class="config-section">
+                    <label>Conversation ID:</label>
+                    <input type="text" id="conversationId2" placeholder="Enter conversation ID">
+                </div>
+                
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="connect(2)">Connect</button>
+                    <button class="btn btn-danger" onclick="disconnect(2)">Disconnect</button>
+                    <button class="btn btn-secondary" onclick="sendHeartbeat(2)">Heartbeat</button>
+                </div>
+                
+                <div class="message-section">
+                    <h3>💬 Chat Messages</h3>
+                    <div class="message-input-group">
+                        <input type="text" id="message2" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage(2)">
+                        <button class="btn btn-primary" onclick="sendMessage(2)">Send</button>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-warning" onclick="startTyping(2)">Start Typing</button>
+                        <button class="btn btn-secondary" onclick="stopTyping(2)">Stop Typing</button>
+                    </div>
+                </div>
+                
+                <div class="call-section">
+                    <h3>📞 Call Operations</h3>
+                    <div class="config-section">
+                        <label>Call ID:</label>
+                        <input type="text" id="callId2" placeholder="Enter call ID">
+                    </div>
+                    <div class="call-actions">
+                        <button class="btn btn-success" onclick="acceptCall(2)">Accept Call</button>
+                        <button class="btn btn-danger" onclick="rejectCall(2, 'declined')">Reject Call</button>
+                        <button class="btn btn-warning" onclick="endCall(2)">End Call</button>
+                    </div>
+                </div>
+                
+                <div class="log-section">
+                    <h3>📝 Message Log</h3>
+                    <div class="log-container" id="log2"></div>
+                    <button class="btn btn-secondary clear-log" onclick="clearLog(2)">Clear Log</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket connections
+        const connections = {
+            1: null,
+            2: null
+        };
+        
+        // Heartbeat intervals
+        const heartbeatIntervals = {
+            1: null,
+            2: null
+        };
+        
+        // Connect to WebSocket
+        function connect(clientId) {
+            const wsUrl = document.getElementById(`wsUrl${clientId}`).value;
+            const token = document.getElementById(`token${clientId}`).value;
+            
+            if (!token) {
+                alert('Please enter JWT token');
+                return;
+            }
+            
+            const fullUrl = `${wsUrl}?token=${token}`;
+            
+            try {
+                const ws = new WebSocket(fullUrl);
+                
+                ws.onopen = () => {
+                    connections[clientId] = ws;
+                    updateStatus(clientId, true);
+                    addLog(clientId, 'info', 'Connected to WebSocket');
+                    
+                    // Start auto-heartbeat every 30 seconds
+                    heartbeatIntervals[clientId] = setInterval(() => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            sendHeartbeat(clientId);
+                        }
+                    }, 30000);
+                };
+                
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        addLog(clientId, 'received', JSON.stringify(message, null, 2));
+                        
+                        // Handle specific message types
+                        if (message.type === 'call_invitation') {
+                            // Auto-fill call ID
+                            document.getElementById(`callId${clientId}`).value = message.data.callId;
+                            addLog(clientId, 'info', `📞 Incoming call from ${message.data.callerName}`);
+                        }
+                    } catch (e) {
+                        addLog(clientId, 'received', event.data);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    addLog(clientId, 'error', `WebSocket error: ${error.message || 'Unknown error'}`);
+                };
+                
+                ws.onclose = () => {
+                    connections[clientId] = null;
+                    updateStatus(clientId, false);
+                    addLog(clientId, 'info', 'Disconnected from WebSocket');
+                    
+                    // Clear auto-heartbeat
+                    if (heartbeatIntervals[clientId]) {
+                        clearInterval(heartbeatIntervals[clientId]);
+                        heartbeatIntervals[clientId] = null;
+                    }
+                };
+            } catch (error) {
+                addLog(clientId, 'error', `Connection failed: ${error.message}`);
+            }
+        }
+        
+        // Disconnect from WebSocket
+        function disconnect(clientId) {
+            if (connections[clientId]) {
+                connections[clientId].close();
+                connections[clientId] = null;
+                updateStatus(clientId, false);
+            }
+            
+            // Clear auto-heartbeat
+            if (heartbeatIntervals[clientId]) {
+                clearInterval(heartbeatIntervals[clientId]);
+                heartbeatIntervals[clientId] = null;
+            }
+        }
+        
+        // Send message
+        function sendMessage(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const conversationId = document.getElementById(`conversationId${clientId}`).value;
+            const content = document.getElementById(`message${clientId}`).value;
+            
+            if (!conversationId || !content) {
+                alert('Please enter conversation ID and message');
+                return;
+            }
+            
+            const message = {
+                type: 'chat.message',
+                payload: {
+                    conversationId: conversationId,
+                    content: content
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+            document.getElementById(`message${clientId}`).value = '';
+        }
+        
+        // Start typing
+        function startTyping(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const conversationId = document.getElementById(`conversationId${clientId}`).value;
+            if (!conversationId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+            
+            const message = {
+                type: 'typing.start',
+                payload: {
+                    conversationId: conversationId
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // Stop typing
+        function stopTyping(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const conversationId = document.getElementById(`conversationId${clientId}`).value;
+            if (!conversationId) {
+                alert('Please enter conversation ID');
+                return;
+            }
+            
+            const message = {
+                type: 'typing.stop',
+                payload: {
+                    conversationId: conversationId
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // Send heartbeat
+        function sendHeartbeat(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const message = {
+                type: 'heartbeat',
+                payload: {}
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // Accept call
+        function acceptCall(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const callId = document.getElementById(`callId${clientId}`).value;
+            if (!callId) {
+                alert('Please enter call ID');
+                return;
+            }
+            
+            const message = {
+                type: 'call.accept',
+                payload: {
+                    callId: callId
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // Reject call
+        function rejectCall(clientId, reason) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const callId = document.getElementById(`callId${clientId}`).value;
+            if (!callId) {
+                alert('Please enter call ID');
+                return;
+            }
+            
+            const message = {
+                type: 'call.reject',
+                payload: {
+                    callId: callId,
+                    reason: reason
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // End call
+        function endCall(clientId) {
+            const ws = connections[clientId];
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to WebSocket');
+                return;
+            }
+            
+            const callId = document.getElementById(`callId${clientId}`).value;
+            if (!callId) {
+                alert('Please enter call ID');
+                return;
+            }
+            
+            const message = {
+                type: 'call.end',
+                payload: {
+                    callId: callId,
+                    durationSeconds: 60
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            addLog(clientId, 'sent', JSON.stringify(message, null, 2));
+        }
+        
+        // Update status indicator
+        function updateStatus(clientId, connected) {
+            const statusEl = document.getElementById(`status${clientId}`);
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+            }
+        }
+        
+        // Add log entry
+        function addLog(clientId, type, content) {
+            const logContainer = document.getElementById(`log${clientId}`);
+            const time = new Date().toLocaleTimeString();
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const typeLabel = type === 'sent' ? '⬆️ SENT' : 
+                            type === 'received' ? '⬇️ RECEIVED' : 
+                            type === 'error' ? '❌ ERROR' : 
+                            'ℹ️ INFO';
+            
+            logEntry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-type ${type}">${typeLabel}</span>
+                <span class="log-content">${content}</span>
+            `;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Clear log
+        function clearLog(clientId) {
+            document.getElementById(`log${clientId}`).innerHTML = '';
+        }
+    </script>
+</body>
+</html>

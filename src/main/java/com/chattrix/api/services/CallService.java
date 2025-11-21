@@ -117,7 +117,7 @@ public class CallService {
 
         // Create call record with INITIATING status
         Call call = new Call();
-        call.setId(request.getCallId());
+        call.setId(UUID.randomUUID().toString()); // Generate unique call ID
         call.setChannelId(request.getChannelId());
         call.setCallerId(callerIdLong);
         call.setCalleeId(calleeIdLong);
@@ -432,6 +432,194 @@ public class CallService {
         if (!call.getCallerId().equals(userIdLong) && !call.getCalleeId().equals(userIdLong)) {
             throw new UnauthorizedException("User is not a participant of this call");
         }
+
+        // Get user details for response
+        User caller = userRepository.findById(call.getCallerId()).orElse(null);
+        User callee = userRepository.findById(call.getCalleeId()).orElse(null);
+
+        return buildCallResponse(call, caller, callee);
+    }
+
+    /**
+     * Accepts an incoming call via WebSocket.
+     * Validates: Requirements 2.3, 2.4, 2.5
+     *
+     * @param callId the ID of the call to accept
+     * @param userId the ID of the user accepting the call
+     * @return the updated call response
+     * @throws ResourceNotFoundException if call not found
+     * @throws UnauthorizedException     if user is not the callee
+     * @throws BadRequestException       if call status is not RINGING or call has timed out
+     */
+    @Transactional
+    public CallResponse acceptCallViaWebSocket(String callId, String userId) {
+        LOGGER.log(Level.INFO, "User {0} accepting call {1} via WebSocket", new Object[]{userId, callId});
+
+        // Find the call
+        Call call = callRepository.findById(callId)
+                .orElseThrow(() -> new ResourceNotFoundException("Call not found: " + callId));
+
+        Long userIdLong = parseUserId(userId);
+
+        // Verify user is callee
+        if (!call.getCalleeId().equals(userIdLong)) {
+            throw new UnauthorizedException("User is not the callee of this call");
+        }
+
+        // Check call status is RINGING
+        if (call.getStatus() != CallStatus.RINGING) {
+            throw new BadRequestException("Call cannot be accepted in current status: " + call.getStatus(), "INVALID_CALL_STATUS");
+        }
+
+        // Check call has not timed out (created more than 60 seconds ago)
+        Instant now = Instant.now();
+        Duration timeSinceCreation = Duration.between(call.getCreatedAt(), now);
+        if (timeSinceCreation.getSeconds() > 60) {
+            throw new BadRequestException("Call has timed out", "CALL_TIMEOUT");
+        }
+
+        // Update status to CONNECTING
+        call.setStatus(CallStatus.CONNECTING);
+        call.setUpdatedAt(now);
+        call = callRepository.save(call);
+        LOGGER.log(Level.INFO, "Call status updated to CONNECTING");
+
+        // Send WebSocket notification to caller
+        webSocketNotificationService.sendCallAccepted(
+                String.valueOf(call.getCallerId()), 
+                callId, 
+                userId
+        );
+        LOGGER.log(Level.INFO, "Call accepted notification sent to caller: {0}", call.getCallerId());
+
+        // Get user details for response
+        User caller = userRepository.findById(call.getCallerId()).orElse(null);
+        User callee = userRepository.findById(call.getCalleeId()).orElse(null);
+
+        return buildCallResponse(call, caller, callee);
+    }
+
+    /**
+     * Rejects an incoming call via WebSocket.
+     * Validates: Requirements 3.3, 3.4, 3.5
+     *
+     * @param callId the ID of the call to reject
+     * @param userId the ID of the user rejecting the call
+     * @param reason the reason for rejection
+     * @return the updated call response
+     * @throws ResourceNotFoundException if call not found
+     * @throws UnauthorizedException     if user is not the callee
+     * @throws BadRequestException       if call status is not RINGING or INITIATING
+     */
+    @Transactional
+    public CallResponse rejectCallViaWebSocket(String callId, String userId, String reason) {
+        LOGGER.log(Level.INFO, "User {0} rejecting call {1} via WebSocket with reason: {2}", 
+                new Object[]{userId, callId, reason});
+
+        // Find the call
+        Call call = callRepository.findById(callId)
+                .orElseThrow(() -> new ResourceNotFoundException("Call not found: " + callId));
+
+        Long userIdLong = parseUserId(userId);
+
+        // Verify user is callee
+        if (!call.getCalleeId().equals(userIdLong)) {
+            throw new UnauthorizedException("User is not the callee of this call");
+        }
+
+        // Check call status is RINGING or INITIATING
+        if (call.getStatus() != CallStatus.RINGING && call.getStatus() != CallStatus.INITIATING) {
+            throw new BadRequestException("Call cannot be rejected in current status: " + call.getStatus(), "INVALID_CALL_STATUS");
+        }
+
+        // Update status to REJECTED and store rejection reason
+        call.setStatus(CallStatus.REJECTED);
+        call.setEndTime(Instant.now());
+        call.setUpdatedAt(Instant.now());
+        call = callRepository.save(call);
+        LOGGER.log(Level.INFO, "Call status updated to REJECTED");
+
+        // Send WebSocket notification to caller
+        webSocketNotificationService.sendCallRejected(
+                String.valueOf(call.getCallerId()), 
+                callId, 
+                userId, 
+                reason
+        );
+        LOGGER.log(Level.INFO, "Call rejected notification sent to caller: {0}", call.getCallerId());
+
+        // Get user details for response
+        User caller = userRepository.findById(call.getCallerId()).orElse(null);
+        User callee = userRepository.findById(call.getCalleeId()).orElse(null);
+
+        return buildCallResponse(call, caller, callee);
+    }
+
+    /**
+     * Ends an active call via WebSocket.
+     * Validates: Requirements 4.3, 4.4, 4.5, 4.6
+     *
+     * @param callId          the ID of the call to end
+     * @param userId          the ID of the user ending the call
+     * @param durationSeconds the duration in seconds (optional)
+     * @return the updated call response
+     * @throws ResourceNotFoundException if call not found
+     * @throws UnauthorizedException     if user is not a participant
+     * @throws BadRequestException       if call has already ended
+     */
+    @Transactional
+    public CallResponse endCallViaWebSocket(String callId, String userId, Integer durationSeconds) {
+        LOGGER.log(Level.INFO, "User {0} ending call {1} via WebSocket", new Object[]{userId, callId});
+
+        // Find the call
+        Call call = callRepository.findById(callId)
+                .orElseThrow(() -> new ResourceNotFoundException("Call not found: " + callId));
+
+        Long userIdLong = parseUserId(userId);
+
+        // Verify user is a participant
+        if (!call.getCallerId().equals(userIdLong) && !call.getCalleeId().equals(userIdLong)) {
+            throw new UnauthorizedException("User is not a participant of this call");
+        }
+
+        // Check call has not already ended
+        if (call.getStatus() == CallStatus.ENDED || call.getStatus() == CallStatus.REJECTED || 
+            call.getStatus() == CallStatus.MISSED || call.getStatus() == CallStatus.FAILED) {
+            throw new BadRequestException("Call has already ended", "CALL_ALREADY_ENDED");
+        }
+
+        // Calculate duration if not provided
+        Instant endTime = Instant.now();
+        if (durationSeconds == null && call.getStartTime() != null) {
+            durationSeconds = (int) Duration.between(call.getStartTime(), endTime).getSeconds();
+        }
+
+        // Update status to ENDED
+        call.setStatus(CallStatus.ENDED);
+        call.setEndTime(endTime);
+        call.setDurationSeconds(durationSeconds);
+        call.setUpdatedAt(endTime);
+        call = callRepository.save(call);
+        LOGGER.log(Level.INFO, "Call status updated to ENDED with duration: {0} seconds", durationSeconds);
+
+        // Send WebSocket notification to other participant
+        Long otherParticipantIdLong = call.getCallerId().equals(userIdLong) ? 
+                call.getCalleeId() : call.getCallerId();
+        String otherParticipantId = String.valueOf(otherParticipantIdLong);
+
+        webSocketNotificationService.sendCallEnded(
+                otherParticipantId, 
+                callId, 
+                userId, 
+                durationSeconds
+        );
+        LOGGER.log(Level.INFO, "Call ended notification sent to: {0}", otherParticipantId);
+
+        // Create call history entries for both participants
+        createCallHistoryEntries(call);
+
+        // Calculate average quality metrics if available
+        calculateAverageQualityMetrics(callId);
 
         // Get user details for response
         User caller = userRepository.findById(call.getCallerId()).orElse(null);
