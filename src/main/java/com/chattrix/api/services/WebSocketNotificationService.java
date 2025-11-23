@@ -4,7 +4,6 @@ import com.chattrix.api.websocket.dto.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.time.Instant;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,11 +29,9 @@ public class WebSocketNotificationService {
         try {
             Long calleeIdLong = Long.parseLong(calleeId);
             
+            // Send directly without double-wrapping
             CallInvitationMessage message = new CallInvitationMessage(data);
-            WebSocketMessage<CallInvitationMessage> wsMessage = 
-                new WebSocketMessage<>("call_invitation", message);
-            
-            chatSessionService.sendMessageToUser(calleeIdLong, wsMessage);
+            chatSessionService.sendDirectMessage(calleeIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent call invitation to user {0} for call {1}", 
                 new Object[]{calleeId, data.getCallId()});
@@ -60,15 +57,9 @@ public class WebSocketNotificationService {
             data.setCallId(callId);
             data.setAcceptedBy(acceptedBy);
             
-            CallAcceptedMessage message = new CallAcceptedMessage();
-            message.setType("call_accepted");
-            message.setData(data);
-            message.setTimestamp(Instant.now());
-            
-            WebSocketMessage<CallAcceptedMessage> wsMessage = 
-                new WebSocketMessage<>("call_accepted", message);
-            
-            chatSessionService.sendMessageToUser(callerIdLong, wsMessage);
+            // Send directly without double-wrapping
+            CallAcceptedMessage message = new CallAcceptedMessage(data);
+            chatSessionService.sendDirectMessage(callerIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent call accepted notification to user {0} for call {1}", 
                 new Object[]{callerId, callId});
@@ -96,15 +87,9 @@ public class WebSocketNotificationService {
             data.setRejectedBy(rejectedBy);
             data.setReason(reason);
             
-            CallRejectedMessage message = new CallRejectedMessage();
-            message.setType("call_rejected");
-            message.setData(data);
-            message.setTimestamp(Instant.now());
-            
-            WebSocketMessage<CallRejectedMessage> wsMessage = 
-                new WebSocketMessage<>("call_rejected", message);
-            
-            chatSessionService.sendMessageToUser(callerIdLong, wsMessage);
+            // Send directly without double-wrapping
+            CallRejectedMessage message = new CallRejectedMessage(data);
+            chatSessionService.sendDirectMessage(callerIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent call rejected notification to user {0} for call {1} with reason: {2}", 
                 new Object[]{callerId, callId, reason});
@@ -132,15 +117,9 @@ public class WebSocketNotificationService {
             data.setEndedBy(endedBy);
             data.setDurationSeconds(durationSeconds);
             
-            CallEndedMessage message = new CallEndedMessage();
-            message.setType("call_ended");
-            message.setData(data);
-            message.setTimestamp(Instant.now());
-            
-            WebSocketMessage<CallEndedMessage> wsMessage = 
-                new WebSocketMessage<>("call_ended", message);
-            
-            chatSessionService.sendMessageToUser(userIdLong, wsMessage);
+            // Send directly without double-wrapping
+            CallEndedMessage message = new CallEndedMessage(data);
+            chatSessionService.sendDirectMessage(userIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent call ended notification to user {0} for call {1}", 
                 new Object[]{userId, callId});
@@ -163,18 +142,13 @@ public class WebSocketNotificationService {
             CallTimeoutData data = new CallTimeoutData();
             data.setCallId(callId);
             
-            CallTimeoutMessage message = new CallTimeoutMessage();
-            message.setType("call_timeout");
-            message.setData(data);
-            message.setTimestamp(Instant.now());
-            
-            WebSocketMessage<CallTimeoutMessage> wsMessage = 
-                new WebSocketMessage<>("call_timeout", message);
+            // Send directly without double-wrapping
+            CallTimeoutMessage message = new CallTimeoutMessage(data);
             
             // Send to caller
             try {
                 Long callerIdLong = Long.parseLong(callerId);
-                chatSessionService.sendMessageToUser(callerIdLong, wsMessage);
+                chatSessionService.sendDirectMessage(callerIdLong, message);
                 LOGGER.log(Level.INFO, "Sent call timeout notification to caller {0} for call {1}", 
                     new Object[]{callerId, callId});
             } catch (NumberFormatException e) {
@@ -184,7 +158,7 @@ public class WebSocketNotificationService {
             // Send to callee
             try {
                 Long calleeIdLong = Long.parseLong(calleeId);
-                chatSessionService.sendMessageToUser(calleeIdLong, wsMessage);
+                chatSessionService.sendDirectMessage(calleeIdLong, message);
                 LOGGER.log(Level.INFO, "Sent call timeout notification to callee {0} for call {1}", 
                     new Object[]{calleeId, callId});
             } catch (NumberFormatException e) {
@@ -210,15 +184,9 @@ public class WebSocketNotificationService {
             data.setCallId(callId);
             data.setQuality(quality);
             
-            CallQualityWarningMessage message = new CallQualityWarningMessage();
-            message.setType("call_quality_warning");
-            message.setData(data);
-            message.setTimestamp(Instant.now());
-            
-            WebSocketMessage<CallQualityWarningMessage> wsMessage = 
-                new WebSocketMessage<>("call_quality_warning", message);
-            
-            chatSessionService.sendMessageToUser(userIdLong, wsMessage);
+            // Send directly without double-wrapping
+            CallQualityWarningMessage message = new CallQualityWarningMessage(data);
+            chatSessionService.sendDirectMessage(userIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent quality warning to user {0} for call {1} with quality: {2}", 
                 new Object[]{userId, callId, quality});

@@ -5,10 +5,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * DTO for broadcasting conversation updates via WebSocket
- * Used when lastMessage or other conversation properties change
- */
 @Getter
 @Setter
 public class ConversationUpdateDto {

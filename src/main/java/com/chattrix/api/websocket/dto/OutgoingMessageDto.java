@@ -10,10 +10,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-/**
- * DTO for outgoing messages broadcast to clients via WebSocket
- * Contains additional information like sender details
- */
 @Getter
 @Setter
 public class OutgoingMessageDto {

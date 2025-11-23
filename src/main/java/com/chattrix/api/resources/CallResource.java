@@ -36,6 +36,13 @@ public class CallResource {
         UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
         String callerId = String.valueOf(userPrincipal.getUserId());
         
+        // Debug logging
+        System.out.println("=== INITIATE CALL REQUEST ===");
+        System.out.println("Caller ID: " + callerId);
+        System.out.println("Callee ID: " + request.getCalleeId());
+        System.out.println("Call Type: " + request.getCallType());
+        System.out.println("=============================");
+        
         CallResponse callResponse = callService.initiateCall(callerId, request);
         
         return Response.status(Response.Status.CREATED)

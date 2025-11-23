@@ -5,10 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * DTO for typing indicator sent via WebSocket
- * Used for both client->server and server->client communication
- */
 @Getter
 @Setter
 @NoArgsConstructor

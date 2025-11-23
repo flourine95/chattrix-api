@@ -5,9 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * DTO for user typing information
- */
 @Getter
 @Setter
 @NoArgsConstructor

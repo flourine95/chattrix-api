@@ -75,7 +75,7 @@ public class CallService {
 
     /**
      * Initiates a new call between caller and callee.
-     * Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5
+     * Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2
      *
      * @param callerId the ID of the user initiating the call
      * @param request  the call initiation request
@@ -115,10 +115,13 @@ public class CallService {
             throw new BadRequestException("Callee is already in a call", "USER_BUSY");
         }
 
+        // Generate unique channel ID using format: channel_{timestamp}_{callerId}_{calleeId}
+        String channelId = generateChannelId(callerId, request.getCalleeId());
+
         // Create call record with INITIATING status
         Call call = new Call();
         call.setId(UUID.randomUUID().toString()); // Generate unique call ID
-        call.setChannelId(request.getChannelId());
+        call.setChannelId(channelId); // Use backend-generated channel ID
         call.setCallerId(callerIdLong);
         call.setCalleeId(calleeIdLong);
         call.setCallType(request.getCallType());
@@ -127,7 +130,8 @@ public class CallService {
         call.setUpdatedAt(Instant.now());
 
         call = callRepository.save(call);
-        LOGGER.log(Level.INFO, "Call created with ID: {0} and status: INITIATING", call.getId());
+        LOGGER.log(Level.INFO, "Call created with ID: {0}, channel ID: {1}, status: INITIATING", 
+                new Object[]{call.getId(), channelId});
 
         // Send WebSocket invitation to callee
         CallInvitationData invitationData = new CallInvitationData();
@@ -756,5 +760,19 @@ public class CallService {
         LOGGER.log(Level.INFO, "Notifying user {0} of status change to {1}", 
                 new Object[]{userId, call.getStatus()});
         // Additional WebSocket notifications could be sent here based on status
+    }
+
+    /**
+     * Generates a unique channel ID for Agora RTC.
+     * Format: channel_{timestamp}_{callerId}_{calleeId}
+     * Validates: Requirements 3.1
+     *
+     * @param callerId the ID of the caller
+     * @param calleeId the ID of the callee
+     * @return the generated channel ID
+     */
+    private String generateChannelId(String callerId, String calleeId) {
+        long timestamp = System.currentTimeMillis();
+        return String.format("channel_%d_%s_%s", timestamp, callerId, calleeId);
     }
 }

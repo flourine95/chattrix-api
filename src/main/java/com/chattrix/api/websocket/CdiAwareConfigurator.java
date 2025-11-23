@@ -6,7 +6,7 @@ import jakarta.websocket.server.ServerEndpointConfig;
 public class CdiAwareConfigurator extends ServerEndpointConfig.Configurator {
 
     @Override
-    public <T> T getEndpointInstance(Class<T> endpointClass) throws InstantiationException {
+    public <T> T getEndpointInstance(Class<T> endpointClass) {
         return CDI.current().select(endpointClass).get();
     }
 }

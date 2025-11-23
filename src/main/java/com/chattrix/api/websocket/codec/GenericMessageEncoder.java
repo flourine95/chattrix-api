@@ -1,6 +1,5 @@
 package com.chattrix.api.websocket.codec;
 
-import com.chattrix.api.websocket.dto.WebSocketMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -8,7 +7,11 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.websocket.EncodeException;
 import jakarta.websocket.Encoder;
 
-public class MessageEncoder implements Encoder.Text<WebSocketMessage<?>> {
+/**
+ * Generic encoder that can encode any object to JSON.
+ * This encoder supports all message types including CallInvitationMessage, CallAcceptedMessage, etc.
+ */
+public class GenericMessageEncoder implements Encoder.Text<Object> {
 
     private static final ObjectMapper objectMapper;
     
@@ -21,7 +24,7 @@ public class MessageEncoder implements Encoder.Text<WebSocketMessage<?>> {
     }
 
     @Override
-    public String encode(WebSocketMessage<?> message) throws EncodeException {
+    public String encode(Object message) throws EncodeException {
         try {
             return objectMapper.writeValueAsString(message);
         } catch (JsonProcessingException e) {

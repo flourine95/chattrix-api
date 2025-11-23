@@ -56,6 +56,27 @@ public class ChatSessionService {
             }
         }
     }
+    
+    /**
+     * Send message directly without WebSocketMessage wrapper.
+     * This avoids the nested structure issue.
+     * 
+     * @param userId The user ID to send to
+     * @param message Any message object (will be serialized directly)
+     */
+    public void sendDirectMessage(Long userId, Object message) {
+        Session session = activeSessions.get(userId);
+        if (session != null && session.isOpen()) {
+            try {
+                session.getBasicRemote().sendObject(message);
+            } catch (IOException | EncodeException e) {
+                // Xử lý lỗi, ví dụ: ghi log
+                e.printStackTrace();
+                // Remove invalid session
+                activeSessions.remove(userId);
+            }
+        }
+    }
 
     public <T> void broadcastToAllUsers(WebSocketMessage<T> message) {
         activeSessions.entrySet().removeIf(entry -> {

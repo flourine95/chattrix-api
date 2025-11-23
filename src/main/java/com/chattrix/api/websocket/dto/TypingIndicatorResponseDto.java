@@ -7,9 +7,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/**
- * DTO for typing indicator response broadcast to clients via WebSocket
- */
 @Getter
 @Setter
 @NoArgsConstructor
