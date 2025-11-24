@@ -106,12 +106,18 @@ public class CallService {
         // Check if caller is already in a call
         Optional<Call> callerActiveCall = callRepository.findActiveCallByUserId(callerIdLong);
         if (callerActiveCall.isPresent()) {
+            Call activeCall = callerActiveCall.get();
+            LOGGER.log(Level.WARNING, "Caller {0} already in call: ID={1}, Status={2}, Created={3}", 
+                new Object[]{callerId, activeCall.getId(), activeCall.getStatus(), activeCall.getCreatedAt()});
             throw new BadRequestException("User is already in a call", "USER_BUSY");
         }
 
         // Check if callee is already in a call
         Optional<Call> calleeActiveCall = callRepository.findActiveCallByUserId(calleeIdLong);
         if (calleeActiveCall.isPresent()) {
+            Call activeCall = calleeActiveCall.get();
+            LOGGER.log(Level.WARNING, "Callee {0} already in call: ID={1}, Status={2}, Created={3}", 
+                new Object[]{request.getCalleeId(), activeCall.getId(), activeCall.getStatus(), activeCall.getCreatedAt()});
             throw new BadRequestException("Callee is already in a call", "USER_BUSY");
         }
 

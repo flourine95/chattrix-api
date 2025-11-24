@@ -6,15 +6,7 @@
   <persistence-unit name="default" transaction-type="JTA">
       <jta-data-source>java:jboss/datasources/ChattrixDS</jta-data-source>
       <properties>
-          <!-- Hibernate settings -->
-          <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQLDialect"/>
-          
-          <!-- Hibernate auto-DDL: create tables from entities -->
           <property name="hibernate.hbm2ddl.auto" value="update"/>
-          
-          <!-- Show SQL for debugging -->
-          <property name="hibernate.show_sql" value="true"/>
-          <property name="hibernate.format_sql" value="true"/>
       </properties>
   </persistence-unit>
 </persistence>

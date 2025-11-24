@@ -1,6 +1,9 @@
 package com.chattrix.api.services;
 
 import com.chattrix.api.websocket.dto.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -31,6 +34,20 @@ public class WebSocketNotificationService {
             
             // Send directly without double-wrapping
             CallInvitationMessage message = new CallInvitationMessage(data);
+            
+            // DEBUG: Log the exact JSON being sent
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+                String jsonString = mapper.writeValueAsString(message);
+                System.out.println("=== SENDING CALL INVITATION JSON ===");
+                System.out.println(jsonString);
+                System.out.println("====================================");
+            } catch (Exception jsonEx) {
+                LOGGER.log(Level.WARNING, "Failed to serialize message for debugging", jsonEx);
+            }
+            
             chatSessionService.sendDirectMessage(calleeIdLong, message);
             
             LOGGER.log(Level.INFO, "Sent call invitation to user {0} for call {1}", 
