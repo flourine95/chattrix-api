@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CallRejectDto {
+public class CallQualityWarningDto {
     private String callId;
-    private Long rejectedBy;
-    private String reason;
+    private Long userId;
+    private String message;
 }

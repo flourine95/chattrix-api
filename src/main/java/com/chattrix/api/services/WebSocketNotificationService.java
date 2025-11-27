@@ -1,216 +1,172 @@
 package com.chattrix.api.services;
 
 import com.chattrix.api.websocket.dto.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-/**
- * Service for sending WebSocket notifications related to call events.
- * Integrates with ChatSessionService to deliver real-time notifications to users.
- */
 @ApplicationScoped
+@RequiredArgsConstructor(onConstructor_ = {@Inject})
+@NoArgsConstructor(force = true)
+@Slf4j
 public class WebSocketNotificationService {
 
-    private static final Logger LOGGER = Logger.getLogger(WebSocketNotificationService.class.getName());
+    private final ChatSessionService chatSessionService;
 
-    @Inject
-    private ChatSessionService chatSessionService;
-
-    /**
-     * Send call invitation notification to the callee
-     * 
-     * @param calleeId The ID of the user receiving the call invitation
-     * @param data The call invitation data containing caller info and call details
-     */
-    public void sendCallInvitation(String calleeId, CallInvitationData data) {
+    public void sendCallInvitation(String calleeId, CallInvitationDto data) {
         try {
             Long calleeIdLong = Long.parseLong(calleeId);
-            
-            // Send directly without double-wrapping
-            CallInvitationMessage message = new CallInvitationMessage(data);
-            
-            // DEBUG: Log the exact JSON being sent
-            try {
-                ObjectMapper mapper = new ObjectMapper();
-                mapper.registerModule(new JavaTimeModule());
-                mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-                String jsonString = mapper.writeValueAsString(message);
-                System.out.println("=== SENDING CALL INVITATION JSON ===");
-                System.out.println(jsonString);
-                System.out.println("====================================");
-            } catch (Exception jsonEx) {
-                LOGGER.log(Level.WARNING, "Failed to serialize message for debugging", jsonEx);
-            }
-            
+
+            WebSocketMessage<CallInvitationDto> message = new WebSocketMessage<>("call.incoming", data);
+
             chatSessionService.sendDirectMessage(calleeIdLong, message);
-            
-            LOGGER.log(Level.INFO, "Sent call invitation to user {0} for call {1}", 
-                new Object[]{calleeId, data.getCallId()});
+
+            log.info("Sent call invitation to user {} for call {}", calleeId, data.getCallId());
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.SEVERE, "Invalid callee ID format: " + calleeId, e);
+            log.error("Invalid callee ID format: {}", calleeId, e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send call invitation to user " + calleeId, e);
+            log.error("Failed to send call invitation to user {}", calleeId, e);
         }
     }
 
     /**
      * Send call accepted notification to the caller
-     * 
-     * @param callerId The ID of the user who initiated the call
-     * @param callId The ID of the call that was accepted
-     * @param acceptedBy The ID of the user who accepted the call
+     * Message Type: "call.accepted"
      */
     public void sendCallAccepted(String callerId, String callId, String acceptedBy) {
         try {
             Long callerIdLong = Long.parseLong(callerId);
-            
-            CallAcceptedData data = new CallAcceptedData();
-            data.setCallId(callId);
-            data.setAcceptedBy(acceptedBy);
-            
-            // Send directly without double-wrapping
-            CallAcceptedMessage message = new CallAcceptedMessage(data);
+
+            CallAcceptDto data = CallAcceptDto.builder()
+                    .callId(callId)
+                    .acceptedBy(Long.parseLong(acceptedBy))
+                    .build();
+
+            WebSocketMessage<CallAcceptDto> message = new WebSocketMessage<>("call.accepted", data);
+
             chatSessionService.sendDirectMessage(callerIdLong, message);
-            
-            LOGGER.log(Level.INFO, "Sent call accepted notification to user {0} for call {1}", 
-                new Object[]{callerId, callId});
+
+            log.info("Sent call accepted notification to user {} for call {}", callerId, callId);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.SEVERE, "Invalid caller ID format: " + callerId, e);
+            log.error("Invalid ID format in sendCallAccepted: caller={}, acceptedBy={}", callerId, acceptedBy, e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send call accepted notification to user " + callerId, e);
+            log.error("Failed to send call accepted notification to user {}", callerId, e);
         }
     }
 
     /**
      * Send call rejected notification to the caller
-     * 
-     * @param callerId The ID of the user who initiated the call
-     * @param callId The ID of the call that was rejected
-     * @param rejectedBy The ID of the user who rejected the call
-     * @param reason The reason for rejection (busy, declined, unavailable)
+     * Message Type: "call.rejected"
      */
     public void sendCallRejected(String callerId, String callId, String rejectedBy, String reason) {
         try {
             Long callerIdLong = Long.parseLong(callerId);
-            
-            CallRejectedData data = new CallRejectedData();
-            data.setCallId(callId);
-            data.setRejectedBy(rejectedBy);
-            data.setReason(reason);
-            
-            // Send directly without double-wrapping
-            CallRejectedMessage message = new CallRejectedMessage(data);
+
+            CallRejectDto data = CallRejectDto.builder()
+                    .callId(callId)
+                    .rejectedBy(Long.parseLong(rejectedBy))
+                    .reason(reason)
+                    .build();
+
+            WebSocketMessage<CallRejectDto> message = new WebSocketMessage<>("call.rejected", data);
+
             chatSessionService.sendDirectMessage(callerIdLong, message);
-            
-            LOGGER.log(Level.INFO, "Sent call rejected notification to user {0} for call {1} with reason: {2}", 
-                new Object[]{callerId, callId, reason});
+
+            log.info("Sent call rejected notification to user {} for call {} with reason: {}", callerId, callId, reason);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.SEVERE, "Invalid caller ID format: " + callerId, e);
+            log.error("Invalid ID format in sendCallRejected", e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send call rejected notification to user " + callerId, e);
+            log.error("Failed to send call rejected notification to user {}", callerId, e);
         }
     }
 
     /**
      * Send call ended notification to the other participant
-     * 
-     * @param userId The ID of the user to notify
-     * @param callId The ID of the call that ended
-     * @param endedBy The ID of the user who ended the call
-     * @param durationSeconds The duration of the call in seconds
+     * Message Type: "call.ended"
      */
     public void sendCallEnded(String userId, String callId, String endedBy, Integer durationSeconds) {
         try {
             Long userIdLong = Long.parseLong(userId);
-            
-            CallEndedData data = new CallEndedData();
-            data.setCallId(callId);
-            data.setEndedBy(endedBy);
-            data.setDurationSeconds(durationSeconds);
-            
-            // Send directly without double-wrapping
-            CallEndedMessage message = new CallEndedMessage(data);
+
+            CallEndDto data = CallEndDto.builder()
+                    .callId(callId)
+                    .endedBy(Long.parseLong(endedBy))
+                    .durationSeconds(durationSeconds)
+                    .build();
+
+            WebSocketMessage<CallEndDto> message = new WebSocketMessage<>("call.ended", data);
+
             chatSessionService.sendDirectMessage(userIdLong, message);
-            
-            LOGGER.log(Level.INFO, "Sent call ended notification to user {0} for call {1}", 
-                new Object[]{userId, callId});
+
+            log.info("Sent call ended notification to user {} for call {}", userId, callId);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.SEVERE, "Invalid user ID format: " + userId, e);
+            log.error("Invalid ID format in sendCallEnded", e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send call ended notification to user " + userId, e);
+            log.error("Failed to send call ended notification to user {}", userId, e);
         }
     }
 
     /**
      * Send call timeout notification to both participants
-     * 
-     * @param callerId The ID of the caller
-     * @param calleeId The ID of the callee
-     * @param callId The ID of the call that timed out
+     * Message Type: "call.timeout"
      */
     public void sendCallTimeout(String callerId, String calleeId, String callId) {
         try {
-            CallTimeoutData data = new CallTimeoutData();
-            data.setCallId(callId);
-            
-            // Send directly without double-wrapping
-            CallTimeoutMessage message = new CallTimeoutMessage(data);
-            
-            // Send to caller
+            CallTimeoutDto data = CallTimeoutDto.builder()
+                    .callId(callId)
+                    .reason("no_answer")
+                    .build();
+
+            WebSocketMessage<CallTimeoutDto> message = new WebSocketMessage<>("call.timeout", data);
+
+            // Gửi cho Caller
             try {
-                Long callerIdLong = Long.parseLong(callerId);
-                chatSessionService.sendDirectMessage(callerIdLong, message);
-                LOGGER.log(Level.INFO, "Sent call timeout notification to caller {0} for call {1}", 
-                    new Object[]{callerId, callId});
-            } catch (NumberFormatException e) {
-                LOGGER.log(Level.SEVERE, "Invalid caller ID format: " + callerId, e);
+                chatSessionService.sendDirectMessage(Long.parseLong(callerId), message);
+            } catch (Exception e) {
+                log.warn("Could not send timeout to caller {}", callerId);
             }
-            
-            // Send to callee
+
+            // Gửi cho Callee
             try {
-                Long calleeIdLong = Long.parseLong(calleeId);
-                chatSessionService.sendDirectMessage(calleeIdLong, message);
-                LOGGER.log(Level.INFO, "Sent call timeout notification to callee {0} for call {1}", 
-                    new Object[]{calleeId, callId});
-            } catch (NumberFormatException e) {
-                LOGGER.log(Level.SEVERE, "Invalid callee ID format: " + calleeId, e);
+                chatSessionService.sendDirectMessage(Long.parseLong(calleeId), message);
+            } catch (Exception e) {
+                log.warn("Could not send timeout to callee {}", calleeId);
             }
+
+            log.info("Sent call timeout notifications for call {}", callId);
+
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send call timeout notification for call " + callId, e);
+            log.error("Failed to send call timeout notification for call {}", callId, e);
         }
     }
 
     /**
      * Send quality warning notification to the other participant
-     * 
-     * @param userId The ID of the user to notify
-     * @param callId The ID of the call with quality issues
-     * @param quality The network quality level (POOR, BAD, VERY_BAD)
+     * Message Type: "call.quality_warning"
      */
-    public void sendQualityWarning(String userId, String callId, String quality) {
+    public void sendQualityWarning(String userId, String callId, String qualityMessage) {
         try {
             Long userIdLong = Long.parseLong(userId);
-            
-            CallQualityWarningData data = new CallQualityWarningData();
-            data.setCallId(callId);
-            data.setQuality(quality);
-            
-            // Send directly without double-wrapping
-            CallQualityWarningMessage message = new CallQualityWarningMessage(data);
+
+            // Giả sử logic lấy ID người bị lag từ context nào đó, ở đây tạm thời lấy userId nhận tin
+            // Hoặc bạn cần sửa lại tham số đầu vào để rõ ràng hơn ai là người bị lag
+            CallQualityWarningDto data = CallQualityWarningDto.builder()
+                    .callId(callId)
+                    .userId(userIdLong)
+                    .message(qualityMessage)
+                    .build();
+
+            WebSocketMessage<CallQualityWarningDto> message = new WebSocketMessage<>("call.quality_warning", data);
+
             chatSessionService.sendDirectMessage(userIdLong, message);
-            
-            LOGGER.log(Level.INFO, "Sent quality warning to user {0} for call {1} with quality: {2}", 
-                new Object[]{userId, callId, quality});
+
+            log.info("Sent quality warning to user {} for call {}", userId, callId);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.SEVERE, "Invalid user ID format: " + userId, e);
+            log.error("Invalid user ID format in sendQualityWarning", e);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to send quality warning to user " + userId, e);
+            log.error("Failed to send quality warning to user {}", userId, e);
         }
     }
 }

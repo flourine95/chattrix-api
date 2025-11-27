@@ -1,17 +1,15 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
-/**
- * Entity representing a call session between two users.
- * Tracks the complete lifecycle of audio/video calls using Agora RTC.
- */
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(
         name = "calls",
@@ -23,6 +21,7 @@ import java.time.Instant;
                 @Index(name = "idx_calls_start_time", columnList = "start_time")
         }
 )
+
 public class Call {
 
     @Id
@@ -61,10 +60,6 @@ public class Call {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    /**
-     * Lifecycle callback executed before persisting a new entity.
-     * Sets createdAt and updatedAt to current UTC time.
-     */
     @PrePersist
     protected void onPrePersist() {
         Instant now = Instant.now();
@@ -72,10 +67,6 @@ public class Call {
         this.updatedAt = now;
     }
 
-    /**
-     * Lifecycle callback executed before updating an existing entity.
-     * Updates the updatedAt timestamp to current UTC time.
-     */
     @PreUpdate
     protected void onPreUpdate() {
         this.updatedAt = Instant.now();

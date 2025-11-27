@@ -40,6 +40,12 @@ embed-server --server-config=standalone.xml --std-out=echo
     exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter \
 )
 
+# Tăng read-timeout lên 30 phút (1800000 ms)
+/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=read-timeout, value=1800000)
+
+# Tăng write-timeout lên 30 phút (1800000 ms)
+/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=write-timeout, value=1800000)
+
 # Test the connections
 /subsystem=datasources/data-source=ExampleDS:test-connection-in-pool
 /subsystem=datasources/data-source=ChattrixDS:test-connection-in-pool

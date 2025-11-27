@@ -6,11 +6,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Entity representing quality metrics reported during a call.
- * Multiple metrics can be recorded per call as quality changes over time.
- * Cascade delete: when a call is deleted, all associated quality metrics are deleted.
- */
 @Getter
 @Setter
 @Entity

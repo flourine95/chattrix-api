@@ -1,26 +1,21 @@
 package com.chattrix.api.requests;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-/**
- * Request DTO for ending an active call.
- * Validates: Requirements 5.1
- */
-@Getter
-@Setter
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class EndCallRequest {
-    
-    @NotBlank(message = "User ID cannot be blank")
-    private String userId;
-    
-    @NotBlank(message = "Ended by cannot be blank")
-    @Pattern(regexp = "caller|callee", message = "Ended by must be either 'caller' or 'callee'")
-    private String endedBy;
-    
-    @Min(value = 0, message = "Duration must be non-negative")
-    private Integer durationSeconds;
+
+    @Pattern(
+            regexp = "hangup|network error|device error|timeout",
+            message = "Reason must be one of: hangup, network error, device error, timeout"
+    )
+    @Builder.Default
+    private String reason = "hangup";
 }

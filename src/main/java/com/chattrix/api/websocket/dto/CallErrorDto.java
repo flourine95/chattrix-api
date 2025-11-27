@@ -1,19 +1,16 @@
 package com.chattrix.api.websocket.dto;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-/**
- * DTO for call error messages via WebSocket
- */
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CallErrorDto {
     private String callId;
-    private String errorType; // "call_not_found", "unauthorized", "invalid_status"
+    private String errorType;
     private String message;
 }

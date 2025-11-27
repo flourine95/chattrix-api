@@ -1,4 +1,5 @@
-package com.chattrix.api.websocket.dto;
+package com.chattrix.api.responses;
+
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,8 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CallRejectDto {
-    private String callId;
-    private Long rejectedBy;
-    private String reason;
+public class CallConnectionResponse {
+    private CallResponse callInfo;
+
+    private String token;
 }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chattrix WebSocket Tester</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; display: flex; gap: 20px; }
+        .client-box { border: 1px solid #ccc; padding: 10px; width: 45%; }
+        .log { background: #f0f0f0; height: 300px; overflow-y: scroll; border: 1px solid #999; padding: 5px; white-space: pre-wrap;}
+        .msg { margin: 5px 0; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<div class="client-box">
+    <h3>User A (Caller)</h3>
+    <input type="text" id="tokenA" placeholder="Paste Token A here" style="width: 100%">
+    <button onclick="connect('A')">Connect A</button>
+    <div id="logA" class="log"></div>
+</div>
+
+<div class="client-box">
+    <h3>User B (Callee)</h3>
+    <input type="text" id="tokenB" placeholder="Paste Token B here" style="width: 100%">
+    <button onclick="connect('B')">Connect B</button>
+    <div id="logB" class="log"></div>
+</div>
+
+<script>
+    let sockets = {};
+
+    function connect(user) {
+        const token = document.getElementById('token' + user).value;
+        const url = `ws://localhost:8080/ws/chat?token=${token}`; // Sửa port nếu cần
+
+        const logDiv = document.getElementById('log' + user);
+        log(logDiv, `Connecting to ${url}...`);
+
+        sockets[user] = new WebSocket(url);
+
+        sockets[user].onopen = () => log(logDiv, "✅ Connected!");
+        sockets[user].onclose = () => log(logDiv, "❌ Disconnected");
+        sockets[user].onerror = (err) => log(logDiv, "⚠️ Error: " + err);
+
+        sockets[user].onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log(data);
+            log(logDiv, `📩 RECEIVED [${data.type}]:\n${JSON.stringify(data.payload, null, 2)}`);
+        };
+    }
+
+    function log(element, text) {
+        const div = document.createElement('div');
+        div.className = 'msg';
+        div.innerText = text;
+        element.prepend(div);
+    }
+</script>
+</body>
+</html>

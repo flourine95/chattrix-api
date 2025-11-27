@@ -6,10 +6,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Entity representing a call history entry for a user.
- * Each call generates two history entries - one for the caller and one for the callee.
- */
 @Getter
 @Setter
 @Entity
@@ -67,10 +63,6 @@ public class CallHistory {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    /**
-     * Lifecycle callback executed before persisting a new entity.
-     * Sets createdAt to current UTC time.
-     */
     @PrePersist
     protected void onPrePersist() {
         this.createdAt = Instant.now();

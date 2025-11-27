@@ -9,8 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CallRejectDto {
+public class CallTimeoutDto {
     private String callId;
-    private Long rejectedBy;
     private String reason;
 }
