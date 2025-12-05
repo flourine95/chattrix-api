@@ -4,6 +4,7 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.filters.UserPrincipal;
 import com.chattrix.api.requests.ChatMessageRequest;
+import com.chattrix.api.requests.UpdateMessageRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.MessageService;
@@ -62,6 +63,31 @@ public class MessageResource {
         User currentUser = getCurrentUser(securityContext);
         MessageResponse message = messageService.getMessage(currentUser.getId(), conversationId, messageId);
         return Response.ok(ApiResponse.success(message, "Message retrieved successfully")).build();
+    }
+
+    @PUT
+    @Path("/{messageId}")
+    public Response updateMessage(
+            @Context SecurityContext securityContext,
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("messageId") Long messageId,
+            @Valid UpdateMessageRequest request) {
+
+        User currentUser = getCurrentUser(securityContext);
+        MessageResponse message = messageService.updateMessage(currentUser.getId(), conversationId, messageId, request);
+        return Response.ok(ApiResponse.success(message, "Message updated successfully")).build();
+    }
+
+    @DELETE
+    @Path("/{messageId}")
+    public Response deleteMessage(
+            @Context SecurityContext securityContext,
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("messageId") Long messageId) {
+
+        User currentUser = getCurrentUser(securityContext);
+        messageService.deleteMessage(currentUser.getId(), conversationId, messageId);
+        return Response.ok(ApiResponse.success(null, "Message deleted successfully")).build();
     }
 
     private User getCurrentUser(SecurityContext securityContext) {

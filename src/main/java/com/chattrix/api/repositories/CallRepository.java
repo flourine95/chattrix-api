@@ -69,4 +69,40 @@ public class CallRepository {
                 .setParameter("callId", callId)
                 .executeUpdate();
     }
+
+    /**
+     * Find calls that have been in CONNECTING or CONNECTED state for too long
+     */
+    public List<Call> findLongRunningCalls(java.time.Instant cutoffTime) {
+        return em.createQuery(
+                "SELECT c FROM Call c " +
+                "WHERE c.status IN :activeStatuses " +
+                "AND c.startTime < :cutoff " +
+                "ORDER BY c.startTime ASC",
+                Call.class)
+                .setParameter("activeStatuses", List.of(
+                        CallStatus.CONNECTING,
+                        CallStatus.CONNECTED
+                ))
+                .setParameter("cutoff", cutoffTime)
+                .getResultList();
+    }
+
+    /**
+     * Find calls stuck in RINGING state (safety net)
+     */
+    public List<Call> findStuckRingingCalls(java.time.Instant cutoffTime) {
+        return em.createQuery(
+                "SELECT c FROM Call c " +
+                "WHERE c.status IN :ringingStatuses " +
+                "AND c.createdAt < :cutoff " +
+                "ORDER BY c.createdAt ASC",
+                Call.class)
+                .setParameter("ringingStatuses", List.of(
+                        CallStatus.INITIATING,
+                        CallStatus.RINGING
+                ))
+                .setParameter("cutoff", cutoffTime)
+                .getResultList();
+    }
 }

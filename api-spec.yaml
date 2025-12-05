@@ -1,0 +1,653 @@
+openapi: 3.0.1
+info:
+  title: Chattrix API
+  description: |
+    API toàn diện cho ứng dụng Chattrix, bao gồm xác thực, quản lý người dùng, và tính năng gọi điện thời gian thực.
+
+    ---
+
+    ### Chi tiết các sự kiện WebSocket
+    Tất cả các tin nhắn từ server đều được bọc trong một đối tượng `WebSocketMessage` chung.
+    *   **`chat.message`**: Tin nhắn trò chuyện mới. (Payload: `OutgoingMessageDto`)
+    *   **`message.updated`**: Một tin nhắn đã được cập nhật. (Payload: `MessageUpdateDto`)
+    *   **`message.deleted`**: Một tin nhắn đã bị xóa. (Payload: `MessageDeleteDto`)
+    *   **`conversation.update`**: Thông tin cuộc trò chuyện đã được cập nhật (ví dụ: tin nhắn cuối cùng). (Payload: `ConversationUpdateDto`)
+    *   **`user.status`**: Trạng thái trực tuyến của người dùng đã thay đổi. (Payload: `UserStatusDto`)
+    *   **`call.incoming`**: Thông báo có cuộc gọi đến. (Payload: `CallInvitationDto`)
+    *   **`call.accepted`**: Cuộc gọi đã được chấp nhận. (Payload: `CallAcceptDto`)
+    *   **`call.rejected`**: Cuộc gọi đã bị từ chối. (Payload: `CallRejectDto`)
+    *   **`call.ended`**: Cuộc gọi đã kết thúc. (Payload: `CallEndDto`)
+    *   **`call.timeout`**: Cuộc gọi hết thời gian chờ. (Payload: `CallTimeoutDto`)
+    *   **`call.quality_warning`**: Cảnh báo chất lượng kết nối. (Payload: `CallQualityWarningDto`)
+  version: "1.0.0"
+servers:
+  - url: /api
+    description: Server API chính
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    # --- Auth & User Schemas ---
+    LoginRequest:
+      type: object
+      required: [usernameOrEmail, password]
+      properties:
+        usernameOrEmail: { type: string, description: "Tên đăng nhập hoặc email của người dùng." }
+        password: { type: string, format: password, description: "Mật khẩu." }
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password, fullName]
+      properties:
+        username: { type: string, description: "Tên đăng nhập mới." }
+        email: { type: string, format: email, description: "Email của người dùng." }
+        password: { type: string, format: password, description: "Mật khẩu." }
+        fullName: { type: string, description: "Họ và tên đầy đủ." }
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string, description: "Refresh token nhận được khi đăng nhập." }
+    
+    AuthResponse:
+      type: object
+      properties:
+        accessToken: { type: string, description: "Token truy cập chính." }
+        refreshToken: { type: string, description: "Token dùng để làm mới access token." }
+        tokenType: { type: string, example: "Bearer" }
+        expiresIn: { type: integer, format: int64, description: "Thời gian hết hạn của access token (tính bằng giây)." }
+
+    UserResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        isOnline: { type: boolean }
+        lastSeen: { type: string, format: date-time, nullable: true }
+
+    # --- Message Schemas ---
+    MessageResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        conversationId: { type: integer, format: int64 }
+        senderId: { type: integer, format: int64 }
+        content: { type: string }
+        type: { type: string }
+        isEdited: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    ChatMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string }
+        type: { type: string, enum: [TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION], default: TEXT }
+        replyToMessageId: { type: integer, format: int64, nullable: true }
+        mentions:
+          type: array
+          items:
+            type: integer
+            format: int64
+        mediaUrl: { type: string, format: uri, nullable: true }
+        thumbnailUrl: { type: string, format: uri, nullable: true }
+        fileName: { type: string, nullable: true }
+        fileSize: { type: integer, format: int64, nullable: true }
+        duration: { type: integer, nullable: true }
+        latitude: { type: number, format: double, nullable: true }
+        longitude: { type: number, format: double, nullable: true }
+        locationName: { type: string, nullable: true }
+
+    UpdateMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, description: "Nội dung mới của tin nhắn." }
+
+    # --- Call Schemas ---
+    CallResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        channelId: { type: string }
+        status: { type: string, enum: [RINGING, CONNECTING, CONNECTED, REJECTED, ENDED, INITIATING] }
+        callType: { type: string, enum: [AUDIO, VIDEO] }
+        callerId: { type: integer, format: int64 }
+        callerName: { type: string }
+        callerAvatar: { type: string, format: uri, nullable: true }
+        calleeId: { type: integer, format: int64 }
+        calleeName: { type: string }
+        calleeAvatar: { type: string, format: uri, nullable: true }
+        createdAt: { type: string, format: date-time }
+        durationSeconds: { type: integer, nullable: true }
+
+    CallConnectionResponse:
+      type: object
+      properties:
+        callInfo: { $ref: '#/components/schemas/CallResponse' }
+        token: { type: string, description: "Token (ví dụ: Agora Token) để kết nối vào phiên gọi." }
+
+    # --- Generic API Response Wrappers ---
+    ApiResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { nullable: true }
+
+    ApiResponse_AuthResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/AuthResponse' }
+
+    ApiResponse_UserResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/UserResponse' }
+    
+    ApiResponse_UserListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+
+    ApiResponse_MessageResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/MessageResponse' }
+
+    ApiResponse_MessageListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageResponse'
+
+    ApiResponse_CallConnectionResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/CallConnectionResponse' }
+
+    ApiResponse_CallResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/CallResponse' }
+
+    # --- Request Schemas ---
+    InitiateCallRequest:
+      type: object
+      required: [calleeId, callType]
+      properties:
+        calleeId: { type: integer, format: int64 }
+        callType: { type: string, enum: [AUDIO, VIDEO] }
+
+    RejectCallRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [busy, declined, unavailable] }
+
+    EndCallRequest:
+      type: object
+      properties:
+        reason: { type: string, enum: [hangup, "network error", "device error", timeout], default: "hangup" }
+
+    # --- WebSocket DTOs ---
+    MessageUpdateDto:
+      type: object
+      properties:
+        messageId: { type: integer, format: int64 }
+        conversationId: { type: integer, format: int64 }
+        content: { type: string }
+        isEdited: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    MessageDeleteDto:
+      type: object
+      properties:
+        messageId: { type: integer, format: int64 }
+        conversationId: { type: integer, format: int64 }
+
+    CallInvitationDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        channelId: { type: string }
+        callerId: { type: integer, format: int64 }
+        callerName: { type: string }
+        callerAvatar: { type: string, format: uri }
+        callType: { type: string, enum: [AUDIO, VIDEO] }
+
+    CallAcceptDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        acceptedBy: { type: integer, format: int64 }
+
+    CallRejectDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        rejectedBy: { type: integer, format: int64 }
+        reason: { type: string, enum: [busy, declined, unavailable] }
+
+    CallEndDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        endedBy: { type: integer, format: int64 }
+        durationSeconds: { type: integer }
+
+    CallTimeoutDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        reason: { type: string, example: "no_answer" }
+
+    CallQualityWarningDto:
+      type: object
+      properties:
+        callId: { type: string, format: uuid }
+        userId: { type: integer, format: int64 }
+        message: { type: string }
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: "Các API liên quan đến xác thực, đăng nhập, đăng ký và quản lý phiên làm việc."
+  - name: Users
+    description: "Các API liên quan đến quản lý người dùng."
+  - name: Conversations
+    description: "Các API để quản lý cuộc trò chuyện."
+  - name: Messages
+    description: "Các API để quản lý tin nhắn trong cuộc trò chuyện."
+  - name: Call
+    description: "Các API để quản lý tính năng gọi điện."
+
+paths:
+  # --- Auth Paths ---
+  /v1/auth/register:
+    post:
+      summary: "User Registration"
+      description: "Đăng ký một tài khoản người dùng mới."
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: "Registration successful."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+        '400':
+          description: "Bad Request (e.g., invalid input, username/email already exists)."
+
+  /v1/auth/login:
+    post:
+      summary: "User Login"
+      description: "Xác thực người dùng bằng username/email và password để nhận về access token và refresh token."
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: "Login successful."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+        '400':
+          description: "Bad Request (e.g., invalid credentials)."
+        '401':
+          description: "Unauthorized (e.g., account not verified)."
+
+  /v1/auth/refresh:
+    post:
+      summary: "Refresh Access Token"
+      description: "Sử dụng refresh token để lấy một access token mới."
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+      responses:
+        '200':
+          description: "Token refreshed successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+        '401':
+          description: "Unauthorized (e.g., invalid or expired refresh token)."
+
+  /v1/auth/me:
+    get:
+      summary: "Get Current User Info"
+      description: "Lấy thông tin chi tiết của người dùng đang đăng nhập, dựa trên token xác thực."
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "User retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+        '401':
+          description: "Unauthorized."
+
+  # --- User Paths ---
+  /v1/users:
+    get:
+      summary: "Get All Users"
+      description: "Lấy danh sách tất cả người dùng trong hệ thống. Yêu cầu xác thực."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Users retrieved successfully."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserListResponse'
+        '401':
+          description: "Unauthorized."
+
+  # --- Message Paths ---
+  /v1/conversations/{conversationId}/messages:
+    get:
+      summary: "Get conversation messages"
+      description: "Lấy danh sách tin nhắn trong một cuộc trò chuyện, có hỗ trợ phân trang."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: "Số trang (bắt đầu từ 0)."
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: "Kích thước trang."
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: "DESC"
+            enum: [ASC, DESC]
+          description: "Thứ tự sắp xếp theo thời gian."
+      responses:
+        '200':
+          description: "Messages retrieved successfully."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_MessageListResponse'
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Conversation not found."
+    post:
+      summary: "Send a message"
+      description: "Gửi một tin nhắn mới vào cuộc trò chuyện."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessageRequest'
+      responses:
+        '201':
+          description: "Message sent successfully."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_MessageResponse'
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Conversation not found."
+
+  /v1/conversations/{conversationId}/messages/{messageId}:
+    get:
+      summary: "Get a specific message"
+      description: "Lấy thông tin chi tiết của một tin nhắn cụ thể."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Message retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message or Conversation not found."
+    put:
+      summary: "Update a message"
+      description: "Cập nhật nội dung của một tin nhắn đã gửi. Chỉ người gửi mới có thể sửa tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMessageRequest' }
+      responses:
+        '200':
+          description: "Message updated successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden."
+        '404':
+          description: "Message not found."
+    delete:
+      summary: "Delete a message"
+      description: "Xóa một tin nhắn đã gửi. Chỉ người gửi mới có thể xóa tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Message deleted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden."
+        '404':
+          description: "Message not found."
+
+  # --- Call Paths ---
+  /v1/calls/initiate:
+    post:
+      summary: "Initiate a new call"
+      description: "Bắt đầu một cuộc gọi đến một người dùng khác. User ID của người gọi được lấy từ token xác thực."
+      tags: [Call]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InitiateCallRequest' }
+      responses:
+        '201':
+          description: "Call initiated successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_CallConnectionResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+
+  /v1/calls/{callId}/accept:
+    post:
+      summary: "Accept a call"
+      description: "Người nhận chấp nhận một cuộc gọi đến. User ID của người nhận được lấy từ token xác thực."
+      tags: [Call]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Call accepted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_CallConnectionResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Call not found."
+
+  /v1/calls/{callId}/reject:
+    post:
+      summary: "Reject a call"
+      description: "Người nhận từ chối một cuộc gọi đến. User ID của người nhận được lấy từ token xác thực."
+      tags: [Call]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectCallRequest' }
+      responses:
+        '200':
+          description: "Call rejected successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_CallResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Call not found."
+
+  /v1/calls/{callId}/end:
+    post:
+      summary: "End a call"
+      description: "Một trong hai bên kết thúc cuộc gọi. User ID của người thực hiện hành động được lấy từ token xác thực."
+      tags: [Call]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EndCallRequest' }
+      responses:
+        '200':
+          description: "Call ended successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_CallResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Call not found."

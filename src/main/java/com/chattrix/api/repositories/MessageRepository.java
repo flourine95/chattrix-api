@@ -24,6 +24,11 @@ public class MessageRepository {
         return message;
     }
 
+    @Transactional
+    public void delete(Message message) {
+        em.remove(em.contains(message) ? message : em.merge(message));
+    }
+
     public List<Message> findByConversationIdOrderBySentAtDesc(Long conversationId, int page, int size) {
         TypedQuery<Message> query = em.createQuery(
                 "SELECT m FROM Message m " +
@@ -246,5 +251,21 @@ public class MessageRepository {
         }
 
         return typedQuery.getSingleResult();
+    }
+
+    public Optional<Message> findLatestByConversationId(Long conversationId) {
+        try {
+            Message message = em.createQuery(
+                    "SELECT m FROM Message m " +
+                    "WHERE m.conversation.id = :conversationId " +
+                    "ORDER BY m.sentAt DESC",
+                    Message.class)
+                    .setParameter("conversationId", conversationId)
+                    .setMaxResults(1)
+                    .getSingleResult();
+            return Optional.of(message);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
     }
 }

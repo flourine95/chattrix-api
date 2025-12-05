@@ -41,6 +41,8 @@ public class ChatServerEndpoint {
     private UserStatusService userStatusService;
     @Inject
     private MessageHandlerRegistry handlerRegistry;
+    @Inject
+    private com.chattrix.api.services.CallService callService;
 
     @OnOpen
     public void onOpen(Session session) throws IOException {
@@ -105,11 +107,23 @@ public class ChatServerEndpoint {
         if (userId != null) {
             chatSessionService.removeSession(userId, session);
 
-            // Mark user as offline if no more active sessions
-            userStatusService.setUserOffline(userId);
+            // Check if user still has other active sessions
+            boolean hasOtherSessions = !chatSessionService.getUserSessions(userId).isEmpty();
 
-            // Broadcast user status change to other users
-            broadcastUserStatusChange(userId, false);
+            if (!hasOtherSessions) {
+                // User completely disconnected - cleanup calls
+                try {
+                    callService.handleUserDisconnected(userId);
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Error handling user disconnection for calls", e);
+                }
+
+                // Mark user as offline
+                userStatusService.setUserOffline(userId);
+
+                // Broadcast user status change to other users
+                broadcastUserStatusChange(userId, false);
+            }
 
             System.out.println("User disconnected: " + userId);
         }

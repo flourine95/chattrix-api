@@ -131,4 +131,9 @@ public class UserRepository {
                 .setParameter("userIds", userIds)
                 .getResultList();
     }
+
+    public List<User> findAll() {
+        return em.createQuery("SELECT u FROM User u", User.class)
+                .getResultList();
+    }
 }

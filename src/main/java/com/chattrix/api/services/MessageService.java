@@ -4,6 +4,7 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
+import com.chattrix.api.exceptions.ForbiddenException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
@@ -12,6 +13,7 @@ import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ChatMessageRequest;
+import com.chattrix.api.requests.UpdateMessageRequest;
 import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
@@ -22,9 +24,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @ApplicationScoped
 public class MessageService {
@@ -180,6 +185,80 @@ public class MessageService {
 
         return mapMessageToResponse(message);
     }
+
+    @Transactional
+    public MessageResponse updateMessage(Long userId, Long conversationId, Long messageId, UpdateMessageRequest request) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message not found in this conversation");
+        }
+
+        if (!message.getSender().getId().equals(userId)) {
+            throw new ForbiddenException("You can only edit your own messages");
+        }
+
+        message.setContent(request.getContent());
+        message.setEdited(true);
+        message.setUpdatedAt(Instant.now());
+        messageRepository.save(message);
+
+        // Broadcast update via WebSocket
+        Map<String, Object> payload = Map.of(
+                "messageId", message.getId(),
+                "conversationId", message.getConversation().getId(),
+                "content", message.getContent(),
+                "isEdited", true,
+                "updatedAt", message.getUpdatedAt().toString()
+        );
+        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("message.updated", payload);
+
+        message.getConversation().getParticipants().forEach(participant -> {
+            chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
+        });
+
+        return mapMessageToResponse(message);
+    }
+
+    @Transactional
+    public void deleteMessage(Long userId, Long conversationId, Long messageId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message not found in this conversation");
+        }
+
+        if (!message.getSender().getId().equals(userId)) {
+            throw new ForbiddenException("You can only delete your own messages");
+        }
+
+        Conversation conversation = message.getConversation();
+        boolean wasLastMessage = Objects.equals(conversation.getLastMessage().getId(), message.getId());
+
+        messageRepository.delete(message);
+
+        // If the deleted message was the last message, update the conversation's last message
+        if (wasLastMessage) {
+            Message newLastMessage = messageRepository.findLatestByConversationId(conversationId).orElse(null);
+            conversation.setLastMessage(newLastMessage);
+            conversationRepository.save(conversation);
+            broadcastConversationUpdate(conversation);
+        }
+
+        // Broadcast deletion via WebSocket
+        Map<String, Object> payload = Map.of(
+                "messageId", messageId,
+                "conversationId", conversationId
+        );
+        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("message.deleted", payload);
+
+        conversation.getParticipants().forEach(participant -> {
+            chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
+        });
+    }
+
 
     private void broadcastMessage(Message message, Conversation conversation) {
         // Prepare the outgoing message DTO using mapper

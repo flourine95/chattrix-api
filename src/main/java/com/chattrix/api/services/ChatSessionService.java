@@ -100,6 +100,18 @@ public class ChatSessionService {
         return session != null && session.isOpen();
     }
 
+    /**
+     * Get all active sessions for a user (currently only supports 1 session per user)
+     * Returns empty set if user has no active sessions
+     */
+    public Set<Session> getUserSessions(Long userId) {
+        Session session = activeSessions.get(userId);
+        if (session != null && session.isOpen()) {
+            return Set.of(session);
+        }
+        return Set.of();
+    }
+
     public Set<Long> getOnlineUserIds() {
         // Clean up invalid sessions and return active user IDs
         activeSessions.entrySet().removeIf(entry -> {

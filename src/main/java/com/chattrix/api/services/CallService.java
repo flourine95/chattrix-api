@@ -36,11 +36,12 @@ public class CallService {
     private final CallMapper callMapper;
     private final AgoraConfig agoraConfig;
     private final WebSocketNotificationService webSocketService;
+    private final CallTimeoutScheduler timeoutScheduler;
 
     /**
      * 1. INITIATE: Tạo call -> Sinh Agora Token -> Trả về ConnectionResponse
      */
-    public CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
+    public synchronized CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
         Long calleeId = request.getCalleeId();
         log.info("Initiating call: {} -> {}", callerId, calleeId);
 
@@ -61,6 +62,9 @@ public class CallService {
                 .build();
 
         call = callRepository.save(call);
+
+        // --- SCHEDULE TIMEOUT: Tự động MISSED sau 60s nếu không nghe ---
+        timeoutScheduler.scheduleTimeout(call.getId(), callerId.toString(), calleeId.toString());
 
         // --- LOGIC AGORA: Sinh Token cho Caller ---
         String token = generateAgoraToken(channelId, callerId.toString());
@@ -89,6 +93,9 @@ public class CallService {
         if (call.getStatus() != CallStatus.RINGING) {
             throw new BadRequestException("Call is not ringing (Status: " + call.getStatus() + ")", "INVALID_STATUS");
         }
+
+        // --- HỦY TIMEOUT vì đã nghe máy ---
+        timeoutScheduler.cancelTimeout(callId);
 
         // Update status
         call.setStatus(CallStatus.CONNECTING);
@@ -123,6 +130,9 @@ public class CallService {
             throw new BadRequestException("Cannot reject call in status: " + call.getStatus(), "INVALID_STATUS");
         }
 
+        // --- HỦY TIMEOUT vì đã reject ---
+        timeoutScheduler.cancelTimeout(callId);
+
         call.setStatus(CallStatus.REJECTED);
         call.setEndTime(Instant.now());
         // Có thể lưu reason vào DB nếu entity Call có trường này
@@ -149,9 +159,12 @@ public class CallService {
         }
 
         // Nếu đã tắt rồi thì thôi
-        if (call.getStatus() == CallStatus.ENDED || call.getStatus() == CallStatus.REJECTED) {
+        if (call.getStatus() == CallStatus.ENDED || call.getStatus() == CallStatus.REJECTED || call.getStatus() == CallStatus.MISSED) {
             throw new BadRequestException("Call already ended", "CALL_ALREADY_ENDED");
         }
+
+        // --- HỦY TIMEOUT nếu còn ---
+        timeoutScheduler.cancelTimeout(callId);
 
         call.setStatus(CallStatus.ENDED);
         call.setEndTime(Instant.now());
@@ -171,6 +184,51 @@ public class CallService {
         );
 
         return buildResponse(call);
+    }
+
+    /**
+     * 5. FORCE END khi user ngắt kết nối đột ngột (WebSocket @OnClose)
+     * Tự động kết thúc tất cả cuộc gọi active của user
+     */
+    public void handleUserDisconnected(Long userId) {
+        log.info("Handling disconnection for user {}", userId);
+
+        Optional<Call> activeCall = callRepository.findActiveCallByUserId(userId);
+        if (activeCall.isEmpty()) {
+            log.debug("No active call found for user {}", userId);
+            return;
+        }
+
+        Call call = activeCall.get();
+        log.warn("Force ending call {} due to user {} disconnection", call.getId(), userId);
+
+        // Hủy timeout
+        timeoutScheduler.cancelTimeout(call.getId());
+
+        // Update status
+        call.setStatus(CallStatus.ENDED);
+        call.setEndTime(Instant.now());
+
+        // Tính duration nếu có
+        if (call.getStartTime() != null) {
+            int duration = (int) Duration.between(call.getStartTime(), call.getEndTime()).getSeconds();
+            call.setDurationSeconds(duration);
+        }
+
+        callRepository.save(call);
+
+        // Thông báo cho người còn lại
+        Long otherId = call.getCallerId().equals(userId) ? call.getCalleeId() : call.getCallerId();
+        try {
+            webSocketService.sendCallEnded(
+                    otherId.toString(),
+                    call.getId(),
+                    userId.toString(),
+                    call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
+            );
+        } catch (Exception e) {
+            log.error("Failed to notify other user about call end", e);
+        }
     }
 
     // --- Private Helpers ---

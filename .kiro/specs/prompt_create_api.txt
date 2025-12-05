@@ -1,0 +1,33 @@
+Chào bạn,
+
+Hãy giúp tôi tạo tài liệu OpenAPI 3.0 cho [Tên Tính Năng].
+
+**Mục tiêu:** Tạo một tệp `api-spec.yaml` hoàn chỉnh, chi tiết và chính xác dựa trên mã nguồn của dự án.
+
+**1. Nguồn thông tin chính (Quan trọng nhất):**
+Hãy phân tích kỹ các tệp mã nguồn sau đây để đảm bảo độ chính xác tuyệt đối:
+*   **Resource/Controller:** [Đường dẫn đến tệp Resource, ví dụ: src/main/java/com/chattrix/api/resources/CallResource.java]
+*   **Request DTOs:**
+    *   [Đường dẫn đến tệp Request 1, ví dụ: src/main/java/com/chattrix/api/requests/InitiateCallRequest.java]
+    *   [Đường dẫn đến tệp Request 2, ví dụ: src/main/java/com/chattrix/api/requests/RejectCallRequest.java]
+    *   ... (liệt kê tất cả các tệp request liên quan)
+*   **Response DTOs:**
+    *   [Đường dẫn đến tệp Response 1, ví dụ: src/main/java/com/chattrix/api/responses/CallResponse.java]
+    *   [Đường dẫn đến tệp Response 2, ví dụ: src/main/java/com/chattrix/api/responses/CallConnectionResponse.java]
+    *   ... (liệt kê tất cả các tệp response liên quan)
+*   **Service (để hiểu logic và WebSocket):**
+    *   [Đường dẫn đến tệp Service, ví dụ: src/main/java/com/chattrix/api/services/CallService.java]
+    *   [Đường dẫn đến tệp WebSocket Service, ví dụ: src/main/java/com/chattrix/api/services/WebSocketNotificationService.java]
+    *   [Đường dẫn đến các DTO của WebSocket, ví dụ: src/main/java/com/chattrix/api/websocket/dto/...]
+
+**2. Yêu cầu về nội dung:**
+*   **API REST:** Định nghĩa tất cả các endpoint, tham số, request body và response body một cách chi tiết.
+*   **WebSocket:** Mô tả các sự kiện WebSocket (server-to-client) và cấu trúc payload của chúng.
+*   **Luồng hoạt động:** Thêm một phần mô tả chi tiết về luồng hoạt động gợi ý cho client, bao gồm các bước cho từng vai trò (ví dụ: người gọi, người nhận).
+
+**3. Yêu cầu về định dạng và ngôn ngữ:**
+*   Sử dụng **tiếng Anh** cho các trường `summary` và mô tả ngắn gọn của response (ví dụ: "Call ended successfully").
+*   Sử dụng **tiếng Việt** cho các trường `description` chi tiết để giải thích ngữ cảnh và mục đích.
+*   Phần mô tả WebSocket và luồng hoạt động nên được đặt trong mục `info.description` ở đầu tệp để đảm bảo chúng luôn hiển thị.
+
+Cảm ơn bạn!
