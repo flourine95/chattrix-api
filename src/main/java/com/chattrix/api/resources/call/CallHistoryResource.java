@@ -1,4 +1,4 @@
-package com.chattrix.api.resources;
+package com.chattrix.api.resources.call;
 
 import com.chattrix.api.entities.CallHistoryStatus;
 import com.chattrix.api.entities.CallType;

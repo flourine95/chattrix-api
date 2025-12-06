@@ -1,4 +1,4 @@
-package com.chattrix.api.resources;
+package com.chattrix.api.resources.message;
 
 import com.chattrix.api.entities.User;
 import com.chattrix.api.filters.Secured;

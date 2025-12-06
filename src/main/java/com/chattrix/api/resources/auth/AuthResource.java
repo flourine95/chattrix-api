@@ -1,4 +1,4 @@
-package com.chattrix.api.resources;
+package com.chattrix.api.resources.auth;
 
 import com.chattrix.api.filters.RateLimited;
 import com.chattrix.api.filters.Secured;

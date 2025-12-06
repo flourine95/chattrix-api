@@ -1,4 +1,4 @@
-package com.chattrix.api.resources;
+package com.chattrix.api.resources.call;
 
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.EndCallRequest;
