@@ -141,32 +141,4 @@ public class WebSocketNotificationService {
             log.error("Failed to send call timeout notification for call {}", callId, e);
         }
     }
-
-    /**
-     * Send quality warning notification to the other participant
-     * Message Type: "call.quality_warning"
-     */
-    public void sendQualityWarning(String userId, String callId, String qualityMessage) {
-        try {
-            Long userIdLong = Long.parseLong(userId);
-
-            // Giả sử logic lấy ID người bị lag từ context nào đó, ở đây tạm thời lấy userId nhận tin
-            // Hoặc bạn cần sửa lại tham số đầu vào để rõ ràng hơn ai là người bị lag
-            CallQualityWarningDto data = CallQualityWarningDto.builder()
-                    .callId(callId)
-                    .userId(userIdLong)
-                    .message(qualityMessage)
-                    .build();
-
-            WebSocketMessage<CallQualityWarningDto> message = new WebSocketMessage<>("call.quality_warning", data);
-
-            chatSessionService.sendDirectMessage(userIdLong, message);
-
-            log.info("Sent quality warning to user {} for call {}", userId, callId);
-        } catch (NumberFormatException e) {
-            log.error("Invalid user ID format in sendQualityWarning", e);
-        } catch (Exception e) {
-            log.error("Failed to send quality warning to user {}", userId, e);
-        }
-    }
 }
