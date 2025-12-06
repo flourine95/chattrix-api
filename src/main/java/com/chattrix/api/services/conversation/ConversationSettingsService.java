@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.conversation;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationSettings;

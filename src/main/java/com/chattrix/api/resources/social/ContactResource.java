@@ -5,7 +5,7 @@ import com.chattrix.api.requests.AddContactRequest;
 import com.chattrix.api.requests.UpdateContactRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.ContactService;
+import com.chattrix.api.services.social.ContactService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;

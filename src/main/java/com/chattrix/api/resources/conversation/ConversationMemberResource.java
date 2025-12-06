@@ -5,7 +5,7 @@ import com.chattrix.api.requests.AddMembersRequest;
 import com.chattrix.api.requests.UpdateMemberRoleRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.ConversationService;
+import com.chattrix.api.services.conversation.ConversationService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;

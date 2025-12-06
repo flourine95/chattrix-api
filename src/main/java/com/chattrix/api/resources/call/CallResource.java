@@ -6,7 +6,7 @@ import com.chattrix.api.requests.InitiateCallRequest;
 import com.chattrix.api.requests.RejectCallRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.CallService;
+import com.chattrix.api.services.call.CallService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;

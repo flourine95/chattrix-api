@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.user;
 
 import jakarta.ejb.Schedule;
 import jakarta.ejb.Singleton;

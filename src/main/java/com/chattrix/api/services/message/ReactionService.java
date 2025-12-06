@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
@@ -9,6 +9,7 @@ import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ReactionResponse;
+import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.ReactionEventDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;

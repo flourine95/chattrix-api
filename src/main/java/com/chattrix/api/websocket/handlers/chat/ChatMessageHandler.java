@@ -8,7 +8,7 @@ import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.services.ChatSessionService;
+import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.ChatMessageDto;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;

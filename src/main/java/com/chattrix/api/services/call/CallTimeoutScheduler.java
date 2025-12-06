@@ -1,8 +1,9 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.call;
 
 import com.chattrix.api.entities.Call;
 import com.chattrix.api.entities.CallStatus;
 import com.chattrix.api.repositories.CallRepository;
+import com.chattrix.api.services.notification.WebSocketNotificationService;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.user;
 
 import com.chattrix.api.entities.User;
 import com.chattrix.api.repositories.UserRepository;

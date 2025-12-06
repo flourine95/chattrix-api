@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
@@ -16,6 +16,7 @@ import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UpdateMessageRequest;
 import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;
 import com.chattrix.api.websocket.dto.OutgoingMessageDto;
@@ -25,7 +26,6 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

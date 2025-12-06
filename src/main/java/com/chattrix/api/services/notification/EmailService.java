@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.notification;
 
 import com.chattrix.api.config.MailConfig;
 import jakarta.annotation.PostConstruct;

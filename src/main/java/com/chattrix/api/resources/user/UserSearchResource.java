@@ -3,7 +3,7 @@ package com.chattrix.api.resources.user;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.UserSearchService;
+import com.chattrix.api.services.user.UserSearchService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;

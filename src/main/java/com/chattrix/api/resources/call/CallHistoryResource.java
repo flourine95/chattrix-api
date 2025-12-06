@@ -7,7 +7,7 @@ import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.CallHistoryResponse;
 import com.chattrix.api.responses.PaginatedResponse;
 import com.chattrix.api.security.UserContext; // Import UserContext
-import com.chattrix.api.services.CallHistoryService;
+import com.chattrix.api.services.call.CallHistoryService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;

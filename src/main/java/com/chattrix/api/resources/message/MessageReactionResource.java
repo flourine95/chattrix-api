@@ -4,7 +4,7 @@ import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.AddReactionRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.ReactionService;
+import com.chattrix.api.services.message.ReactionService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;

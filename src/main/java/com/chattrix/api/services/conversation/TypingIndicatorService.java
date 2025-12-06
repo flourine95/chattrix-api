@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.conversation;
 
 import jakarta.enterprise.context.ApplicationScoped;
 

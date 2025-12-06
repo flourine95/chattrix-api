@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.call;
 
 import com.chattrix.api.entities.*;
 import com.chattrix.api.exceptions.BadRequestException;

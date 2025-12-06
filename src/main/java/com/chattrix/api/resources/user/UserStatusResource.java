@@ -7,7 +7,7 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.UserResponse;
 import com.chattrix.api.responses.UserStatusResponse;
-import com.chattrix.api.services.UserStatusService;
+import com.chattrix.api.services.user.UserStatusService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;

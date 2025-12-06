@@ -3,7 +3,7 @@ package com.chattrix.api.filters;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.UnauthorizedException;
 import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.services.TokenService;
+import com.chattrix.api.services.auth.TokenService;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;

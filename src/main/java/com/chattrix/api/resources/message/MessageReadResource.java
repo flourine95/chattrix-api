@@ -3,7 +3,7 @@ package com.chattrix.api.resources.message;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.ReadReceiptService;
+import com.chattrix.api.services.message.ReadReceiptService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;

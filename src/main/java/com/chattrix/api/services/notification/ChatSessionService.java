@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.notification;
 
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;

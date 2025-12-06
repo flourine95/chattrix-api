@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.social;
 
 import com.chattrix.api.entities.Contact;
 import com.chattrix.api.entities.User;

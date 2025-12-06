@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.auth;
 
 import com.chattrix.api.entities.InvalidatedToken;
 import com.chattrix.api.entities.RefreshToken;

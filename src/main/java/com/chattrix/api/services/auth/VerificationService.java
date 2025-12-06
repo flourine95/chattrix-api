@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.auth;
 
 import com.chattrix.api.entities.PasswordResetToken;
 import com.chattrix.api.entities.User;
@@ -12,6 +12,7 @@ import com.chattrix.api.requests.ForgotPasswordRequest;
 import com.chattrix.api.requests.ResendVerificationRequest;
 import com.chattrix.api.requests.ResetPasswordRequest;
 import com.chattrix.api.requests.VerifyEmailRequest;
+import com.chattrix.api.services.notification.EmailService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;

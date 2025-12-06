@@ -1,4 +1,4 @@
-package com.chattrix.api.services;
+package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageEditHistory;

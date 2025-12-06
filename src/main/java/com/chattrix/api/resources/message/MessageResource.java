@@ -4,13 +4,12 @@ import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.EditMessageRequest;
 import com.chattrix.api.requests.ForwardMessageRequest;
-import com.chattrix.api.requests.UpdateMessageRequest; // Gộp chung hoặc dùng EditMessageRequest
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.MessageEditService;
-import com.chattrix.api.services.MessageForwardService;
-import com.chattrix.api.services.MessageService;
-import com.chattrix.api.services.PinnedMessageService;
+import com.chattrix.api.services.message.MessageEditService;
+import com.chattrix.api.services.message.MessageForwardService;
+import com.chattrix.api.services.message.MessageService;
+import com.chattrix.api.services.message.PinnedMessageService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;

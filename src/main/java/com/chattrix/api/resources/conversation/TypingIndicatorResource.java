@@ -3,7 +3,7 @@ package com.chattrix.api.resources.conversation;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.TypingIndicatorService;
+import com.chattrix.api.services.conversation.TypingIndicatorService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
