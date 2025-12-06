@@ -4,18 +4,12 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.logging.Logger;
-
-/**
- * Configuration class for JWT token settings.
- * Loads JWT secret and expiration settings.
- */
 @ApplicationScoped
 @Getter
+@Slf4j
 public class JwtConfig {
-
-    private static final Logger LOGGER = Logger.getLogger(JwtConfig.class.getName());
 
     @Inject
     private AppConfig appConfig;
@@ -26,29 +20,21 @@ public class JwtConfig {
 
     @PostConstruct
     public void init() {
-        // Load JWT secret (Required)
         secret = appConfig.getRequired("jwt.secret");
 
-        // Load expiration settings
         accessExpirationMinutes = appConfig.getInt("jwt.access.expiration.minutes", 15);
         refreshExpirationDays = appConfig.getInt("jwt.refresh.expiration.days", 7);
 
-        LOGGER.info("JwtConfig initialized successfully");
-        LOGGER.info("JWT Secret: " + AppConfig.maskSensitive(secret));
-        LOGGER.info("Access Token Expiration: " + accessExpirationMinutes + " minutes");
-        LOGGER.info("Refresh Token Expiration: " + refreshExpirationDays + " days");
+        log.info("JwtConfig initialized successfully");
+        log.info("JWT Secret: {}", AppConfig.maskSensitive(secret));
+        log.info("Access Token Expiration: {} minutes", accessExpirationMinutes);
+        log.info("Refresh Token Expiration: {} days", refreshExpirationDays);
     }
 
-    /**
-     * Get access token expiration in milliseconds.
-     */
     public long getAccessExpirationMillis() {
         return accessExpirationMinutes * 60L * 1000L;
     }
 
-    /**
-     * Get refresh token expiration in milliseconds.
-     */
     public long getRefreshExpirationMillis() {
         return refreshExpirationDays * 24L * 60L * 60L * 1000L;
     }

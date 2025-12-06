@@ -4,18 +4,12 @@ import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.logging.Logger;
-
-/**
- * Configuration class for Agora RTC SDK settings.
- * Loads Agora App ID, App Certificate, and token expiration settings.
- */
 @ApplicationScoped
 @Getter
+@Slf4j
 public class AgoraConfig {
-
-    private static final Logger LOGGER = Logger.getLogger(AgoraConfig.class.getName());
 
     @Inject
     private AppConfig appConfig;
@@ -28,21 +22,16 @@ public class AgoraConfig {
 
     @PostConstruct
     public void init() {
-        // Load Agora App ID (Required)
         appId = appConfig.getRequired("agora.app.id");
-
-        // Load Agora App Certificate (Required)
         appCertificate = appConfig.getRequired("agora.app.certificate");
-
-        // Load token expiration settings with defaults
         defaultTokenExpiration = appConfig.getInt("agora.token.expiration.default", 3600);
         maxTokenExpiration = appConfig.getInt("agora.token.expiration.max", 86400);
         minTokenExpiration = appConfig.getInt("agora.token.expiration.min", 60);
 
-        LOGGER.info("AgoraConfig initialized successfully");
-        LOGGER.info("App ID: " + AppConfig.maskSensitive(appId));
-        LOGGER.info("Default Token Expiration: " + defaultTokenExpiration + " seconds");
-        LOGGER.info("Max Token Expiration: " + maxTokenExpiration + " seconds");
-        LOGGER.info("Min Token Expiration: " + minTokenExpiration + " seconds");
+        log.info("AgoraConfig initialized successfully");
+        log.info("App ID: {}", AppConfig.maskSensitive(appId));
+        log.info("Default Token Expiration: {} seconds", defaultTokenExpiration);
+        log.info("Max Token Expiration: {} seconds", maxTokenExpiration);
+        log.info("Min Token Expiration: {} seconds", minTokenExpiration);
     }
 }
