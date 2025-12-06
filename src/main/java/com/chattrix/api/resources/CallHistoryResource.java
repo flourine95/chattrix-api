@@ -2,7 +2,6 @@ package com.chattrix.api.resources;
 
 import com.chattrix.api.entities.CallHistoryStatus;
 import com.chattrix.api.entities.CallType;
-import com.chattrix.api.filters.CallRateLimited;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.filters.UserPrincipal;
 import com.chattrix.api.responses.ApiResponse;
@@ -26,7 +25,6 @@ public class CallHistoryResource {
     private CallHistoryService callHistoryService;
 
     @GET
-    @CallRateLimited(operation = CallRateLimited.OperationType.CALL_HISTORY)
     public Response getCallHistory(@QueryParam("page") @DefaultValue("0") int page,
                                     @QueryParam("size") @DefaultValue("20") int size,
                                     @QueryParam("callType") String callTypeStr,

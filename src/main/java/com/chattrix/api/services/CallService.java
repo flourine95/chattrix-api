@@ -15,8 +15,6 @@ import io.agora.media.RtcTokenBuilder.Role;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -26,17 +24,26 @@ import java.util.UUID;
 
 @ApplicationScoped
 @Transactional
-@RequiredArgsConstructor(onConstructor_ = {@Inject})
-@NoArgsConstructor(force = true)
 @Slf4j
 public class CallService {
 
-    private final CallRepository callRepository;
-    private final UserRepository userRepository;
-    private final CallMapper callMapper;
-    private final AgoraConfig agoraConfig;
-    private final WebSocketNotificationService webSocketService;
-    private final CallTimeoutScheduler timeoutScheduler;
+    @Inject
+    private CallRepository callRepository;
+
+    @Inject
+    private UserRepository userRepository;
+
+    @Inject
+    private CallMapper callMapper;
+
+    @Inject
+    private AgoraConfig agoraConfig;
+
+    @Inject
+    private WebSocketNotificationService webSocketService;
+
+    @Inject
+    private CallTimeoutScheduler timeoutScheduler;
 
     /**
      * 1. INITIATE: Tạo call -> Sinh Agora Token -> Trả về ConnectionResponse
@@ -135,8 +142,6 @@ public class CallService {
 
         call.setStatus(CallStatus.REJECTED);
         call.setEndTime(Instant.now());
-        // Có thể lưu reason vào DB nếu entity Call có trường này
-        // call.setEndReason(request.getReason());
 
         callRepository.save(call);
 
@@ -188,7 +193,6 @@ public class CallService {
 
     /**
      * 5. FORCE END khi user ngắt kết nối đột ngột (WebSocket @OnClose)
-     * Tự động kết thúc tất cả cuộc gọi active của user
      */
     public void handleUserDisconnected(Long userId) {
         log.info("Handling disconnection for user {}", userId);
@@ -233,17 +237,12 @@ public class CallService {
 
     // --- Private Helpers ---
 
-    /**
-     * Helper sinh Token Agora trực tiếp
-     */
     private String generateAgoraToken(String channelId, String userId) {
         try {
             RtcTokenBuilder tokenBuilder = new RtcTokenBuilder();
-            // Lấy thời gian hết hạn từ config (ví dụ 3600s)
             int expirationTimeInSeconds = agoraConfig.getDefaultTokenExpiration();
             int timestamp = (int) (System.currentTimeMillis() / 1000 + expirationTimeInSeconds);
 
-            // Mặc định vai trò là Publisher
             return tokenBuilder.buildTokenWithUserAccount(
                     agoraConfig.getAppId(),
                     agoraConfig.getAppCertificate(),
@@ -259,11 +258,10 @@ public class CallService {
     }
 
     private void sendInvitation(Call call, User caller, User callee) {
-        // Dùng DTO mới với Builder pattern
         CallInvitationDto data = CallInvitationDto.builder()
                 .callId(call.getId())
                 .channelId(call.getChannelId())
-                .callerId(caller.getId()) // Đã là Long
+                .callerId(caller.getId())
                 .callerName(caller.getFullName())
                 .callerAvatar(caller.getAvatarUrl())
                 .callType(call.getCallType())
@@ -301,17 +299,12 @@ public class CallService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
-    /**
-     * Logic kiểm tra xem Caller hoặc Callee có đang bận nghe cuộc gọi khác không
-     */
     private void validateUserBusy(Long callerId, Long calleeId) {
-        // Kiểm tra người gọi
         Optional<Call> activeCallCaller = callRepository.findActiveCallByUserId(callerId);
         if (activeCallCaller.isPresent()) {
             throw new BadRequestException("You are already in another call", "USER_BUSY");
         }
 
-        // Kiểm tra người nghe
         Optional<Call> activeCallCallee = callRepository.findActiveCallByUserId(calleeId);
         if (activeCallCallee.isPresent()) {
             throw new BadRequestException("The user is currently busy in another call", "USER_BUSY");

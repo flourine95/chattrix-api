@@ -1,35 +1,34 @@
 package com.chattrix.api.resources;
 
 import com.chattrix.api.filters.Secured;
-import com.chattrix.api.filters.UserPrincipal;
-import com.chattrix.api.requests.*;
+import com.chattrix.api.requests.EndCallRequest;
+import com.chattrix.api.requests.InitiateCallRequest;
+import com.chattrix.api.requests.RejectCallRequest;
 import com.chattrix.api.responses.ApiResponse;
+import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.CallService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.*;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 @Path("/v1/calls")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Secured
-@RequiredArgsConstructor(onConstructor_ = {@Inject})
-@NoArgsConstructor(force = true)
 public class CallResource {
 
-    private final CallService callService;
+    @Inject
+    private CallService callService;
 
-    private Long getUserId(SecurityContext ctx) {
-        return ((UserPrincipal) ctx.getUserPrincipal()).getUserId();
-    }
+    @Inject
+    private UserContext userContext;
 
     @POST
     @Path("/initiate")
-    public Response initiateCall(@Valid InitiateCallRequest request, @Context SecurityContext ctx) {
-        var response = callService.initiateCall(getUserId(ctx), request);
+    public Response initiateCall(@Valid InitiateCallRequest request) {
+        var response = callService.initiateCall(userContext.getCurrentUserId(), request);
         return Response.status(Response.Status.CREATED)
                 .entity(ApiResponse.success(response, "Call initiated"))
                 .build();
@@ -37,26 +36,24 @@ public class CallResource {
 
     @POST
     @Path("/{callId}/accept")
-    public Response acceptCall(@PathParam("callId") String callId, @Context SecurityContext ctx) {
-        var response = callService.acceptCall(callId, getUserId(ctx));
+    public Response acceptCall(@PathParam("callId") String callId) {
+        var response = callService.acceptCall(callId, userContext.getCurrentUserId());
         return Response.ok(ApiResponse.success(response, "Call accepted")).build();
     }
 
     @POST
     @Path("/{callId}/reject")
     public Response rejectCall(@PathParam("callId") String callId,
-                               @Valid RejectCallRequest request,
-                               @Context SecurityContext ctx) {
-        var response = callService.rejectCall(callId, getUserId(ctx), request);
+                               @Valid RejectCallRequest request) {
+        var response = callService.rejectCall(callId, userContext.getCurrentUserId(), request);
         return Response.ok(ApiResponse.success(response, "Call rejected")).build();
     }
 
     @POST
     @Path("/{callId}/end")
     public Response endCall(@PathParam("callId") String callId,
-                            @Valid EndCallRequest request,
-                            @Context SecurityContext ctx) {
-        var response = callService.endCall(callId, getUserId(ctx), request);
+                            @Valid EndCallRequest request) {
+        var response = callService.endCall(callId, userContext.getCurrentUserId(), request);
         return Response.ok(ApiResponse.success(response, "Call ended")).build();
     }
 }

@@ -2,20 +2,18 @@ package com.chattrix.api.resources;
 
 import com.chattrix.api.filters.RateLimited;
 import com.chattrix.api.filters.Secured;
-import com.chattrix.api.filters.UserPrincipal;
 import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.AuthResponse;
 import com.chattrix.api.responses.UserResponse;
+import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.AuthService;
 import com.chattrix.api.services.VerificationService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.SecurityContext;
 
 @Path("/v1/auth")
 @Produces(MediaType.APPLICATION_JSON)
@@ -24,6 +22,9 @@ public class AuthResource {
 
     @Inject
     private AuthService authService;
+
+    @Inject
+    private UserContext userContext;
 
     @Inject
     private VerificationService verificationService;
@@ -49,30 +50,24 @@ public class AuthResource {
     @GET
     @Path("/me")
     @Secured
-    public Response getCurrentUser(@Context SecurityContext securityContext) {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        UserResponse userDto = authService.getCurrentUserById(userPrincipal.getUserId());
+    public Response getCurrentUser() {
+        UserResponse userDto = authService.getCurrentUserById(userContext.getCurrentUserId());
         return Response.ok(ApiResponse.success(userDto, "User retrieved successfully")).build();
     }
 
     @POST
     @Path("/logout")
     @Secured
-    public Response logout(@Context SecurityContext securityContext) {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        Long userId = userPrincipal.getUserId();
-        String token = userPrincipal.token();
-        authService.logout(userId, token);
+    public Response logout() {
+        authService.logout(userContext.getCurrentUserId(), userContext.getToken());
         return Response.ok(ApiResponse.success(null, "Logged out from this device successfully")).build();
     }
 
     @POST
     @Path("/logout-all")
     @Secured
-    public Response logoutAllDevices(@Context SecurityContext securityContext) {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        Long userId = userPrincipal.getUserId();
-        authService.logoutAllDevices(userId);
+    public Response logoutAllDevices() {
+        authService.logoutAllDevices(userContext.getCurrentUserId());
         return Response.ok(ApiResponse.success(null, "Logged out from all devices successfully")).build();
     }
 
@@ -86,10 +81,8 @@ public class AuthResource {
     @PUT
     @Path("/change-password")
     @Secured
-    public Response changePassword(@Valid ChangePasswordRequest request, @Context SecurityContext securityContext) {
-        UserPrincipal userPrincipal = (UserPrincipal) securityContext.getUserPrincipal();
-        Long userId = userPrincipal.getUserId();
-        authService.changePassword(userId, request);
+    public Response changePassword(@Valid ChangePasswordRequest request) {
+        authService.changePassword(userContext.getCurrentUserId(), request);
         return Response.ok(ApiResponse.success(null, "Password changed successfully")).build();
     }
 
