@@ -6,6 +6,7 @@ import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.auth.TokenService;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
@@ -22,6 +23,7 @@ import java.security.Principal;
 public class AuthenticationFilter implements ContainerRequestFilter {
 
     private static final String AUTHENTICATION_SCHEME = "Bearer";
+    public static final String SECURITY_CONTEXT_ATTRIBUTE = "CUSTOM_SECURITY_CONTEXT";
 
     @Inject
     private TokenService tokenService;
@@ -29,10 +31,13 @@ public class AuthenticationFilter implements ContainerRequestFilter {
     @Inject
     private UserRepository userRepository;
 
+    @Inject
+    private HttpServletRequest request;
+
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
-
+        
         if (!isTokenBasedAuthentication(authorizationHeader)) {
             throw new UnauthorizedException("Missing or invalid Authorization header");
         }
@@ -51,7 +56,7 @@ public class AuthenticationFilter implements ContainerRequestFilter {
             final SecurityContext currentSecurityContext = requestContext.getSecurityContext();
             final UserPrincipal userPrincipal = new UserPrincipal(user, token);
 
-            requestContext.setSecurityContext(new SecurityContext() {
+            SecurityContext newSecurityContext = new SecurityContext() {
                 @Override
                 public Principal getUserPrincipal() {
                     return userPrincipal;
@@ -71,7 +76,12 @@ public class AuthenticationFilter implements ContainerRequestFilter {
                 public String getAuthenticationScheme() {
                     return AUTHENTICATION_SCHEME;
                 }
-            });
+            };
+
+            requestContext.setSecurityContext(newSecurityContext);
+
+            // Store in request attribute for CDI beans to access
+            request.setAttribute(SECURITY_CONTEXT_ATTRIBUTE, newSecurityContext);
 
         } catch (UnauthorizedException e) {
             // Re-throw UnauthorizedException to be handled by BusinessExceptionMapper
