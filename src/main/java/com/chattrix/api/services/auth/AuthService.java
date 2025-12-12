@@ -16,6 +16,7 @@ import com.chattrix.api.requests.RegisterRequest;
 import com.chattrix.api.requests.ResendVerificationRequest;
 import com.chattrix.api.responses.AuthResponse;
 import com.chattrix.api.responses.UserResponse;
+import com.chattrix.api.services.common.AvatarService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -46,6 +47,9 @@ public class AuthService {
     @Inject
     private UserMapper userMapper;
 
+    @Inject
+    private AvatarService avatarService;
+
     @Transactional
     public void register(RegisterRequest registerRequest) {
         User newUser = new User();
@@ -54,7 +58,23 @@ public class AuthService {
         newUser.setFullName(registerRequest.getFullName().trim());
         String hashedPassword = BCrypt.hashpw(registerRequest.getPassword(), BCrypt.gensalt());
         newUser.setPassword(hashedPassword);
+
+        // Lưu user trước để có ID
         userRepository.save(newUser);
+
+        // Tạo avatar tự động từ Cloudinary
+        try {
+            String avatarUrl = avatarService.generateAndUploadAvatar(
+                    String.valueOf(newUser.getId()),
+                    newUser.getFullName()
+            );
+            newUser.setAvatarUrl(avatarUrl);
+            userRepository.save(newUser);
+        } catch (Exception e) {
+            // Log error nhưng không fail registration nếu avatar tạo lỗi
+            // Avatar có thể được tạo lại sau
+            System.err.println("Failed to generate avatar for user " + newUser.getId() + ": " + e.getMessage());
+        }
 
         ResendVerificationRequest resendVerificationRequest = new ResendVerificationRequest();
         resendVerificationRequest.setEmail(registerRequest.getEmail());

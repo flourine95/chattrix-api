@@ -30,10 +30,35 @@ public class UserRepository {
                 .getSingleResult() > 0;
     }
 
+    public boolean existsUsernameExcludingUser(String username, Long userId) {
+        return em.createQuery("SELECT COUNT(u) FROM User u WHERE u.username = :username AND u.id != :userId", Long.class)
+                .setParameter("username", username)
+                .setParameter("userId", userId)
+                .getSingleResult() > 0;
+    }
+
+    public boolean existsEmailExcludingUser(String email, Long userId) {
+        return em.createQuery("SELECT COUNT(u) FROM User u WHERE u.email = :email AND u.id != :userId", Long.class)
+                .setParameter("email", email)
+                .setParameter("userId", userId)
+                .getSingleResult() > 0;
+    }
+
     public Optional<User> findByEmail(String email) {
         try {
             User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
                     .setParameter("email", email)
+                    .getSingleResult();
+            return Optional.of(user);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<User> findByUsername(String username) {
+        try {
+            User user = em.createQuery("SELECT u FROM User u WHERE u.username = :username", User.class)
+                    .setParameter("username", username)
                     .getSingleResult();
             return Optional.of(user);
         } catch (NoResultException e) {

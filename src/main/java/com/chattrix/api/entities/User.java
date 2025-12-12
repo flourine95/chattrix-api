@@ -41,6 +41,26 @@ public class User {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(length = 500)
+    private String bio;
+
+    @Column(name = "date_of_birth")
+    private Instant dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private Gender gender;
+
+    @Column(length = 100)
+    private String location;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "profile_visibility", length = 20)
+    private ProfileVisibility profileVisibility = ProfileVisibility.PUBLIC;
+
     @OneToMany(mappedBy = "user")
     private Set<ConversationParticipant> conversationParticipants;
 
