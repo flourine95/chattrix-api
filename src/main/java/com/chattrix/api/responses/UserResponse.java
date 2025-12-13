@@ -25,7 +25,7 @@ public class UserResponse {
     private String location;
     private ProfileVisibility profileVisibility;
     @JsonProperty("isOnline")
-    private Boolean isOnline;
+    private boolean isOnline;
     private Instant lastSeen;
     private Instant createdAt;
     private Instant updatedAt;
