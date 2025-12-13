@@ -293,6 +293,52 @@ public class MessageRepository {
                 .setParameter("noteId", noteId)
                 .getSingleResult();
     }
+
+    /**
+     * Find all unread messages in a conversation for a specific user
+     */
+    public List<Message> findUnreadMessages(Long conversationId, Long userId) {
+        return em.createQuery(
+                "SELECT m FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.sender.id <> :userId " +
+                "AND NOT EXISTS (" +
+                "  SELECT 1 FROM MessageReadReceipt r " +
+                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
+                ") " +
+                "ORDER BY m.sentAt ASC",
+                Message.class)
+                .setParameter("conversationId", conversationId)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    /**
+     * Find unread messages up to a specific message ID
+     */
+    public List<Message> findUnreadMessagesUpTo(Long conversationId, Long userId, Long lastMessageId) {
+        // First get the sentAt time of the lastMessage
+        Message lastMessage = em.find(Message.class, lastMessageId);
+        if (lastMessage == null) {
+            return findUnreadMessages(conversationId, userId);
+        }
+
+        return em.createQuery(
+                "SELECT m FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.sender.id <> :userId " +
+                "AND m.sentAt <= :lastSentAt " +
+                "AND NOT EXISTS (" +
+                "  SELECT 1 FROM MessageReadReceipt r " +
+                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
+                ") " +
+                "ORDER BY m.sentAt ASC",
+                Message.class)
+                .setParameter("conversationId", conversationId)
+                .setParameter("userId", userId)
+                .setParameter("lastSentAt", lastMessage.getSentAt())
+                .getResultList();
+    }
 }
 
 

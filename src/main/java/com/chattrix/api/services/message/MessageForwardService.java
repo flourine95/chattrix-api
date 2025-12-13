@@ -98,7 +98,7 @@ public class MessageForwardService {
         response.setConversationId(message.getConversation().getId());
         response.setSenderId(message.getSender().getId());
         response.setSenderUsername(message.getSender().getUsername());
-        response.setSenderName(message.getSender().getFullName());
+        response.setSenderFullName(message.getSender().getFullName());
         response.setContent(message.getContent());
         response.setType(message.getType().name());
         response.setSentAt(message.getSentAt());

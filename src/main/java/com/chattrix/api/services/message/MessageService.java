@@ -2,6 +2,7 @@ package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
+import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ForbiddenException;
@@ -11,12 +12,14 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.MessageReadReceiptRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UpdateMessageRequest;
 import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.responses.ReadReceiptResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;
@@ -58,6 +61,9 @@ public class MessageService {
 
     @Inject
     private ConversationParticipantRepository participantRepository;
+
+    @Inject
+    private MessageReadReceiptRepository readReceiptRepository;
 
     public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -334,6 +340,27 @@ public class MessageService {
         if (message.getMentions() != null && !message.getMentions().isEmpty()) {
             List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
             response.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
+        }
+
+        // Populate read receipts
+        long readCount = readReceiptRepository.countByMessageId(message.getId());
+        response.setReadCount(readCount);
+
+        // Optionally populate readBy list (you can comment this out if it causes performance issues)
+        if (readCount > 0) {
+            List<MessageReadReceipt> readReceipts = readReceiptRepository.findByMessageId(message.getId());
+            List<ReadReceiptResponse> readByList = readReceipts.stream()
+                    .map(receipt -> {
+                        ReadReceiptResponse readReceiptResponse = new ReadReceiptResponse();
+                        readReceiptResponse.setUserId(receipt.getUser().getId());
+                        readReceiptResponse.setUsername(receipt.getUser().getUsername());
+                        readReceiptResponse.setFullName(receipt.getUser().getFullName());
+                        readReceiptResponse.setAvatarUrl(receipt.getUser().getAvatarUrl());
+                        readReceiptResponse.setReadAt(receipt.getReadAt());
+                        return readReceiptResponse;
+                    })
+                    .toList();
+            response.setReadBy(readByList);
         }
 
         return response;

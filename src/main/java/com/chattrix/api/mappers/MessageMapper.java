@@ -24,7 +24,7 @@ public interface MessageMapper {
     @Mapping(target = "conversationId", source = "conversation.id")
     @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderUsername", source = "sender.username")
-    @Mapping(target = "senderName", source = "sender.fullName")
+    @Mapping(target = "senderFullName", source = "sender.fullName")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "originalMessageId", source = "originalMessage.id")
     @Mapping(target = "mentionedUsers", ignore = true)

@@ -65,6 +65,37 @@ public class ReadReceiptService {
             throw new BadRequestException("You are not a participant in this conversation");
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // Get all unread messages in this conversation up to lastMessageId
+        List<Message> unreadMessages;
+        if (lastMessageId != null) {
+            unreadMessages = messageRepository.findUnreadMessagesUpTo(conversationId, userId, lastMessageId);
+        } else {
+            unreadMessages = messageRepository.findUnreadMessages(conversationId, userId);
+        }
+
+        // Create read receipts for all unread messages (except user's own messages)
+        for (Message message : unreadMessages) {
+            // Skip if user is the sender
+            if (message.getSender().getId().equals(userId)) {
+                continue;
+            }
+
+            // Skip if already read
+            if (readReceiptRepository.existsByMessageIdAndUserId(message.getId(), userId)) {
+                continue;
+            }
+
+            // Create read receipt
+            MessageReadReceipt receipt = new MessageReadReceipt();
+            receipt.setMessage(message);
+            receipt.setUser(user);
+            readReceiptRepository.save(receipt);
+        }
+
+        // Reset unread count in participant table
         participantRepository.resetUnreadCount(conversationId, userId, lastMessageId);
     }
 

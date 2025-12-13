@@ -1,5 +1,6 @@
 package com.chattrix.api.responses;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,7 +15,7 @@ public class MessageResponse {
     private Long conversationId;
     private Long senderId;
     private String senderUsername;
-    private String senderName;
+    private String senderFullName;
     private String content;
     private String type;
 
@@ -46,15 +47,31 @@ public class MessageResponse {
     private Instant updatedAt;
 
     // Edit/Delete/Forward
+    @JsonProperty("isEdited")
     private boolean isEdited;
+
+    @JsonProperty("editedAt")
     private Instant editedAt;
+
+    @JsonProperty("isDeleted")
     private boolean isDeleted;
+
+    @JsonProperty("deletedAt")
     private Instant deletedAt;
+
+    @JsonProperty("isForwarded")
     private boolean isForwarded;
+
+    @JsonProperty("originalMessageId")
     private Long originalMessageId;
+
+    @JsonProperty("forwardCount")
     private Integer forwardCount;
 
     // Read receipts
+    @JsonProperty("readCount")
     private Long readCount;
+
+    @JsonProperty("readBy")
     private List<ReadReceiptResponse> readBy;
 }
