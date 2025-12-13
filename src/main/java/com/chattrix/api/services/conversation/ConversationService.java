@@ -48,6 +48,29 @@ public class ConversationService {
             throw new BadRequestException("At least one participant is required");
         }
 
+        // Validate DIRECT conversation
+        if ("DIRECT".equals(request.getType())) {
+            // Remove current user ID if exists in list
+            long otherParticipantsCount = request.getParticipantIds().stream()
+                    .filter(id -> !id.equals(currentUserId))
+                    .count();
+
+            if (otherParticipantsCount != 1) {
+                throw new BadRequestException("DIRECT conversation must have exactly 1 other participant. Found: " + otherParticipantsCount);
+            }
+        }
+
+        // Validate GROUP conversation
+        if ("GROUP".equals(request.getType())) {
+            long otherParticipantsCount = request.getParticipantIds().stream()
+                    .filter(id -> !id.equals(currentUserId))
+                    .count();
+
+            if (otherParticipantsCount < 1) {
+                throw new BadRequestException("GROUP conversation must have at least 1 other participant");
+            }
+        }
+
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 

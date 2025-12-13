@@ -106,4 +106,20 @@ public class ContactRepository {
                 .getSingleResult();
         return count > 0;
     }
+
+    /**
+     * Check if two users are connected (mutual contacts with ACCEPTED status)
+     */
+    public boolean areUsersConnected(Long userId1, Long userId2) {
+        Long count = em.createQuery(
+                        "SELECT COUNT(c) FROM Contact c " +
+                                "WHERE ((c.user.id = :userId1 AND c.contactUser.id = :userId2) " +
+                                "   OR (c.user.id = :userId2 AND c.contactUser.id = :userId1)) " +
+                                "AND c.status = 'ACCEPTED'",
+                        Long.class)
+                .setParameter("userId1", userId1)
+                .setParameter("userId2", userId2)
+                .getSingleResult();
+        return count > 0;
+    }
 }

@@ -268,4 +268,31 @@ public class MessageRepository {
             return Optional.empty();
         }
     }
+
+    /**
+     * Find messages that are replies to a specific note
+     */
+    public List<Message> findByReplyToNoteId(Long noteId) {
+        return em.createQuery(
+                "SELECT m FROM Message m " +
+                "LEFT JOIN FETCH m.sender " +
+                "WHERE m.replyToNote.id = :noteId " +
+                "ORDER BY m.sentAt DESC",
+                Message.class)
+                .setParameter("noteId", noteId)
+                .getResultList();
+    }
+
+    /**
+     * Count messages that are replies to a specific note
+     */
+    public long countByReplyToNoteId(Long noteId) {
+        return em.createQuery(
+                "SELECT COUNT(m) FROM Message m WHERE m.replyToNote.id = :noteId",
+                Long.class)
+                .setParameter("noteId", noteId)
+                .getSingleResult();
+    }
 }
+
+

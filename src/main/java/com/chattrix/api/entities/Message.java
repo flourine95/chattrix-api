@@ -94,6 +94,11 @@ public class Message {
     @JoinColumn(name = "reply_to_message_id")
     private Message replyToMessage;
 
+    // Reply to note (for Messenger Notes feature)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reply_to_note_id")
+    private UserNote replyToNote;
+
     // Reactions stored as JSONB: {"👍": [1, 2, 3], "❤️": [4, 5]}
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "reactions", columnDefinition = "jsonb")

@@ -13,6 +13,9 @@ info:
     *   **`message.deleted`**: Một tin nhắn đã bị xóa. (Payload: `MessageDeleteDto`)
     *   **`conversation.update`**: Thông tin cuộc trò chuyện đã được cập nhật (ví dụ: tin nhắn cuối cùng). (Payload: `ConversationUpdateDto`)
     *   **`user.status`**: Trạng thái trực tuyến của người dùng đã thay đổi. (Payload: `UserStatusDto`)
+    *   **`note.created`**: Note mới được tạo từ contact. (Payload: `UserNoteDto`)
+    *   **`note.updated`**: Note của contact được cập nhật. (Payload: `UserNoteDto`)
+    *   **`note.deleted`**: Note của contact bị xóa. (Payload: `NoteDeleteDto`)
     *   **`call.incoming`**: Thông báo có cuộc gọi đến. (Payload: `CallInvitationDto`)
     *   **`call.accepted`**: Cuộc gọi đã được chấp nhận. (Payload: `CallAcceptDto`)
     *   **`call.rejected`**: Cuộc gọi đã bị từ chối. (Payload: `CallRejectDto`)
@@ -80,11 +83,34 @@ components:
         id: { type: integer, format: int64 }
         conversationId: { type: integer, format: int64 }
         senderId: { type: integer, format: int64 }
-        content: { type: string }
-        type: { type: string }
-        isEdited: { type: boolean }
+        senderUsername: { type: string, nullable: true }
+        senderName: { type: string, nullable: true }
+        senderAvatarUrl: { type: string, format: uri, nullable: true }
+        content: { type: string, nullable: true }
+        type: { type: string, description: "Message type (TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, etc)" }
+        mediaUrl: { type: string, format: uri, nullable: true }
+        thumbnailUrl: { type: string, format: uri, nullable: true }
+        fileName: { type: string, nullable: true }
+        fileSize: { type: integer, format: int64, nullable: true }
+        duration: { type: integer, nullable: true }
+        latitude: { type: number, format: double, nullable: true }
+        longitude: { type: number, format: double, nullable: true }
+        locationName: { type: string, nullable: true }
+        reactions:
+          type: object
+          description: "Map of reaction (emoji or short key) to array of userIds or counts. Implementation may vary."
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+        sentAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time, nullable: true }
+        forwardCount: { type: integer, format: int32, default: 0 }
+        forwarded: { type: boolean, default: false }
+        deleted: { type: boolean, default: false }
+        edited: { type: boolean, default: false }
 
     ChatMessageRequest:
       type: object
@@ -277,6 +303,314 @@ components:
         userId: { type: integer, format: int64 }
         message: { type: string }
 
+    # --- Contacts & Social Schemas ---
+    ContactResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        contactUserId: { type: integer, format: int64 }
+        contactUser: { $ref: '#/components/schemas/UserResponse' }
+        nickname: { type: string, nullable: true }
+        isFavorite: { type: boolean }
+        status: { type: string, enum: [PENDING, ACCEPTED, BLOCKED] }
+        createdAt: { type: string, format: date-time }
+
+    AddContactRequest:
+      type: object
+      required: [contactUserId]
+      properties:
+        contactUserId: { type: integer, format: int64 }
+        nickname: { type: string, nullable: true }
+
+    UpdateContactRequest:
+      type: object
+      properties:
+        nickname: { type: string, nullable: true }
+        isFavorite: { type: boolean, nullable: true }
+
+    SendFriendRequestRequest:
+      type: object
+      required: [receiverId]
+      properties:
+        receiverId: { type: integer, format: int64 }
+
+    # --- Read Receipts Schemas ---
+    ReadReceiptResponse:
+      type: object
+      properties:
+        userId: { type: integer, format: int64 }
+        username: { type: string }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        readAt: { type: string, format: date-time }
+
+    # --- Reaction Schemas ---
+    AddReactionRequest:
+      type: object
+      required: [emoji]
+      properties:
+        emoji: { type: string, maxLength: 10 }
+
+    MessageReactionsResponse:
+      type: object
+      properties:
+        messageId: { type: integer, format: int64 }
+        reactions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+          description: "Map of emoji to array of user IDs. Example: {'👍': [1, 2, 3], '❤️': [4, 5]}"
+
+    # --- Conversation Members Schemas ---
+    ConversationParticipantResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        user: { $ref: '#/components/schemas/UserResponse' }
+        role: { type: string, enum: [ADMIN, MEMBER] }
+        joinedAt: { type: string, format: date-time }
+        unreadCount: { type: integer }
+
+    AddMembersRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    UpdateMemberRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [ADMIN, MEMBER] }
+
+    # --- Conversation Schemas ---
+    ConversationResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, nullable: true, description: "Tên conversation (chỉ có trong GROUP)" }
+        type: { type: string, enum: [DIRECT, GROUP] }
+        avatarUrl: { type: string, format: uri, nullable: true, description: "Avatar URL (chỉ có trong GROUP)" }
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: integer, format: int64 }
+              username: { type: string }
+              role: { type: string, enum: [ADMIN, MEMBER] }
+          description: "Danh sách participants với userId, username và role"
+        lastMessage:
+          oneOf:
+            - $ref: '#/components/schemas/MessageResponse'
+            - type: "null"
+          description: "Last message in the conversation, or null if empty."
+        unreadCount: { type: integer, description: "Số tin nhắn chưa đọc (optional)" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        id: 5
+        name: null
+        type: "GROUP"
+        avatarUrl: null
+        createdAt: "2025-12-12T09:39:16.600310058Z"
+        updatedAt: "2025-12-12T09:39:16.600312653Z"
+        participants:
+          - userId: 12
+            username: "hungly"
+            role: "ADMIN"
+          - userId: 2
+            username: "binhtran"
+            role: "MEMBER"
+          - userId: 3
+            username: "hoale"
+            role: "MEMBER"
+
+    CreateConversationRequest:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        type: { type: string, enum: [DIRECT, GROUP], default: DIRECT }
+        participantIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    UpdateConversationRequest:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        avatarUrl: { type: string, format: uri, nullable: true }
+
+    # --- User Profile Schemas ---
+    UpdateProfileRequest:
+      type: object
+      properties:
+        fullName: { type: string, nullable: true }
+        bio: { type: string, maxLength: 500, nullable: true }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        phone: { type: string, nullable: true }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        gender: { type: string, enum: [MALE, FEMALE, OTHER], nullable: true }
+        location: { type: string, nullable: true }
+
+    # --- API Response Wrappers ---
+    ApiResponse_ContactResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ContactResponse' }
+
+    ApiResponse_ContactListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactResponse'
+
+    ApiResponse_ReadReceiptListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadReceiptResponse'
+
+    ApiResponse_MessageReactionsResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/MessageReactionsResponse' }
+
+    ApiResponse_ConversationResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ConversationResponse' }
+
+    ApiResponse_ConversationListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationResponse'
+
+    ApiResponse_ParticipantListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationParticipantResponse'
+
+    # --- Messenger Notes Schemas ---
+    UserNoteRequest:
+      type: object
+      required: [noteText]
+      properties:
+        noteText:
+          type: string
+          maxLength: 60
+          description: "Nội dung note (tối đa 60 ký tự)."
+        musicUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: "URL nhạc đính kèm (optional)."
+        musicTitle:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: "Tên bài nhạc (optional)."
+        emoji:
+          type: string
+          maxLength: 10
+          nullable: true
+          description: "Emoji đại diện (optional)."
+
+    UserNoteResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        username: { type: string }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        noteText: { type: string, maxLength: 60 }
+        musicUrl: { type: string, format: uri, nullable: true }
+        musicTitle: { type: string, nullable: true }
+        emoji: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, description: "Note tự động xóa sau 24h." }
+        replyCount: { type: integer, format: int64, description: "Tổng số messages (replies + reactions)." }
+
+    NoteReplyRequest:
+      type: object
+      required: [replyText]
+      properties:
+        replyText: { type: string, description: "Nội dung reply." }
+
+    NoteReactRequest:
+      type: object
+      required: [emoji]
+      properties:
+        emoji: { type: string, maxLength: 10, description: "Emoji reaction." }
+
+    UserNoteDto:
+      type: object
+      description: "WebSocket payload cho note events."
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        noteText: { type: string }
+        emoji: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    NoteDeleteDto:
+      type: object
+      properties:
+        userId: { type: integer, format: int64 }
+
+    ApiResponse_UserNoteResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/UserNoteResponse' }
+
+    ApiResponse_UserNoteListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserNoteResponse'
+
 security:
   - bearerAuth: []
 
@@ -289,6 +623,12 @@ tags:
     description: "Các API để quản lý cuộc trò chuyện."
   - name: Messages
     description: "Các API để quản lý tin nhắn trong cuộc trò chuyện."
+  - name: Notes
+    description: "Các API để quản lý Messenger Notes (status 24h trên avatar)."
+  - name: Contacts
+    description: "Các API để quản lý danh bạ và bạn bè."
+  - name: Social
+    description: "Các API cho tính năng xã hội (friend requests, etc)."
   - name: Call
     description: "Các API để quản lý tính năng gọi điện."
 
@@ -386,6 +726,297 @@ paths:
                 $ref: '#/components/schemas/ApiResponse_UserListResponse'
         '401':
           description: "Unauthorized."
+
+  /v1/users/search:
+    get:
+      summary: "Search users"
+      description: "Tìm kiếm người dùng theo username, email hoặc tên."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+          description: "Từ khóa tìm kiếm."
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+          description: "Số lượng kết quả tối đa."
+      responses:
+        '200':
+          description: "Users found successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/profile/me:
+    get:
+      summary: "Get my profile"
+      description: "Lấy thông tin profile của người dùng hiện tại."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Profile retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+        '401':
+          description: "Unauthorized."
+    put:
+      summary: "Update my profile"
+      description: "Cập nhật thông tin profile của người dùng hiện tại."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: "Profile updated successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+
+  /v1/profile/{userId}:
+    get:
+      summary: "Get user profile by ID"
+      description: "Lấy thông tin profile của một người dùng cụ thể."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Profile retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "User not found."
+
+  /v1/profile/username/{username}:
+    get:
+      summary: "Get user profile by username"
+      description: "Lấy thông tin profile của người dùng theo username."
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Profile retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "User not found."
+
+  # --- Conversation Paths ---
+  /v1/conversations:
+    post:
+      summary: "Create a new conversation"
+      description: |
+        Tạo một cuộc trò chuyện mới (1-1 hoặc nhóm).
+        
+        **VALIDATION RULES:**
+        - **DIRECT**: PHẢI có đúng 1 participant khác (ngoài current user)
+          - ❌ WRONG: participantIds: [17, 18, 19] (3 người)
+          - ✅ CORRECT: participantIds: [17] (1 người)
+          
+        - **GROUP**: PHẢI có ít nhất 1 participant khác (ngoài current user)
+          - ✅ CORRECT: participantIds: [17, 18] (2+ người)
+          - ✅ CORRECT: participantIds: [17] (1 người, nhưng nên dùng DIRECT thay vì GROUP)
+        
+        **Note**: Current user tự động được thêm vào conversation, không cần đưa vào participantIds.
+      tags: [Conversations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateConversationRequest' }
+            examples:
+              direct:
+                summary: "Direct conversation (1-1) - CORRECT"
+                value:
+                  type: "DIRECT"
+                  participantIds: [17]
+              direct_wrong:
+                summary: "Direct conversation - WRONG (multiple participants)"
+                value:
+                  type: "DIRECT"
+                  participantIds: [17, 18, 19]
+              group:
+                summary: "Group conversation - CORRECT"
+                value:
+                  name: "Team Chat"
+                  type: "GROUP"
+                  participantIds: [17, 18, 19]
+      responses:
+        '201':
+          description: "Conversation created successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ConversationResponse' }
+              example:
+                success: true
+                message: "Conversation created successfully"
+                data:
+                  id: 5
+                  name: null
+                  type: "GROUP"
+                  avatarUrl: null
+                  createdAt: "2025-12-12T09:39:16.600310058Z"
+                  updatedAt: "2025-12-12T09:39:16.600312653Z"
+                  participants:
+                    - userId: 12
+                      username: "hungly"
+                      role: "ADMIN"
+                    - userId: 2
+                      username: "binhtran"
+                      role: "MEMBER"
+                    - userId: 3
+                      username: "hoale"
+                      role: "MEMBER"
+                    - userId: 4
+                      username: "tuanpham"
+                      role: "MEMBER"
+                    - userId: 5
+                      username: "thuyvo"
+                      role: "MEMBER"
+        '400':
+          description: |
+            Bad Request:
+            - "DIRECT conversation must have exactly 1 other participant. Found: X"
+            - "GROUP conversation must have at least 1 other participant"
+            - "At least one participant is required"
+            - "Participant not found: {id}"
+        '401':
+          description: "Unauthorized."
+    get:
+      summary: "Get all conversations"
+      description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất."
+      tags: [Conversations]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Conversations retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ConversationListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/conversations/{conversationId}:
+    get:
+      summary: "Get a conversation"
+      description: "Lấy thông tin chi tiết của một cuộc trò chuyện, bao gồm participants và last message."
+      tags: [Conversations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Conversation retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ConversationResponse' }
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Not a participant."
+        '404':
+          description: "Conversation not found."
+    put:
+      summary: "Update a conversation"
+      description: |
+        Cập nhật thông tin cuộc trò chuyện (tên, avatar).
+        - Chỉ admin mới được cập nhật trong group chat
+        - Không thể update direct conversation
+      tags: [Conversations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateConversationRequest' }
+      responses:
+        '200':
+          description: "Conversation updated successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ConversationResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Only admin can update."
+        '404':
+          description: "Conversation not found."
+    delete:
+      summary: "Delete a conversation"
+      description: |
+        Xóa một cuộc trò chuyện.
+        - Chỉ admin mới được xóa group chat
+        - Cả 2 người đều có thể xóa direct conversation
+      tags: [Conversations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Conversation deleted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Only admin can delete."
+        '404':
+          description: "Conversation not found."
 
   # --- Message Paths ---
   /v1/conversations/{conversationId}/messages:
@@ -549,6 +1180,178 @@ paths:
         '404':
           description: "Message not found."
 
+  # --- Message Reactions ---
+  /v1/messages/{messageId}/reactions:
+    post:
+      summary: "Add or toggle reaction"
+      description: "Thêm hoặc toggle reaction (emoji) vào tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddReactionRequest' }
+      responses:
+        '200':
+          description: "Reaction toggled successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message not found."
+    get:
+      summary: "Get message reactions"
+      description: "Lấy tất cả reactions của một tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Reactions retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message not found."
+
+  /v1/messages/{messageId}/reactions/{emoji}:
+    delete:
+      summary: "Remove reaction"
+      description: "Xóa reaction của user hiện tại khỏi tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: emoji
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Reaction removed successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message not found."
+
+  # --- Read Receipts ---
+  /v1/messages/{messageId}/read:
+    post:
+      summary: "Mark message as read"
+      description: "Đánh dấu một tin nhắn đã đọc."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: "Message marked as read successfully."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message not found."
+
+  /v1/messages/{messageId}/receipts:
+    get:
+      summary: "Get read receipts for message"
+      description: "Lấy danh sách người đã đọc tin nhắn."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Read receipts retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ReadReceiptListResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Message not found."
+
+  /v1/conversations/{conversationId}/mark-read:
+    post:
+      summary: "Mark conversation as read"
+      description: "Đánh dấu tất cả tin nhắn trong conversation đã đọc."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: lastMessageId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+          description: "ID của tin nhắn cuối cùng đã đọc."
+      responses:
+        '204':
+          description: "Conversation marked as read successfully."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Conversation not found."
+
+  /v1/messages/unread-count:
+    get:
+      summary: "Get total unread count"
+      description: "Lấy tổng số tin nhắn chưa đọc từ tất cả conversations."
+      tags: [Messages]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Unread count retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      unreadCount: { type: integer, format: int64 }
+        '401':
+          description: "Unauthorized."
+
   # --- Call Paths ---
   /v1/calls/initiate:
     post:
@@ -651,3 +1454,427 @@ paths:
           description: "Unauthorized."
         '404':
           description: "Call not found."
+
+  # --- Contacts Paths ---
+  /v1/contacts:
+    get:
+      summary: "Get all contacts"
+      description: "Lấy danh sách tất cả contacts của người dùng hiện tại."
+      tags: [Contacts]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Contacts retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+        '401':
+          description: "Unauthorized."
+    post:
+      summary: "Add a new contact"
+      description: "Thêm một contact mới vào danh bạ."
+      tags: [Contacts]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddContactRequest' }
+      responses:
+        '201':
+          description: "Contact added successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+
+  /v1/contacts/favorites:
+    get:
+      summary: "Get favorite contacts"
+      description: "Lấy danh sách contacts yêu thích."
+      tags: [Contacts]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Favorite contacts retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/contacts/{contactId}:
+    put:
+      summary: "Update a contact"
+      description: "Cập nhật thông tin contact (nickname, favorite status)."
+      tags: [Contacts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateContactRequest' }
+      responses:
+        '200':
+          description: "Contact updated successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Contact not found."
+    delete:
+      summary: "Delete a contact"
+      description: "Xóa một contact khỏi danh bạ."
+      tags: [Contacts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: contactId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Contact deleted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Contact not found."
+
+  # --- Friend Requests Paths ---
+  /v1/friend-requests:
+    post:
+      summary: "Send friend request"
+      description: "Gửi lời mời kết bạn đến một người dùng."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendFriendRequestRequest' }
+      responses:
+        '201':
+          description: "Friend request sent successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+
+  /v1/friend-requests/received:
+    get:
+      summary: "Get pending friend requests received"
+      description: "Lấy danh sách lời mời kết bạn đã nhận."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Pending requests retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/friend-requests/sent:
+    get:
+      summary: "Get pending friend requests sent"
+      description: "Lấy danh sách lời mời kết bạn đã gửi."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Sent requests retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/friend-requests/{requestId}/accept:
+    post:
+      summary: "Accept friend request"
+      description: "Chấp nhận lời mời kết bạn."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Friend request accepted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Request not found."
+
+  /v1/friend-requests/{requestId}/reject:
+    post:
+      summary: "Reject friend request"
+      description: "Từ chối lời mời kết bạn."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: "Friend request rejected successfully."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Request not found."
+
+  /v1/friend-requests/{requestId}:
+    delete:
+      summary: "Cancel friend request"
+      description: "Hủy lời mời kết bạn đã gửi."
+      tags: [Social]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: "Friend request cancelled successfully."
+        '401':
+          description: "Unauthorized."
+        '404':
+          description: "Request not found."
+
+  # --- Messenger Notes Paths ---
+  /v1/notes:
+    post:
+      summary: "Create or update note"
+      description: |
+        Tạo hoặc cập nhật note (status) của người dùng hiện tại.
+        - Mỗi user chỉ có 1 note active tại một thời điểm
+        - Note tự động expire sau 24 giờ
+        - Tối đa 60 ký tự
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserNoteRequest' }
+      responses:
+        '201':
+          description: "Note created successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+    delete:
+      summary: "Delete current user's note"
+      description: "Xóa note của người dùng hiện tại."
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Note deleted successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/notes/me:
+    get:
+      summary: "Get current user's note"
+      description: "Lấy note của người dùng hiện tại (nếu có)."
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Note retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/notes/contacts:
+    get:
+      summary: "Get notes from contacts"
+      description: "Lấy tất cả notes đang active từ danh sách contacts của user. Hiển thị trong inbox/chat list."
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Notes retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteListResponse' }
+        '401':
+          description: "Unauthorized."
+
+  /v1/notes/users/{userId}:
+    get:
+      summary: "Get a specific user's note"
+      description: "Lấy note của một user cụ thể. Chỉ xem được note của contacts."
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Note retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Not a contact."
+        '404':
+          description: "User not found or no active note."
+
+  /v1/notes/{noteId}/reply:
+    post:
+      summary: "Reply to a note"
+      description: |
+        Reply vào một note. Reply sẽ tạo một tin nhắn TEXT trong direct conversation giữa 2 người.
+        - Reply là message thật trong conversation
+        - Có thể reply nhiều lần
+        - Chỉ contacts mới reply được
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NoteReplyRequest' }
+      responses:
+        '201':
+          description: "Reply sent successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Not a contact or replying to own note."
+        '404':
+          description: "Note not found or expired."
+
+  /v1/notes/{noteId}/react:
+    post:
+      summary: "React to a note with emoji"
+      description: |
+        React vào một note với emoji. Reaction sẽ tạo một tin nhắn TEXT với nội dung là emoji trong direct conversation.
+        - Mỗi reaction là 1 message riêng
+        - Có thể react nhiều lần với emojis khác nhau
+        - Chỉ contacts mới react được
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NoteReactRequest' }
+      responses:
+        '200':
+          description: "Reaction sent successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+        '400':
+          description: "Bad Request."
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Not a contact."
+        '404':
+          description: "Note not found or expired."
+
+  /v1/notes/{noteId}/messages:
+    get:
+      summary: "Get all messages for a note"
+      description: |
+        Lấy tất cả messages (replies + reactions) liên quan đến một note.
+        - Chỉ note owner mới xem được
+        - Trả về danh sách messages từ conversation
+      tags: [Notes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: "Messages retrieved successfully."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse_MessageListResponse' }
+        '401':
+          description: "Unauthorized."
+        '403':
+          description: "Forbidden - Only note owner can view."
+        '404':
+          description: "Note not found or expired."
+
