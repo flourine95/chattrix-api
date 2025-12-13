@@ -91,8 +91,33 @@ public class ConversationService {
         return conversationMapper.toResponse(conversation);
     }
 
-    public List<ConversationResponse> getConversations(Long userId) {
-        return conversationMapper.toResponseList(conversationRepository.findByUserId(userId));
+    public List<ConversationResponse> getConversations(Long userId, String filter) {
+        List<Conversation> conversations = conversationRepository.findByUserId(userId);
+
+        // Apply filter
+        if (filter != null) {
+            switch (filter.toLowerCase()) {
+                case "unread":
+                    // Filter conversations with unread messages
+                    conversations = conversations.stream()
+                            .filter(conv -> conv.getParticipants().stream()
+                                    .anyMatch(p -> p.getUser().getId().equals(userId) && p.getUnreadCount() > 0))
+                            .toList();
+                    break;
+                case "group":
+                    // Filter only GROUP conversations
+                    conversations = conversations.stream()
+                            .filter(conv -> conv.getType() == Conversation.ConversationType.GROUP)
+                            .toList();
+                    break;
+                case "all":
+                default:
+                    // Return all conversations (no filtering needed)
+                    break;
+            }
+        }
+
+        return conversationMapper.toResponseList(conversations);
     }
 
     public ConversationResponse getConversation(Long userId, Long conversationId) {

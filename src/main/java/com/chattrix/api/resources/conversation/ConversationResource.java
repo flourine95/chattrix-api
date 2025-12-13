@@ -36,8 +36,9 @@ public class ConversationResource {
     }
 
     @GET
-    public Response getConversations() {
-        var list = conversationService.getConversations(userContext.getCurrentUserId());
+    public Response getConversations(
+            @QueryParam("filter") @DefaultValue("all") String filter) {
+        var list = conversationService.getConversations(userContext.getCurrentUserId(), filter);
         return Response.ok(ApiResponse.success(list, "Conversations retrieved successfully")).build();
     }
 

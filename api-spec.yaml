@@ -921,18 +921,156 @@ paths:
           description: "Unauthorized."
     get:
       summary: "Get all conversations"
-      description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất."
+      description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất. Hỗ trợ filter theo loại conversation."
       tags: [Conversations]
       security:
         - bearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          required: false
+          description: |
+            Filter conversations by type:
+            - **all** (default): Tất cả conversations
+            - **unread**: Chỉ conversations có tin nhắn chưa đọc
+            - **group**: Chỉ conversations nhóm (GROUP)
+          schema:
+            type: string
+            enum: [all, unread, group]
+            default: all
+          example: all
       responses:
         '200':
           description: "Conversations retrieved successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ConversationListResponse' }
+              examples:
+                all:
+                  summary: "All conversations (filter=all)"
+                  value:
+                    success: true
+                    message: "Conversations retrieved successfully"
+                    data:
+                      - id: 1
+                        type: "DIRECT"
+                        createdAt: "2025-12-12T09:35:09.382687Z"
+                        updatedAt: "2025-12-13T07:38:26.471576Z"
+                        participants:
+                          - userId: 12
+                            username: "hungly"
+                            role: "ADMIN"
+                          - userId: 17
+                            username: "ducphan"
+                            role: "MEMBER"
+                        lastMessage:
+                          id: 6
+                          content: "đã sửa nha"
+                          senderId: 12
+                          senderUsername: "hungly"
+                          sentAt: "2025-12-13T07:38:26.438210Z"
+                          type: "TEXT"
+                      - id: 5
+                        type: "GROUP"
+                        createdAt: "2025-12-12T09:39:16.600310Z"
+                        updatedAt: "2025-12-12T09:39:16.600313Z"
+                        participants:
+                          - userId: 12
+                            username: "hungly"
+                            role: "ADMIN"
+                          - userId: 3
+                            username: "hoale"
+                            role: "MEMBER"
+                          - userId: 4
+                            username: "tuanpham"
+                            role: "MEMBER"
+                          - userId: 2
+                            username: "binhtran"
+                            role: "MEMBER"
+                          - userId: 5
+                            username: "thuyvo"
+                            role: "MEMBER"
+                      - id: 4
+                        type: "DIRECT"
+                        createdAt: "2025-12-12T09:38:52.749391Z"
+                        updatedAt: "2025-12-12T09:38:52.749395Z"
+                        participants:
+                          - userId: 12
+                            username: "hungly"
+                            role: "ADMIN"
+                          - userId: 17
+                            username: "ducphan"
+                            role: "MEMBER"
+                unread:
+                  summary: "Only unread conversations (filter=unread)"
+                  value:
+                    success: true
+                    message: "Conversations retrieved successfully"
+                    data:
+                      - id: 1
+                        type: "DIRECT"
+                        createdAt: "2025-12-12T09:35:09.382687Z"
+                        updatedAt: "2025-12-13T07:38:26.471576Z"
+                        participants:
+                          - userId: 12
+                            username: "hungly"
+                            role: "ADMIN"
+                          - userId: 17
+                            username: "ducphan"
+                            role: "MEMBER"
+                        lastMessage:
+                          id: 6
+                          content: "đã sửa nha"
+                          senderId: 12
+                          senderUsername: "hungly"
+                          sentAt: "2025-12-13T07:38:26.438210Z"
+                          type: "TEXT"
+                group:
+                  summary: "Only group conversations (filter=group)"
+                  value:
+                    success: true
+                    message: "Conversations retrieved successfully"
+                    data:
+                      - id: 5
+                        type: "GROUP"
+                        createdAt: "2025-12-12T09:39:16.600310Z"
+                        updatedAt: "2025-12-12T09:39:16.600313Z"
+                        participants:
+                          - userId: 12
+                            username: "hungly"
+                            role: "ADMIN"
+                          - userId: 3
+                            username: "hoale"
+                            role: "MEMBER"
+                          - userId: 4
+                            username: "tuanpham"
+                            role: "MEMBER"
+                          - userId: 2
+                            username: "binhtran"
+                            role: "MEMBER"
+                          - userId: 5
+                            username: "thuyvo"
+                            role: "MEMBER"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "UNAUTHORIZED" }
+                      message: { type: string, example: "Invalid or expired token" }
+                  requestId: { type: string, format: uuid, example: "27fcc299-9b9b-4cfd-a87f-82260d7fc124" }
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "27fcc299-9b9b-4cfd-a87f-82260d7fc124"
 
   /v1/conversations/{conversationId}:
     get:
@@ -946,18 +1084,95 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          example: 1
       responses:
         '200':
           description: "Conversation retrieved successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ConversationResponse' }
+              example:
+                success: true
+                message: "Conversation retrieved successfully"
+                data:
+                  id: 1
+                  type: "DIRECT"
+                  createdAt: "2025-12-12T09:35:09.382687Z"
+                  updatedAt: "2025-12-13T07:38:26.471576Z"
+                  participants:
+                    - userId: 12
+                      username: "hungly"
+                      role: "ADMIN"
+                    - userId: 17
+                      username: "ducphan"
+                      role: "MEMBER"
+                  lastMessage:
+                    id: 6
+                    content: "đã sửa nha"
+                    senderId: 12
+                    senderUsername: "hungly"
+                    sentAt: "2025-12-13T07:38:26.438210Z"
+                    type: "TEXT"
+        '400':
+          description: "Bad Request - You do not have access to this conversation."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "BAD_REQUEST" }
+                      message: { type: string, example: "You do not have access to this conversation" }
+                  requestId: { type: string, format: uuid, example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You do not have access to this conversation"
+                requestId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Not a participant."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "UNAUTHORIZED" }
+                      message: { type: string, example: "Invalid or expired token" }
+                  requestId: { type: string, format: uuid, example: "27fcc299-9b9b-4cfd-a87f-82260d7fc124" }
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "27fcc299-9b9b-4cfd-a87f-82260d7fc124"
         '404':
-          description: "Conversation not found."
+          description: "Not Found - Conversation not found."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "NOT_FOUND" }
+                      message: { type: string, example: "Conversation not found" }
+                  requestId: { type: string, format: uuid, example: "783376db-aad3-4ae8-9886-9074a79356d0" }
+              example:
+                success: false
+                error:
+                  code: "NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "783376db-aad3-4ae8-9886-9074a79356d0"
     put:
       summary: "Update a conversation"
       description: |
@@ -972,31 +1187,137 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          example: 7
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UpdateConversationRequest' }
+            example:
+              name: "day la group"
+              avatarUrl: "http://TDBUQDLVNCWK.hiynU7F27tcNxQSUu-RDCu0"
       responses:
         '200':
           description: "Conversation updated successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ConversationResponse' }
+              example:
+                success: true
+                message: "Conversation updated successfully"
+                data:
+                  id: 7
+                  type: "GROUP"
+                  name: "day la group"
+                  avatarUrl: "http://TDBUQDLVNCWK.hiynU7F27tcNxQSUu-RDCu0"
+                  createdAt: "2025-12-13T09:14:14.522996Z"
+                  updatedAt: "2025-12-13T09:14:14.522999Z"
+                  participants:
+                    - userId: 5
+                      username: "thuyvo"
+                      role: "MEMBER"
+                    - userId: 4
+                      username: "tuanpham"
+                      role: "MEMBER"
+                    - userId: 6
+                      username: "thanhdang"
+                      role: "MEMBER"
+                    - userId: 12
+                      username: "hungly"
+                      role: "ADMIN"
+                    - userId: 2
+                      username: "binhtran"
+                      role: "MEMBER"
+                    - userId: 3
+                      username: "hoale"
+                      role: "MEMBER"
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed or no access."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "BAD_REQUEST" }
+                      message: { type: string, example: "You do not have access to this conversation" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You do not have access to this conversation"
+                requestId: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "UNAUTHORIZED" }
+                      message: { type: string, example: "Invalid or expired token" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "27fcc299-9b9b-4cfd-a87f-82260d7fc124"
         '403':
           description: "Forbidden - Only admin can update."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "FORBIDDEN" }
+                      message: { type: string, example: "Only admin can update group conversation" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "Only admin can update group conversation"
+                requestId: "c2d3e4f5-a6b7-8901-cdef-234567890abc"
         '404':
-          description: "Conversation not found."
+          description: "Not Found - Conversation not found."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "NOT_FOUND" }
+                      message: { type: string, example: "Conversation not found" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "d3e4f5a6-b7c8-9012-def0-34567890abcd"
     delete:
       summary: "Delete a conversation"
       description: |
-        Xóa một cuộc trò chuyện.
-        - Chỉ admin mới được xóa group chat
-        - Cả 2 người đều có thể xóa direct conversation
+        Xóa một cuộc trò chuyện (user rời khỏi conversation).
+        - User sẽ bị remove khỏi participants list
+        - Có thể áp dụng cho cả DIRECT và GROUP conversation
+        - Conversation vẫn tồn tại cho các participants khác
       tags: [Conversations]
       security:
         - bearerAuth: []
@@ -1005,18 +1326,80 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          example: 7
       responses:
         '200':
-          description: "Conversation deleted successfully."
+          description: "Conversation deleted successfully (user left the conversation)."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Conversation deleted successfully" }
+              example:
+                success: true
+                message: "Conversation deleted successfully"
+        '400':
+          description: "Bad Request - You do not have access to this conversation."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "BAD_REQUEST" }
+                      message: { type: string, example: "You do not have access to this conversation" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You do not have access to this conversation"
+                requestId: "e4f5a6b7-c8d9-0123-ef01-4567890abcde"
         '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Only admin can delete."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "UNAUTHORIZED" }
+                      message: { type: string, example: "Invalid or expired token" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "27fcc299-9b9b-4cfd-a87f-82260d7fc124"
         '404':
-          description: "Conversation not found."
+          description: "Not Found - Conversation not found."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: "NOT_FOUND" }
+                      message: { type: string, example: "Conversation not found" }
+                  requestId: { type: string, format: uuid }
+              example:
+                success: false
+                error:
+                  code: "NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "f5a6b7c8-d9e0-1234-f012-567890abcdef"
 
   # --- Message Paths ---
   /v1/conversations/{conversationId}/messages:

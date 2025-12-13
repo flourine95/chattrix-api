@@ -39,5 +39,11 @@ public class MessageEditHistoryRepository {
                 .setParameter("messageId", messageId)
                 .getSingleResult();
     }
+
+    public void deleteByMessageId(Long messageId) {
+        em.createQuery("DELETE FROM MessageEditHistory h WHERE h.message.id = :messageId")
+                .setParameter("messageId", messageId)
+                .executeUpdate();
+    }
 }
 

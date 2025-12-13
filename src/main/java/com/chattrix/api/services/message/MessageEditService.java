@@ -31,9 +31,14 @@ public class MessageEditService {
     private UserRepository userRepository;
 
     @Transactional
-    public MessageResponse editMessage(Long userId, Long messageId, EditMessageRequest request) {
+    public MessageResponse editMessage(Long userId, Long conversationId, Long messageId, EditMessageRequest request) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+
+        // Validate message belongs to the specified conversation
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message not found in this conversation");
+        }
 
         if (!message.getSender().getId().equals(userId)) {
             throw new BadRequestException("You can only edit your own messages");
@@ -86,9 +91,14 @@ public class MessageEditService {
         messageRepository.save(message);
     }
 
-    public List<MessageEditHistoryResponse> getEditHistory(Long userId, Long messageId) {
+    public List<MessageEditHistoryResponse> getEditHistory(Long userId, Long conversationId, Long messageId) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+
+        // Validate message belongs to the specified conversation
+        if (conversationId != null && !message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message not found in this conversation");
+        }
 
         List<MessageEditHistory> history = editHistoryRepository.findByMessageId(messageId);
         return history.stream()

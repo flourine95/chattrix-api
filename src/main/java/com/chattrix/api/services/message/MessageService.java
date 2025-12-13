@@ -12,6 +12,7 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.MessageEditHistoryRepository;
 import com.chattrix.api.repositories.MessageReadReceiptRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -64,6 +65,9 @@ public class MessageService {
 
     @Inject
     private MessageReadReceiptRepository readReceiptRepository;
+
+    @Inject
+    private MessageEditHistoryRepository messageEditHistoryRepository;
 
     public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -245,7 +249,20 @@ public class MessageService {
         }
 
         Conversation conversation = message.getConversation();
-        boolean wasLastMessage = Objects.equals(conversation.getLastMessage().getId(), message.getId());
+        boolean wasLastMessage = conversation.getLastMessage() != null &&
+                                 Objects.equals(conversation.getLastMessage().getId(), message.getId());
+
+        // If this is the last message, clear the reference BEFORE deleting
+        if (wasLastMessage) {
+            conversation.setLastMessage(null);
+            conversationRepository.save(conversation);
+        }
+
+        // Delete related data first to avoid foreign key constraint violations
+        // 1. Delete read receipts
+        readReceiptRepository.deleteByMessageId(messageId);
+        // 2. Delete message edit history
+        messageEditHistoryRepository.deleteByMessageId(messageId);
 
         messageRepository.delete(message);
 

@@ -28,8 +28,6 @@ public class MessageResource {
     @Inject private PinnedMessageService pinnedMessageService;
     @Inject private UserContext userContext;
 
-    // --- STANDARD CRUD ---
-
     @GET
     public Response getMessages(
             @PathParam("conversationId") Long conversationId,
@@ -66,22 +64,19 @@ public class MessageResource {
     public Response deleteMessage(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId) {
-        // Ưu tiên dùng logic delete của MessageService (hoặc MessageEditService nếu nó handle soft delete)
         messageService.deleteMessage(userContext.getCurrentUserId(), conversationId, messageId);
         return Response.ok(ApiResponse.success(null, "Message deleted successfully")).build();
     }
 
-    // --- EDITING ---
-
     @PUT
-    @Path("/{messageId}") // Dùng PUT cho việc update content
+    @Path("/{messageId}")
     public Response editMessage(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId,
-            @Valid EditMessageRequest request) { // Dùng Request DTO phù hợp
+            @Valid EditMessageRequest request) {
 
-        // Bạn có thể dùng messageEditService hoặc messageService.updateMessage tùy vào việc bạn merge service chưa
-        var response = messageEditService.editMessage(userContext.getCurrentUserId(), messageId, request);
+        var response = messageEditService.editMessage(
+                userContext.getCurrentUserId(), conversationId, messageId, request);
         return Response.ok(ApiResponse.success(response, "Message edited successfully")).build();
     }
 
@@ -90,24 +85,19 @@ public class MessageResource {
     public Response getEditHistory(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId) {
-        var history = messageEditService.getEditHistory(userContext.getCurrentUserId(), messageId);
+        var history = messageEditService.getEditHistory(userContext.getCurrentUserId(), conversationId, messageId);
         return Response.ok(ApiResponse.success(history, "Edit history retrieved")).build();
     }
-
-    // --- FORWARDING ---
 
     @POST
     @Path("/forward")
     public Response forwardMessage(
             @PathParam("conversationId") Long conversationId,
             @Valid ForwardMessageRequest request) {
-        // Lưu ý: Forward thường là forward "đến" conversationId này
         var responses = messageForwardService.forwardMessage(userContext.getCurrentUserId(), request);
         return Response.status(Response.Status.CREATED)
                 .entity(ApiResponse.success(responses, "Message forwarded successfully")).build();
     }
-
-    // --- PINNING ---
 
     @GET
     @Path("/pinned")
@@ -127,7 +117,7 @@ public class MessageResource {
     }
 
     @DELETE
-    @Path("/{messageId}/pin") // DELETE .../pin thay vì /unpin cho chuẩn REST
+    @Path("/{messageId}/pin")
     public Response unpinMessage(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId) {
