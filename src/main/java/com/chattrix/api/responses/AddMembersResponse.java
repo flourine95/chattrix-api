@@ -1,19 +1,25 @@
 package com.chattrix.api.responses;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
 
-@Getter
-@Setter
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AddMembersResponse {
     private Long conversationId;
     private List<AddedMember> addedMembers;
 
-    @Getter
-    @Setter
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AddedMember {
         private Long userId;
         private String username;
@@ -22,4 +28,3 @@ public class AddMembersResponse {
         private Instant joinedAt;
     }
 }
-

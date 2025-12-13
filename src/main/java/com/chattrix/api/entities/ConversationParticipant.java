@@ -1,14 +1,16 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
 @Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "conversation_participants", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "conversation_id"})
 })
@@ -28,12 +30,12 @@ public class ConversationParticipant {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role; // ADMIN, MEMBER
+    private Role role;
 
     @Column(name = "joined_at")
     private Instant joinedAt;
 
-    // Unread count tracking
+    @Builder.Default
     @Column(name = "unread_count", nullable = false)
     private int unreadCount = 0;
 

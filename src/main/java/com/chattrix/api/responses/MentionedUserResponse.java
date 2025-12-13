@@ -7,7 +7,6 @@ import lombok.Setter;
 @Setter
 public class MentionedUserResponse {
     private Long id;
-    private String name;
+    private String fullName;
     private String username;
 }
-

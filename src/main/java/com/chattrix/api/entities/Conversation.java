@@ -1,16 +1,20 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Getter
 @Setter
 @Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "conversations")
 public class Conversation {
 
@@ -19,20 +23,22 @@ public class Conversation {
     private Long id;
 
     @Column(length = 150)
-    private String name; // Tên nhóm, null nếu 1-1
+    private String name;
 
     @Column(name = "avatar_url", length = 500)
-    private String avatarUrl; // Avatar URL cho nhóm
+    private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ConversationType type; // DIRECT hoặc GROUP
+    private ConversationType type;
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Message> messages;
+    @Builder.Default
+    private List<Message> messages = new ArrayList<>();
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<ConversationParticipant> participants;
+    @Builder.Default
+    private Set<ConversationParticipant> participants = new HashSet<>();
 
     @OneToOne
     @JoinColumn(name = "last_message_id")
@@ -56,7 +62,7 @@ public class Conversation {
     }
 
     public enum ConversationType {
-        DIRECT, // 1-1
-        GROUP   // Nhiều người
+        DIRECT,
+        GROUP
     }
 }

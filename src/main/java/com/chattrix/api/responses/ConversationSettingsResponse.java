@@ -1,12 +1,14 @@
 package com.chattrix.api.responses;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ConversationSettingsResponse {
     private Long conversationId;
     private Boolean isMuted;
@@ -16,4 +18,3 @@ public class ConversationSettingsResponse {
     private String customNickname;
     private String theme;
 }
-

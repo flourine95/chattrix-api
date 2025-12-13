@@ -1,14 +1,16 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
 @Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "conversation_settings", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "conversation_id"})
 })
@@ -26,6 +28,7 @@ public class ConversationSettings {
     @JoinColumn(name = "conversation_id", nullable = false)
     private Conversation conversation;
 
+    @Builder.Default
     @Column(name = "is_muted", nullable = false)
     private boolean isMuted = false;
 
@@ -35,12 +38,14 @@ public class ConversationSettings {
     @Column(name = "muted_until")
     private Instant mutedUntil;
 
+    @Builder.Default
     @Column(name = "is_blocked", nullable = false)
     private boolean isBlocked = false;
 
     @Column(name = "blocked_at")
     private Instant blockedAt;
 
+    @Builder.Default
     @Column(name = "notifications_enabled", nullable = false)
     private boolean notificationsEnabled = true;
 
@@ -50,20 +55,21 @@ public class ConversationSettings {
     @Column(name = "theme", length = 50)
     private String theme;
 
-    // Conversation visibility
+    @Builder.Default
     @Column(name = "is_hidden", nullable = false)
     private boolean isHidden = false;
 
     @Column(name = "hidden_at")
     private Instant hiddenAt;
 
+    @Builder.Default
     @Column(name = "is_archived", nullable = false)
     private boolean isArchived = false;
 
     @Column(name = "archived_at")
     private Instant archivedAt;
 
-    // Conversation pinning
+    @Builder.Default
     @Column(name = "is_pinned", nullable = false)
     private boolean isPinned = false;
 
@@ -90,4 +96,3 @@ public class ConversationSettings {
         this.updatedAt = Instant.now();
     }
 }
-

@@ -1,16 +1,22 @@
 package com.chattrix.api.services.call;
 
 import com.chattrix.api.config.AgoraConfig;
-import com.chattrix.api.entities.*;
-import com.chattrix.api.exceptions.*;
+import com.chattrix.api.entities.Call;
+import com.chattrix.api.entities.CallStatus;
+import com.chattrix.api.entities.User;
+import com.chattrix.api.exceptions.BadRequestException;
+import com.chattrix.api.exceptions.ResourceNotFoundException;
+import com.chattrix.api.exceptions.UnauthorizedException;
 import com.chattrix.api.mappers.CallMapper;
 import com.chattrix.api.repositories.CallRepository;
 import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.requests.*;
-import com.chattrix.api.responses.*;
+import com.chattrix.api.requests.EndCallRequest;
+import com.chattrix.api.requests.InitiateCallRequest;
+import com.chattrix.api.requests.RejectCallRequest;
+import com.chattrix.api.responses.CallConnectionResponse;
+import com.chattrix.api.responses.CallResponse;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
 import com.chattrix.api.websocket.dto.CallInvitationDto;
-
 import io.agora.media.RtcTokenBuilder;
 import io.agora.media.RtcTokenBuilder.Role;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,48 +24,32 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @ApplicationScoped
 @Transactional
-@Slf4j
 public class CallService {
 
     @Inject
     private CallRepository callRepository;
-
     @Inject
     private UserRepository userRepository;
-
     @Inject
     private CallMapper callMapper;
-
     @Inject
     private AgoraConfig agoraConfig;
-
     @Inject
     private WebSocketNotificationService webSocketService;
-
     @Inject
     private CallTimeoutScheduler timeoutScheduler;
 
-    /**
-     * 1. INITIATE: Tạo call -> Sinh Agora Token -> Trả về ConnectionResponse
-     */
-    public synchronized CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
+    public CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
         Long calleeId = request.getCalleeId();
-        log.info("Initiating call: {} -> {}", callerId, calleeId);
-
-        // Validation: Kiểm tra xem 2 người này có đang bận không
         validateUserBusy(callerId, calleeId);
 
-        // Tạo Channel ID duy nhất
         String channelId = "channel_%d_%d_%d".formatted(System.currentTimeMillis(), callerId, calleeId);
 
-        // Lưu DB
         Call call = Call.builder()
                 .id(UUID.randomUUID().toString())
                 .channelId(channelId)
@@ -71,214 +61,113 @@ public class CallService {
 
         call = callRepository.save(call);
 
-        // --- SCHEDULE TIMEOUT: Tự động MISSED sau 60s nếu không nghe ---
         timeoutScheduler.scheduleTimeout(call.getId(), callerId.toString(), calleeId.toString());
 
-        // --- LOGIC AGORA: Sinh Token cho Caller ---
-        String token = generateAgoraToken(channelId, callerId.toString());
-
-        // Gửi Socket mời Callee
         User caller = findUser(callerId);
         User callee = findUser(calleeId);
-        sendInvitation(call, caller, callee);
 
-        // Trả về Info + Token
-        return callMapper.toConnectionResponse(buildResponse(call, caller, callee), token);
+        sendInvitation(call, caller, callee);
+        String token = generateAgoraToken(channelId, callerId.toString());
+
+        return callMapper.toConnectionResponse(toFullResponse(call, caller, callee), token);
     }
 
-    /**
-     * 2. ACCEPT: Update status -> Sinh Agora Token -> Trả về ConnectionResponse
-     */
     public CallConnectionResponse acceptCall(String callId, Long userId) {
         Call call = findCall(callId);
 
-        // Chỉ người được gọi (Callee) mới được quyền bấm nghe
-        if (!call.getCalleeId().equals(userId)) {
+        if (!call.isCallee(userId)) {
             throw new UnauthorizedException("Only callee can accept this call");
         }
 
-        // Chỉ chấp nhận khi trạng thái đang đổ chuông
-        if (call.getStatus() != CallStatus.RINGING) {
-            throw new BadRequestException("Call is not ringing (Status: " + call.getStatus() + ")", "INVALID_STATUS");
+        try {
+            call.accept();
+        } catch (IllegalStateException e) {
+            throw new BadRequestException("Call is not ringing", "INVALID_STATUS");
         }
 
-        // --- HỦY TIMEOUT vì đã nghe máy ---
         timeoutScheduler.cancelTimeout(callId);
-
-        // Update status
-        call.setStatus(CallStatus.CONNECTING);
-        call.setStartTime(Instant.now());
         callRepository.save(call);
 
-        // --- LOGIC AGORA: Sinh Token cho Callee ---
+        webSocketService.sendCallAccepted(call.getCallerId().toString(), callId, userId.toString());
         String token = generateAgoraToken(call.getChannelId(), userId.toString());
 
-        // Báo cho Caller biết là bên kia đã nghe máy
-        webSocketService.sendCallAccepted(
-                call.getCallerId().toString(), callId, userId.toString()
-        );
-
-        // Trả về Info + Token
-        return callMapper.toConnectionResponse(buildResponse(call), token);
+        return callMapper.toConnectionResponse(toFullResponse(call), token);
     }
 
-    /**
-     * 3. REJECT: Update status -> KHÔNG Token
-     */
     public CallResponse rejectCall(String callId, Long userId, RejectCallRequest request) {
         Call call = findCall(callId);
 
-        // Chỉ người được gọi mới có quyền từ chối
-        if (!call.getCalleeId().equals(userId)) {
+        if (!call.isCallee(userId)) {
             throw new UnauthorizedException("Only callee can reject this call");
         }
-
-        // Nếu cuộc gọi đã kết thúc hoặc đã nghe rồi thì không từ chối được nữa
-        if (call.getStatus() != CallStatus.RINGING && call.getStatus() != CallStatus.INITIATING) {
-            throw new BadRequestException("Cannot reject call in status: " + call.getStatus(), "INVALID_STATUS");
+        if (call.getStatus() != CallStatus.RINGING) {
+            throw new BadRequestException("Cannot reject call", "INVALID_STATUS");
         }
 
-        // --- HỦY TIMEOUT vì đã reject ---
-        timeoutScheduler.cancelTimeout(callId);
-
-        call.setStatus(CallStatus.REJECTED);
-        call.setEndTime(Instant.now());
-
-        callRepository.save(call);
+        finalizeCall(call, CallStatus.REJECTED);
 
         webSocketService.sendCallRejected(
                 call.getCallerId().toString(), callId, userId.toString(), request.getReason()
         );
 
-        return buildResponse(call);
+        return toFullResponse(call);
     }
 
-    /**
-     * 4. END: Update status -> KHÔNG Token
-     */
     public CallResponse endCall(String callId, Long userId, EndCallRequest request) {
         Call call = findCall(callId);
 
-        // Chỉ người trong cuộc (Caller hoặc Callee) mới được tắt máy
-        if (!call.getCallerId().equals(userId) && !call.getCalleeId().equals(userId)) {
+        if (!call.isParticipant(userId)) {
             throw new UnauthorizedException("You are not a participant of this call");
         }
-
-        // Nếu đã tắt rồi thì thôi
-        if (call.getStatus() == CallStatus.ENDED || call.getStatus() == CallStatus.REJECTED || call.getStatus() == CallStatus.MISSED) {
+        if (call.isFinished()) {
             throw new BadRequestException("Call already ended", "CALL_ALREADY_ENDED");
         }
 
-        // --- HỦY TIMEOUT nếu còn ---
-        timeoutScheduler.cancelTimeout(callId);
+        finalizeCall(call, CallStatus.ENDED);
 
-        call.setStatus(CallStatus.ENDED);
-        call.setEndTime(Instant.now());
-
-        // Tính duration (Server tự tính)
-        int duration = 0;
-        if (call.getStartTime() != null) {
-            duration = (int) Duration.between(call.getStartTime(), call.getEndTime()).getSeconds();
-        }
-        call.setDurationSeconds(duration);
-
-        callRepository.save(call);
-
-        Long otherId = call.getCallerId().equals(userId) ? call.getCalleeId() : call.getCallerId();
         webSocketService.sendCallEnded(
-                otherId.toString(), callId, userId.toString(), duration
+                call.getOtherUserId(userId).toString(),
+                callId,
+                userId.toString(),
+                call.getDurationSeconds()
         );
 
-        return buildResponse(call);
+        return toFullResponse(call);
     }
 
-    /**
-     * 5. FORCE END khi user ngắt kết nối đột ngột (WebSocket @OnClose)
-     */
     public void handleUserDisconnected(Long userId) {
-        log.info("Handling disconnection for user {}", userId);
+        callRepository.findActiveCallByUserId(userId).ifPresent(call -> {
+            log.warn("Force ending call {} due to user {} disconnection", call.getId(), userId);
 
-        Optional<Call> activeCall = callRepository.findActiveCallByUserId(userId);
-        if (activeCall.isEmpty()) {
-            log.debug("No active call found for user {}", userId);
-            return;
-        }
+            finalizeCall(call, CallStatus.ENDED);
 
-        Call call = activeCall.get();
-        log.warn("Force ending call {} due to user {} disconnection", call.getId(), userId);
+            try {
+                webSocketService.sendCallEnded(
+                        call.getOtherUserId(userId).toString(),
+                        call.getId(),
+                        userId.toString(),
+                        call.getDurationSeconds()
+                );
+            } catch (Exception e) {
+                log.error("Failed to notify partner about forced disconnection", e);
+            }
+        });
+    }
 
-        // Hủy timeout
+    private void finalizeCall(Call call, CallStatus status) {
         timeoutScheduler.cancelTimeout(call.getId());
-
-        // Update status
-        call.setStatus(CallStatus.ENDED);
-        call.setEndTime(Instant.now());
-
-        // Tính duration nếu có
-        if (call.getStartTime() != null) {
-            int duration = (int) Duration.between(call.getStartTime(), call.getEndTime()).getSeconds();
-            call.setDurationSeconds(duration);
-        }
-
+        call.end(status);
         callRepository.save(call);
-
-        // Thông báo cho người còn lại
-        Long otherId = call.getCallerId().equals(userId) ? call.getCalleeId() : call.getCallerId();
-        try {
-            webSocketService.sendCallEnded(
-                    otherId.toString(),
-                    call.getId(),
-                    userId.toString(),
-                    call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
-            );
-        } catch (Exception e) {
-            log.error("Failed to notify other user about call end", e);
-        }
     }
 
-    // --- Private Helpers ---
-
-    private String generateAgoraToken(String channelId, String userId) {
-        try {
-            RtcTokenBuilder tokenBuilder = new RtcTokenBuilder();
-            int expirationTimeInSeconds = agoraConfig.getDefaultTokenExpiration();
-            int timestamp = (int) (System.currentTimeMillis() / 1000 + expirationTimeInSeconds);
-
-            return tokenBuilder.buildTokenWithUserAccount(
-                    agoraConfig.getAppId(),
-                    agoraConfig.getAppCertificate(),
-                    channelId,
-                    userId,
-                    Role.Role_Publisher,
-                    timestamp
-            );
-        } catch (Exception e) {
-            log.error("Failed to generate Agora token for user {} in channel {}", userId, channelId, e);
-            throw new RuntimeException("Token generation failed");
-        }
-    }
-
-    private void sendInvitation(Call call, User caller, User callee) {
-        CallInvitationDto data = CallInvitationDto.builder()
-                .callId(call.getId())
-                .channelId(call.getChannelId())
-                .callerId(caller.getId())
-                .callerName(caller.getFullName())
-                .callerAvatar(caller.getAvatarUrl())
-                .callType(call.getCallType())
-                .build();
-
-        webSocketService.sendCallInvitation(callee.getId().toString(), data);
-    }
-
-    private CallResponse buildResponse(Call call) {
+    private CallResponse toFullResponse(Call call) {
         User caller = userRepository.findById(call.getCallerId()).orElse(null);
         User callee = userRepository.findById(call.getCalleeId()).orElse(null);
-        return buildResponse(call, caller, callee);
+        return toFullResponse(call, caller, callee);
     }
 
-    private CallResponse buildResponse(Call call, User caller, User callee) {
-        CallResponse res = callMapper.toResponse(call);
+    private CallResponse toFullResponse(Call call, User caller, User callee) {
+        CallResponse res = callMapper.toResponse(call, caller, callee);
         if (caller != null) {
             res.setCallerName(caller.getFullName());
             res.setCallerAvatar(caller.getAvatarUrl());
@@ -291,24 +180,41 @@ public class CallService {
     }
 
     private Call findCall(String id) {
-        return callRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Call not found"));
+        return callRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Call not found"));
     }
 
     private User findUser(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private void validateUserBusy(Long callerId, Long calleeId) {
-        Optional<Call> activeCallCaller = callRepository.findActiveCallByUserId(callerId);
-        if (activeCallCaller.isPresent()) {
-            throw new BadRequestException("You are already in another call", "USER_BUSY");
+        if (callRepository.findActiveCallByUserId(callerId).isPresent() ||
+                callRepository.findActiveCallByUserId(calleeId).isPresent()) {
+            throw new BadRequestException("User is busy in another call", "USER_BUSY");
         }
+    }
 
-        Optional<Call> activeCallCallee = callRepository.findActiveCallByUserId(calleeId);
-        if (activeCallCallee.isPresent()) {
-            throw new BadRequestException("The user is currently busy in another call", "USER_BUSY");
+    private String generateAgoraToken(String channelId, String userId) {
+        try {
+            RtcTokenBuilder tokenBuilder = new RtcTokenBuilder();
+            int timestamp = (int) (System.currentTimeMillis() / 1000 + agoraConfig.getDefaultTokenExpiration());
+            return tokenBuilder.buildTokenWithUserAccount(
+                    agoraConfig.getAppId(), agoraConfig.getAppCertificate(),
+                    channelId, userId, Role.Role_Publisher, timestamp
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Token generation failed", e);
         }
+    }
+
+    private void sendInvitation(Call call, User caller, User callee) {
+        webSocketService.sendCallInvitation(callee.getId().toString(), CallInvitationDto.builder()
+                .callId(call.getId())
+                .channelId(call.getChannelId())
+                .callerId(caller.getId())
+                .callerName(caller.getFullName())
+                .callerAvatar(caller.getAvatarUrl())
+                .callType(call.getCallType())
+                .build());
     }
 }

@@ -7,9 +7,9 @@ import lombok.Setter;
 @Setter
 public class ConversationMemberResponse {
     private Long id;
-    private String name;
+    private String fullName;
     private String username;
     private String avatarUrl;
-    private String status;
+    private boolean isOnline;
 }
 

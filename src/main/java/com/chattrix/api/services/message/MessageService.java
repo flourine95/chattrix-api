@@ -7,6 +7,7 @@ import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ForbiddenException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
@@ -42,6 +43,9 @@ public class MessageService {
 
     @Inject
     private MessageMapper messageMapper;
+
+    @Inject
+    private UserMapper userMapper;
 
     @Inject
     private UserRepository userRepository;
@@ -267,7 +271,7 @@ public class MessageService {
         // Populate mentioned users if mentions exist
         if (message.getMentions() != null && !message.getMentions().isEmpty()) {
             List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
-            outgoingDto.setMentionedUsers(messageMapper.toMentionedUserResponseList(mentionedUsers));
+            outgoingDto.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
         }
 
         WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>("chat.message", outgoingDto);
@@ -329,7 +333,7 @@ public class MessageService {
         // Map mentioned users if mentions exist
         if (message.getMentions() != null && !message.getMentions().isEmpty()) {
             List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
-            response.setMentionedUsers(messageMapper.toMentionedUserResponseList(mentionedUsers));
+            response.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
         }
 
         return response;

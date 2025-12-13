@@ -4,10 +4,11 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.responses.UserSearchResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
 
 import java.util.List;
 
-@Mapper(componentModel = "cdi")
+@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface UserSearchMapper {
 
     @Mapping(target = "contact", ignore = true)

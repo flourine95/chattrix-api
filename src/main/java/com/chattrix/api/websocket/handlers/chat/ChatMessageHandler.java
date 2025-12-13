@@ -4,16 +4,13 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.notification.ChatSessionService;
-import com.chattrix.api.websocket.dto.ChatMessageDto;
-import com.chattrix.api.websocket.dto.ConversationUpdateDto;
-import com.chattrix.api.websocket.dto.MentionEventDto;
-import com.chattrix.api.websocket.dto.OutgoingMessageDto;
-import com.chattrix.api.websocket.dto.WebSocketMessage;
+import com.chattrix.api.websocket.dto.*;
 import com.chattrix.api.websocket.handlers.MessageHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,49 +22,46 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Handler for chat message processing.
- * Processes incoming chat messages, validates participants, handles mentions and replies,
- * saves messages to the database, and broadcasts to conversation participants.
- * 
- * Validates: Requirements 1.1, 1.2, 1.4, 1.5, 4.1, 5.2, 5.3, 5.4, 5.5
- */
 @ApplicationScoped
 public class ChatMessageHandler implements MessageHandler {
-    
+
     private static final Logger LOGGER = Logger.getLogger(ChatMessageHandler.class.getName());
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     @Inject
     private UserRepository userRepository;
-    
+
     @Inject
     private ConversationRepository conversationRepository;
-    
+
     @Inject
     private MessageRepository messageRepository;
-    
+
     @Inject
     private ChatSessionService chatSessionService;
-    
+
     @Inject
     private WebSocketMapper webSocketMapper;
-    
+    @Inject
+    private MessageMapper messageMapper;
+    @Inject
+    private UserMapper userMapper;
+
     @Override
     public void handle(Session session, Long userId, Object payload) {
         try {
             // Convert payload to DTO
             ChatMessageDto chatMessageDto = objectMapper.convertValue(payload, ChatMessageDto.class);
-            
+
             // Validate required fields
             if (chatMessageDto.getConversationId() == null) {
                 LOGGER.log(Level.WARNING, "Chat message missing conversationId from user: {0}", userId);
                 return;
             }
-            
+
             // Process the chat message
             processChatMessage(userId, chatMessageDto);
-            
+
         } catch (IllegalArgumentException e) {
             LOGGER.log(Level.WARNING, "Invalid chat message from user " + userId + ": " + e.getMessage(), e);
         } catch (IllegalStateException e) {
@@ -76,12 +70,12 @@ public class ChatMessageHandler implements MessageHandler {
             LOGGER.log(Level.SEVERE, "Error processing chat message from user " + userId, e);
         }
     }
-    
+
     @Override
     public String getMessageType() {
         return "chat.message";
     }
-    
+
     /**
      * Process the chat message - extracted from ChatServerEndpoint
      */
@@ -170,17 +164,13 @@ public class ChatMessageHandler implements MessageHandler {
             List<User> mentionedUsers = userRepository.findByIds(newMessage.getMentions());
             outgoingDto.setMentionedUsers(
                     messageRepository.findById(newMessage.getId())
-                            .map(msg -> {
-                                MessageMapper messageMapper =
-                                        CDI.current().select(MessageMapper.class).get();
-                                return messageMapper.toMentionedUserResponseList(mentionedUsers);
-                            })
+                            .map(msg -> userMapper.toMentionedUserResponseList(mentionedUsers))
                             .orElse(List.of())
             );
         }
 
-        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = 
-            new WebSocketMessage<>("chat.message", outgoingDto);
+        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage =
+                new WebSocketMessage<>("chat.message", outgoingDto);
 
         // 4. Broadcast the message to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {
@@ -200,19 +190,19 @@ public class ChatMessageHandler implements MessageHandler {
                 mentionEvent.setMentionedUserId(mentionedUserId);
                 mentionEvent.setCreatedAt(newMessage.getCreatedAt());
 
-                WebSocketMessage<MentionEventDto> mentionMessage = 
-                    new WebSocketMessage<>("message.mention", mentionEvent);
+                WebSocketMessage<MentionEventDto> mentionMessage =
+                        new WebSocketMessage<>("message.mention", mentionEvent);
                 chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
             }
         }
 
         // 6. Broadcast conversation update (lastMessage changed) to all participants
         broadcastConversationUpdate(conversation);
-        
-        LOGGER.log(Level.FINE, "Chat message processed successfully for user {0} in conversation {1}", 
-            new Object[]{senderId, chatMessageDto.getConversationId()});
+
+        LOGGER.log(Level.FINE, "Chat message processed successfully for user {0} in conversation {1}",
+                new Object[]{senderId, chatMessageDto.getConversationId()});
     }
-    
+
     /**
      * Broadcast conversation update to all participants
      */
@@ -234,8 +224,8 @@ public class ChatMessageHandler implements MessageHandler {
             updateDto.setLastMessage(lastMessageDto);
         }
 
-        WebSocketMessage<ConversationUpdateDto> message = 
-            new WebSocketMessage<>("conversation.update", updateDto);
+        WebSocketMessage<ConversationUpdateDto> message =
+                new WebSocketMessage<>("conversation.update", updateDto);
 
         // Broadcast to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {

@@ -6,27 +6,22 @@ import com.chattrix.api.entities.Message;
 import com.chattrix.api.responses.ConversationResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
 
 import java.util.List;
 
-@Mapper(componentModel = "cdi")
+@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface ConversationMapper {
 
-    @Mapping(target = "type", expression = "java(conversation.getType().name())")
-    @Mapping(target = "name", source = "name")
-    @Mapping(target = "lastMessage", source = "lastMessage")
     ConversationResponse toResponse(Conversation conversation);
 
     List<ConversationResponse> toResponseList(List<Conversation> conversations);
 
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "username", source = "user.username")
-    @Mapping(target = "role", expression = "java(participant.getRole().name())")
     ConversationResponse.ParticipantResponse toParticipantResponse(ConversationParticipant participant);
 
     @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderUsername", source = "sender.username")
-    @Mapping(target = "sentAt", source = "sentAt")
-    @Mapping(target = "type", expression = "java(message.getType().name())")
     ConversationResponse.MessageResponse toMessageResponse(Message message);
 }

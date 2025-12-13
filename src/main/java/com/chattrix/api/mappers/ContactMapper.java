@@ -4,10 +4,11 @@ import com.chattrix.api.entities.Contact;
 import com.chattrix.api.responses.ContactResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
 
 import java.util.List;
 
-@Mapper(componentModel = "cdi")
+@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface ContactMapper {
 
     @Mapping(target = "contactUserId", source = "contactUser.id")

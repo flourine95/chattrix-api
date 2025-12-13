@@ -6,7 +6,8 @@ import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BadRequestException;
 import com.chattrix.api.exceptions.ResourceNotFoundException;
-import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.ConversationMapper;
+import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.ConversationSettingsRepository;
@@ -28,162 +29,103 @@ public class ConversationService {
 
     @Inject
     private ConversationRepository conversationRepository;
-
     @Inject
     private UserRepository userRepository;
-
     @Inject
-    private MessageMapper messageMapper;
-
+    private UserMapper userMapper;
+    @Inject
+    private ConversationMapper conversationMapper;
     @Inject
     private ConversationParticipantRepository participantRepository;
-
     @Inject
     private ConversationSettingsRepository settingsRepository;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
-        // Validate request
         if (request.getParticipantIds() == null || request.getParticipantIds().isEmpty()) {
             throw new BadRequestException("At least one participant is required");
         }
 
-        // Validate DIRECT conversation
         if ("DIRECT".equals(request.getType())) {
-            // Remove current user ID if exists in list
-            long otherParticipantsCount = request.getParticipantIds().stream()
-                    .filter(id -> !id.equals(currentUserId))
-                    .count();
-
-            if (otherParticipantsCount != 1) {
-                throw new BadRequestException("DIRECT conversation must have exactly 1 other participant. Found: " + otherParticipantsCount);
-            }
+            long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
+            if (count != 1) throw new BadRequestException("DIRECT conversation must have exactly 1 other participant.");
         }
 
-        // Validate GROUP conversation
         if ("GROUP".equals(request.getType())) {
-            long otherParticipantsCount = request.getParticipantIds().stream()
-                    .filter(id -> !id.equals(currentUserId))
-                    .count();
-
-            if (otherParticipantsCount < 1) {
-                throw new BadRequestException("GROUP conversation must have at least 1 other participant");
-            }
+            long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
+            if (count < 1) throw new BadRequestException("GROUP conversation must have at least 1 other participant");
         }
 
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Create conversation
-        Conversation conversation = new Conversation();
-        conversation.setName(request.getName());
-        conversation.setType("GROUP".equals(request.getType()) ?
-                Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT);
+        Conversation conversation = Conversation.builder()
+                .name(request.getName())
+                .type("GROUP".equals(request.getType()) ? Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT)
+                .build();
 
-        // Add participants
         Set<ConversationParticipant> participants = new HashSet<>();
 
-        // Add current user as admin
-        ConversationParticipant currentUserParticipant = new ConversationParticipant();
-        currentUserParticipant.setUser(currentUser);
-        currentUserParticipant.setConversation(conversation);
-        currentUserParticipant.setRole(ConversationParticipant.Role.ADMIN);
-        participants.add(currentUserParticipant);
+        participants.add(ConversationParticipant.builder()
+                .user(currentUser)
+                .conversation(conversation)
+                .role(ConversationParticipant.Role.ADMIN)
+                .build());
 
-        // Add other participants
         for (Long participantId : request.getParticipantIds()) {
             if (!participantId.equals(currentUserId)) {
                 User participant = userRepository.findById(participantId)
                         .orElseThrow(() -> new BadRequestException("Participant not found: " + participantId));
 
-                ConversationParticipant conversationParticipant = new ConversationParticipant();
-                conversationParticipant.setUser(participant);
-                conversationParticipant.setConversation(conversation);
-                conversationParticipant.setRole(ConversationParticipant.Role.MEMBER);
-                participants.add(conversationParticipant);
+                participants.add(ConversationParticipant.builder()
+                        .user(participant)
+                        .conversation(conversation)
+                        .role(ConversationParticipant.Role.MEMBER)
+                        .build());
             }
         }
 
         conversation.setParticipants(participants);
         conversationRepository.save(conversation);
 
-        return ConversationResponse.fromEntity(conversation);
+        return conversationMapper.toResponse(conversation);
     }
 
     public List<ConversationResponse> getConversations(Long userId) {
-        List<Conversation> conversations = conversationRepository.findByUserId(userId);
-        return conversations.stream()
-                .map(ConversationResponse::fromEntity)
-                .toList();
+        return conversationMapper.toResponseList(conversationRepository.findByUserId(userId));
     }
 
     public ConversationResponse getConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
-
-        // Check if user is participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(userId));
-
-        if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
-        }
-
-        return ConversationResponse.fromEntity(conversation);
+        validateParticipant(conversation, userId);
+        return conversationMapper.toResponse(conversation);
     }
 
     public List<ConversationMemberResponse> getConversationMembers(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+        validateParticipant(conversation, userId);
 
-        // Check if user is participant
-        boolean isParticipant = conversation.getParticipants().stream()
-                .anyMatch(p -> p.getUser().getId().equals(userId));
-
-        if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
-        }
-
-        // Get all participant users
         List<User> users = conversation.getParticipants().stream()
                 .map(ConversationParticipant::getUser)
                 .toList();
-
-        return messageMapper.toConversationMemberResponseList(users);
+        return userMapper.toConversationMemberResponseList(users);
     }
 
-    // ==================== NEW CHAT INFO METHODS ====================
 
     @Transactional
     public ConversationResponse updateConversation(Long userId, Long conversationId, UpdateConversationRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Check if user is participant
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
-        }
+        validateGroupAdmin(conversationId, userId);
 
-        // Only GROUP conversations can be updated
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Only group conversations can be updated");
-        }
-
-        // Only ADMIN can update conversation
-        if (!participantRepository.isUserAdmin(conversationId, userId)) {
-            throw new BadRequestException("Only admins can update conversation details");
-        }
-
-        // Update fields
-        if (request.getName() != null) {
-            conversation.setName(request.getName());
-        }
-        if (request.getAvatarUrl() != null) {
-            conversation.setAvatarUrl(request.getAvatarUrl());
-        }
+        if (request.getName() != null) conversation.setName(request.getName());
+        if (request.getAvatarUrl() != null) conversation.setAvatarUrl(request.getAvatarUrl());
 
         conversationRepository.save(conversation);
-        return ConversationResponse.fromEntity(conversation);
+        return conversationMapper.toResponse(conversation);
     }
 
     @Transactional
@@ -191,24 +133,15 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw new BadRequestException("You do not have access to this conversation");
         }
 
-        // For now, we'll just remove the user from participants (soft delete for the user)
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Participant not found"));
 
         participantRepository.delete(participant);
-
-        // If no participants left, we could delete the conversation entirely
-        long remainingParticipants = participantRepository.countByConversationId(conversationId);
-        if (remainingParticipants == 0) {
-            // Delete conversation (implementation depends on your requirements)
-            // For now, we'll leave it as is
-        }
     }
 
     @Transactional
@@ -216,23 +149,15 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Only GROUP conversations can be left
         if (conversation.getType() != Conversation.ConversationType.GROUP) {
             throw new BadRequestException("Cannot leave a direct conversation");
         }
 
-        // Check if user is participant
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, userId)
                 .orElseThrow(() -> new BadRequestException("You are not a member of this conversation"));
 
         participantRepository.delete(participant);
-
-        // If no participants left, delete the conversation
-        long remainingParticipants = participantRepository.countByConversationId(conversationId);
-        if (remainingParticipants == 0) {
-            // Delete conversation
-        }
     }
 
     @Transactional
@@ -240,46 +165,36 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Only GROUP conversations can have members added
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Cannot add members to a direct conversation");
-        }
-
-        // Only ADMIN can add members
-        if (!participantRepository.isUserAdmin(conversationId, userId)) {
-            throw new BadRequestException("Only admins can add members");
-        }
+        validateGroupAdmin(conversationId, userId);
 
         List<AddMembersResponse.AddedMember> addedMembers = new ArrayList<>();
 
         for (Long newUserId : request.getUserIds()) {
-            // Check if user already exists
-            if (participantRepository.isUserParticipant(conversationId, newUserId)) {
-                continue; // Skip if already a member
-            }
+            if (participantRepository.isUserParticipant(conversationId, newUserId)) continue;
 
             User newUser = userRepository.findById(newUserId)
                     .orElseThrow(() -> new ResourceNotFoundException("User not found: " + newUserId));
 
-            ConversationParticipant newParticipant = new ConversationParticipant();
-            newParticipant.setUser(newUser);
-            newParticipant.setConversation(conversation);
-            newParticipant.setRole(ConversationParticipant.Role.MEMBER);
+            ConversationParticipant newParticipant = ConversationParticipant.builder()
+                    .user(newUser)
+                    .conversation(conversation)
+                    .role(ConversationParticipant.Role.MEMBER)
+                    .build();
             participantRepository.save(newParticipant);
 
-            AddMembersResponse.AddedMember addedMember = new AddMembersResponse.AddedMember();
-            addedMember.setUserId(newUser.getId());
-            addedMember.setUsername(newUser.getUsername());
-            addedMember.setFullName(newUser.getFullName());
-            addedMember.setRole("MEMBER");
-            addedMember.setJoinedAt(newParticipant.getJoinedAt());
-            addedMembers.add(addedMember);
+            addedMembers.add(AddMembersResponse.AddedMember.builder()
+                    .userId(newUser.getId())
+                    .username(newUser.getUsername())
+                    .fullName(newUser.getFullName())
+                    .role("MEMBER")
+                    .joinedAt(newParticipant.getJoinedAt())
+                    .build());
         }
 
-        AddMembersResponse response = new AddMembersResponse();
-        response.setConversationId(conversationId);
-        response.setAddedMembers(addedMembers);
-        return response;
+        return AddMembersResponse.builder()
+                .conversationId(conversationId)
+                .addedMembers(addedMembers)
+                .build();
     }
 
     @Transactional
@@ -287,24 +202,15 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Only GROUP conversations can have members removed
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Cannot remove members from a direct conversation");
-        }
+        validateGroupAdmin(conversationId, userId);
 
-        // Only ADMIN can remove members
-        if (!participantRepository.isUserAdmin(conversationId, userId)) {
-            throw new BadRequestException("Only admins can remove members");
-        }
-
-        // Cannot remove yourself (use leave instead)
         if (userId.equals(memberUserId)) {
             throw new BadRequestException("Use leave endpoint to remove yourself from the conversation");
         }
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, memberUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found in this conversation"));
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
 
         participantRepository.delete(participant);
     }
@@ -314,35 +220,24 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        // Only GROUP conversations have roles
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Cannot update roles in a direct conversation");
-        }
-
-        // Only ADMIN can update roles
-        if (!participantRepository.isUserAdmin(conversationId, userId)) {
-            throw new BadRequestException("Only admins can update member roles");
-        }
+        validateGroupAdmin(conversationId, userId);
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, memberUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found in this conversation"));
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
 
-        ConversationParticipant.Role newRole = ConversationParticipant.Role.valueOf(request.getRole());
-        participant.setRole(newRole);
+        participant.setRole(ConversationParticipant.Role.valueOf(request.getRole()));
         participantRepository.save(participant);
 
-        ConversationResponse.ParticipantResponse response = new ConversationResponse.ParticipantResponse();
-        response.setUserId(participant.getUser().getId());
-        response.setUsername(participant.getUser().getUsername());
-        response.setRole(newRole.name());
-        return response;
+        return ConversationResponse.ParticipantResponse.builder()
+                .userId(participant.getUser().getId())
+                .username(participant.getUser().getUsername())
+                .role(participant.getRole().name())
+                .build();
     }
 
-    // ==================== CONVERSATION SETTINGS ====================
 
     public ConversationSettingsResponse getConversationSettings(Long userId, Long conversationId) {
-        // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw new BadRequestException("You do not have access to this conversation");
         }
@@ -351,20 +246,19 @@ public class ConversationService {
                 .findByUserIdAndConversationId(userId, conversationId)
                 .orElseGet(() -> createDefaultSettings(userId, conversationId));
 
-        ConversationSettingsResponse response = new ConversationSettingsResponse();
-        response.setConversationId(conversationId);
-        response.setIsMuted(settings.isMuted());
-        response.setMutedUntil(settings.getMutedUntil());
-        response.setIsBlocked(settings.isBlocked());
-        response.setNotificationsEnabled(settings.isNotificationsEnabled());
-        response.setCustomNickname(settings.getCustomNickname());
-        response.setTheme(settings.getTheme());
-        return response;
+        return ConversationSettingsResponse.builder()
+                .conversationId(conversationId)
+                .isMuted(settings.isMuted())
+                .mutedUntil(settings.getMutedUntil())
+                .isBlocked(settings.isBlocked())
+                .notificationsEnabled(settings.isNotificationsEnabled())
+                .customNickname(settings.getCustomNickname())
+                .theme(settings.getTheme())
+                .build();
     }
 
     @Transactional
     public ConversationSettingsResponse updateConversationSettings(Long userId, Long conversationId, UpdateConversationSettingsRequest request) {
-        // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw new BadRequestException("You do not have access to this conversation");
         }
@@ -373,32 +267,26 @@ public class ConversationService {
                 .findByUserIdAndConversationId(userId, conversationId)
                 .orElseGet(() -> createDefaultSettings(userId, conversationId));
 
-        if (request.getNotificationsEnabled() != null) {
+        if (request.getNotificationsEnabled() != null)
             settings.setNotificationsEnabled(request.getNotificationsEnabled());
-        }
-        if (request.getCustomNickname() != null) {
-            settings.setCustomNickname(request.getCustomNickname());
-        }
-        if (request.getTheme() != null) {
-            settings.setTheme(request.getTheme());
-        }
+        if (request.getCustomNickname() != null) settings.setCustomNickname(request.getCustomNickname());
+        if (request.getTheme() != null) settings.setTheme(request.getTheme());
 
         settingsRepository.save(settings);
 
-        ConversationSettingsResponse response = new ConversationSettingsResponse();
-        response.setConversationId(conversationId);
-        response.setIsMuted(settings.isMuted());
-        response.setMutedUntil(settings.getMutedUntil());
-        response.setIsBlocked(settings.isBlocked());
-        response.setNotificationsEnabled(settings.isNotificationsEnabled());
-        response.setCustomNickname(settings.getCustomNickname());
-        response.setTheme(settings.getTheme());
-        return response;
+        return ConversationSettingsResponse.builder()
+                .conversationId(conversationId)
+                .isMuted(settings.isMuted())
+                .mutedUntil(settings.getMutedUntil())
+                .isBlocked(settings.isBlocked())
+                .notificationsEnabled(settings.isNotificationsEnabled())
+                .customNickname(settings.getCustomNickname())
+                .theme(settings.getTheme())
+                .build();
     }
 
     @Transactional
     public MuteConversationResponse muteConversation(Long userId, Long conversationId, MuteConversationRequest request) {
-        // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw new BadRequestException("You do not have access to this conversation");
         }
@@ -409,40 +297,28 @@ public class ConversationService {
 
         Integer duration = request.getDuration();
         if (duration == null || duration == 0) {
-            // Unmute
             settings.setMuted(false);
             settings.setMutedUntil(null);
         } else if (duration == -1) {
-            // Mute indefinitely
             settings.setMuted(true);
             settings.setMutedUntil(null);
         } else {
-            // Mute for duration
             settings.setMuted(true);
             settings.setMutedUntil(Instant.now().plusSeconds(duration));
         }
-
         settingsRepository.save(settings);
 
-        MuteConversationResponse response = new MuteConversationResponse();
-        response.setIsMuted(settings.isMuted());
-        response.setMutedUntil(settings.getMutedUntil());
-        return response;
+        return MuteConversationResponse.builder()
+                .isMuted(settings.isMuted())
+                .mutedUntil(settings.getMutedUntil())
+                .build();
     }
 
     @Transactional
     public BlockUserResponse blockUser(Long userId, Long conversationId) {
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
-
-        // Only DIRECT conversations can be blocked
-        if (conversation.getType() != Conversation.ConversationType.DIRECT) {
-            throw new BadRequestException("Can only block users in direct conversations");
-        }
-
-        // Check if user is participant
+        validateDirectConversation(conversationId);
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw new BadRequestException("Access denied");
         }
 
         ConversationSettings settings = settingsRepository
@@ -453,25 +329,17 @@ public class ConversationService {
         settings.setBlockedAt(Instant.now());
         settingsRepository.save(settings);
 
-        BlockUserResponse response = new BlockUserResponse();
-        response.setIsBlocked(true);
-        response.setBlockedAt(settings.getBlockedAt());
-        return response;
+        return BlockUserResponse.builder()
+                .isBlocked(true)
+                .blockedAt(settings.getBlockedAt())
+                .build();
     }
 
     @Transactional
     public BlockUserResponse unblockUser(Long userId, Long conversationId) {
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
-
-        // Only DIRECT conversations can be unblocked
-        if (conversation.getType() != Conversation.ConversationType.DIRECT) {
-            throw new BadRequestException("Can only unblock users in direct conversations");
-        }
-
-        // Check if user is participant
+        validateDirectConversation(conversationId);
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw new BadRequestException("Access denied");
         }
 
         ConversationSettings settings = settingsRepository
@@ -482,10 +350,10 @@ public class ConversationService {
         settings.setBlockedAt(null);
         settingsRepository.save(settings);
 
-        BlockUserResponse response = new BlockUserResponse();
-        response.setIsBlocked(false);
-        response.setBlockedAt(null);
-        return response;
+        return BlockUserResponse.builder()
+                .isBlocked(false)
+                .blockedAt(null)
+                .build();
     }
 
     private ConversationSettings createDefaultSettings(Long userId, Long conversationId) {
@@ -494,13 +362,36 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
 
-        ConversationSettings settings = new ConversationSettings();
-        settings.setUser(user);
-        settings.setConversation(conversation);
-        settings.setMuted(false);
-        settings.setBlocked(false);
-        settings.setNotificationsEnabled(true);
+        ConversationSettings settings = ConversationSettings.builder()
+                .user(user)
+                .conversation(conversation)
+                .build();
         return settingsRepository.save(settings);
     }
-}
 
+    private void validateParticipant(Conversation conversation, Long userId) {
+        boolean isParticipant = conversation.getParticipants().stream()
+                .anyMatch(p -> p.getUser().getId().equals(userId));
+        if (!isParticipant) throw new BadRequestException("You do not have access to this conversation");
+    }
+
+    private void validateGroupAdmin(Long conversationId, Long userId) {
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw new BadRequestException("Access denied");
+        }
+        Conversation c = conversationRepository.findById(conversationId).orElseThrow();
+        if (c.getType() != Conversation.ConversationType.GROUP) {
+            throw new BadRequestException("Only group conversations support this action");
+        }
+        if (!participantRepository.isUserAdmin(conversationId, userId)) {
+            throw new BadRequestException("Only admins can perform this action");
+        }
+    }
+
+    private void validateDirectConversation(Long conversationId) {
+        Conversation c = conversationRepository.findById(conversationId).orElseThrow();
+        if (c.getType() != Conversation.ConversationType.DIRECT) {
+            throw new BadRequestException("Action only available for direct conversations");
+        }
+    }
+}
