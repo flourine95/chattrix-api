@@ -47,7 +47,7 @@ public class ConversationSettingsRepository {
     public Integer getMaxPinOrder(Long userId) {
         Integer maxOrder = em.createQuery(
                         "SELECT MAX(cs.pinOrder) FROM ConversationSettings cs " +
-                                "WHERE cs.user.id = :userId AND cs.isPinned = true",
+                                "WHERE cs.user.id = :userId AND cs.pinned = true",
                         Integer.class)
                 .setParameter("userId", userId)
                 .getSingleResult();

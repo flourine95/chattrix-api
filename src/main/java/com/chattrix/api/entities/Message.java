@@ -119,15 +119,15 @@ public class Message {
     private Instant updatedAt;
 
     // Message editing
-    @Column(name = "is_edited", nullable = false)
-    private boolean isEdited = false;
+    @Column(name = "edited", nullable = false)
+    private boolean edited = false;
 
     @Column(name = "edited_at")
     private Instant editedAt;
 
     // Message deletion (soft delete)
-    @Column(name = "is_deleted", nullable = false)
-    private boolean isDeleted = false;
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -137,8 +137,8 @@ public class Message {
     private User deletedBy;
 
     // Message forwarding
-    @Column(name = "is_forwarded", nullable = false)
-    private boolean isForwarded = false;
+    @Column(name = "forwarded", nullable = false)
+    private boolean forwarded = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "original_message_id")

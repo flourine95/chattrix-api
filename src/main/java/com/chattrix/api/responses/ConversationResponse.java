@@ -18,6 +18,9 @@ public class ConversationResponse {
 
     private MessageResponse lastMessage;
 
+    // Unread count for current user
+    private Integer unreadCount;
+
     @Getter
     @Setter
     @Builder
@@ -37,5 +40,19 @@ public class ConversationResponse {
         private String senderUsername;
         private Instant sentAt;
         private String type;
+        private Long readCount;
+        private List<ReadReceiptInfo> readBy;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReadReceiptInfo {
+        private Long userId;
+        private String username;
+        private String fullName;
+        private String avatarUrl;
+        private Instant readAt;
     }
 }

@@ -43,7 +43,7 @@ public class PasswordResetTokenRepository {
     public Optional<PasswordResetToken> findValidTokenByUser(User user) {
         try {
             PasswordResetToken token = em.createQuery(
-                            "SELECT prt FROM PasswordResetToken prt WHERE prt.user = :user AND prt.isUsed = false AND prt.expiresAt > :now ORDER BY prt.createdAt DESC",
+                            "SELECT prt FROM PasswordResetToken prt WHERE prt.user = :user AND prt.used = false AND prt.expiresAt > :now ORDER BY prt.createdAt DESC",
                             PasswordResetToken.class)
                     .setParameter("user", user)
                     .setParameter("now", Instant.now())

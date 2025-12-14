@@ -146,8 +146,8 @@ public class ChatServerEndpoint {
         WebSocketMessage<Map<String, Object>> statusMessage = new WebSocketMessage<>("user.status", Map.of(
                 "userId", userId.toString(),
                 "username", user.getUsername(),
-                "displayName", user.getFullName(),
-                "isOnline", isOnline,
+                "fullName", user.getFullName(),
+                "online", isOnline,
                 "lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null
         ));
 

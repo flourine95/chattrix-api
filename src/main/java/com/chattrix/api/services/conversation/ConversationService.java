@@ -11,6 +11,7 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.ConversationSettingsRepository;
+import com.chattrix.api.repositories.MessageReadReceiptRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.*;
@@ -39,6 +40,8 @@ public class ConversationService {
     private ConversationParticipantRepository participantRepository;
     @Inject
     private ConversationSettingsRepository settingsRepository;
+    @Inject
+    private MessageReadReceiptRepository readReceiptRepository;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -91,22 +94,22 @@ public class ConversationService {
         return conversationMapper.toResponse(conversation);
     }
 
-    public List<ConversationResponse> getConversations(Long userId, String filter) {
-        List<Conversation> conversations = conversationRepository.findByUserId(userId);
+    public PaginatedResponse<ConversationResponse> getConversations(Long userId, String filter, int page, int size) {
+        List<Conversation> allConversations = conversationRepository.findByUserId(userId);
 
         // Apply filter
         if (filter != null) {
             switch (filter.toLowerCase()) {
                 case "unread":
                     // Filter conversations with unread messages
-                    conversations = conversations.stream()
+                    allConversations = allConversations.stream()
                             .filter(conv -> conv.getParticipants().stream()
                                     .anyMatch(p -> p.getUser().getId().equals(userId) && p.getUnreadCount() > 0))
                             .toList();
                     break;
                 case "group":
                     // Filter only GROUP conversations
-                    conversations = conversations.stream()
+                    allConversations = allConversations.stream()
                             .filter(conv -> conv.getType() == Conversation.ConversationType.GROUP)
                             .toList();
                     break;
@@ -117,7 +120,55 @@ public class ConversationService {
             }
         }
 
-        return conversationMapper.toResponseList(conversations);
+        // Calculate pagination
+        long totalElements = allConversations.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int startIndex = page * size;
+        int endIndex = Math.min(startIndex + size, allConversations.size());
+
+        // Get page of conversations
+        List<Conversation> pagedConversations = allConversations.subList(startIndex, endIndex);
+
+        // Map to response and populate unreadCount for current user
+        List<ConversationResponse> responses = conversationMapper.toResponseList(pagedConversations);
+        for (int i = 0; i < pagedConversations.size(); i++) {
+            Conversation conv = pagedConversations.get(i);
+            ConversationResponse response = responses.get(i);
+
+            // Find current user's participant to get unreadCount
+            conv.getParticipants().stream()
+                    .filter(p -> p.getUser().getId().equals(userId))
+                    .findFirst()
+                    .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
+
+            // Populate readBy for lastMessage if exists
+            if (response.getLastMessage() != null && conv.getLastMessage() != null) {
+                var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
+                response.getLastMessage().setReadCount((long) receipts.size());
+
+                List<ConversationResponse.ReadReceiptInfo> readByList = receipts.stream()
+                        .map(receipt -> ConversationResponse.ReadReceiptInfo.builder()
+                                .userId(receipt.getUser().getId())
+                                .username(receipt.getUser().getUsername())
+                                .fullName(receipt.getUser().getFullName())
+                                .avatarUrl(receipt.getUser().getAvatarUrl())
+                                .readAt(receipt.getReadAt())
+                                .build())
+                        .toList();
+                response.getLastMessage().setReadBy(readByList);
+            }
+        }
+
+        PaginatedResponse<ConversationResponse> result = new PaginatedResponse<>();
+        result.setData(responses);
+        result.setPage(page);
+        result.setSize(size);
+        result.setTotal(totalElements);
+        result.setTotalPages(totalPages);
+        result.setHasNextPage(page < totalPages - 1);
+        result.setHasPrevPage(page > 0);
+
+        return result;
     }
 
     public ConversationResponse getConversation(Long userId, Long conversationId) {

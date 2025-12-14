@@ -31,7 +31,7 @@ public class ContactRepository {
                         "SELECT c FROM Contact c " +
                                 "JOIN FETCH c.contactUser " +
                                 "WHERE c.user.id = :userId AND c.status = 'ACCEPTED' " +
-                                "ORDER BY c.isFavorite DESC, c.contactUser.fullName ASC",
+                                "ORDER BY c.favorite DESC, c.contactUser.fullName ASC",
                         Contact.class)
                 .setParameter("userId", userId)
                 .getResultList();
@@ -41,7 +41,7 @@ public class ContactRepository {
         return em.createQuery(
                         "SELECT c FROM Contact c " +
                                 "JOIN FETCH c.contactUser " +
-                                "WHERE c.user.id = :userId AND c.isFavorite = true AND c.status = 'ACCEPTED' " +
+                                "WHERE c.user.id = :userId AND c.favorite = true AND c.status = 'ACCEPTED' " +
                                 "ORDER BY c.contactUser.fullName ASC",
                         Contact.class)
                 .setParameter("userId", userId)

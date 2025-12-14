@@ -2,7 +2,6 @@ package com.chattrix.api.responses;
 
 import com.chattrix.api.entities.Gender;
 import com.chattrix.api.entities.ProfileVisibility;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,8 +13,7 @@ public class UserProfileResponse {
     private Long id;
     private String username;
     private String email;
-    @JsonProperty("isEmailVerified")
-    private boolean isEmailVerified;
+    private boolean emailVerified;
     private String fullName;
     private String avatarUrl;
     private String phone;
@@ -24,8 +22,7 @@ public class UserProfileResponse {
     private Gender gender;
     private String location;
     private ProfileVisibility profileVisibility;
-    @JsonProperty("isOnline")
-    private boolean isOnline;
+    private boolean online;
     private Instant lastSeen;
     private Instant createdAt;
 }

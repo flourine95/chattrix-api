@@ -29,8 +29,8 @@ public class ConversationSettings {
     private Conversation conversation;
 
     @Builder.Default
-    @Column(name = "is_muted", nullable = false)
-    private boolean isMuted = false;
+    @Column(name = "muted", nullable = false)
+    private boolean muted = false;
 
     @Column(name = "muted_at")
     private Instant mutedAt;
@@ -39,8 +39,8 @@ public class ConversationSettings {
     private Instant mutedUntil;
 
     @Builder.Default
-    @Column(name = "is_blocked", nullable = false)
-    private boolean isBlocked = false;
+    @Column(name = "blocked", nullable = false)
+    private boolean blocked = false;
 
     @Column(name = "blocked_at")
     private Instant blockedAt;
@@ -56,22 +56,22 @@ public class ConversationSettings {
     private String theme;
 
     @Builder.Default
-    @Column(name = "is_hidden", nullable = false)
-    private boolean isHidden = false;
+    @Column(name = "hidden", nullable = false)
+    private boolean hidden = false;
 
     @Column(name = "hidden_at")
     private Instant hiddenAt;
 
     @Builder.Default
-    @Column(name = "is_archived", nullable = false)
-    private boolean isArchived = false;
+    @Column(name = "archived", nullable = false)
+    private boolean archived = false;
 
     @Column(name = "archived_at")
     private Instant archivedAt;
 
     @Builder.Default
-    @Column(name = "is_pinned", nullable = false)
-    private boolean isPinned = false;
+    @Column(name = "pinned", nullable = false)
+    private boolean pinned = false;
 
     @Column(name = "pin_order")
     private Integer pinOrder;

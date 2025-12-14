@@ -30,8 +30,8 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(name = "is_revoked", nullable = false)
-    private boolean isRevoked = false;
+    @Column(name = "revoked", nullable = false)
+    private boolean revoked = false;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
@@ -65,7 +65,7 @@ public class RefreshToken {
     }
 
     public void revoke() {
-        this.isRevoked = true;
+        this.revoked = true;
         this.revokedAt = Instant.now();
     }
 }

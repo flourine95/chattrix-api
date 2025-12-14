@@ -43,7 +43,7 @@ public class VerificationTokenRepository {
     public Optional<VerificationToken> findValidTokenByUser(User user) {
         try {
             VerificationToken token = em.createQuery(
-                            "SELECT vt FROM VerificationToken vt WHERE vt.user = :user AND vt.isUsed = false AND vt.expiresAt > :now ORDER BY vt.createdAt DESC",
+                            "SELECT vt FROM VerificationToken vt WHERE vt.user = :user AND vt.used = false AND vt.expiresAt > :now ORDER BY vt.createdAt DESC",
                             VerificationToken.class)
                     .setParameter("user", user)
                     .setParameter("now", Instant.now())

@@ -91,7 +91,7 @@ public class UserRepository {
     }
 
     public List<User> findByIsOnlineTrue() {
-        return em.createQuery("SELECT u FROM User u WHERE u.isOnline = true ORDER BY u.fullName", User.class)
+        return em.createQuery("SELECT u FROM User u WHERE u.online = true ORDER BY u.fullName", User.class)
                 .getResultList();
     }
 
@@ -99,7 +99,7 @@ public class UserRepository {
         return em.createQuery(
                         "SELECT DISTINCT u FROM User u " +
                                 "JOIN u.conversationParticipants cp " +
-                                "WHERE cp.conversation.id = :conversationId AND u.isOnline = true " +
+                                "WHERE cp.conversation.id = :conversationId AND u.online = true " +
                                 "ORDER BY u.fullName", User.class)
                 .setParameter("conversationId", conversationId)
                 .getResultList();
@@ -108,7 +108,7 @@ public class UserRepository {
     public List<User> findStaleOnlineUsers(Instant threshold) {
         return em.createQuery(
                         "SELECT u FROM User u " +
-                                "WHERE u.isOnline = true AND u.lastSeen < :threshold", User.class)
+                                "WHERE u.online = true AND u.lastSeen < :threshold", User.class)
                 .setParameter("threshold", threshold)
                 .getResultList();
     }

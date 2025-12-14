@@ -23,5 +23,7 @@ public interface ConversationMapper {
 
     @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderUsername", source = "sender.username")
+    @Mapping(target = "readCount", ignore = true)
+    @Mapping(target = "readBy", ignore = true)
     ConversationResponse.MessageResponse toMessageResponse(Message message);
 }

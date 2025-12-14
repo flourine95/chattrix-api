@@ -191,6 +191,9 @@ public class MessageService {
         conversation.setLastMessage(message);
         conversationRepository.save(conversation);
 
+        // Increment unread count for all participants except the sender
+        participantRepository.incrementUnreadCountForOthers(conversationId, userId);
+
         // Broadcast message to all participants via WebSocket
         broadcastMessage(message, conversation);
 

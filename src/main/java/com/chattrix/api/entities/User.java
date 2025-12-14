@@ -29,8 +29,8 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "is_email_verified", nullable = false)
-    private boolean isEmailVerified = false;
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
 
     @Column(nullable = false)
     private String password;
@@ -64,8 +64,8 @@ public class User {
     @OneToMany(mappedBy = "user")
     private Set<ConversationParticipant> conversationParticipants;
 
-    @Column(name = "is_online", nullable = false)
-    private boolean isOnline = false;
+    @Column(name = "online", nullable = false)
+    private boolean online = false;
 
     @Column(name = "last_seen")
     private Instant lastSeen;

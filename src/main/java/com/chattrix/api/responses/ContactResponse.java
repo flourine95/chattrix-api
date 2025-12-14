@@ -1,7 +1,6 @@
 package com.chattrix.api.responses;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
 
@@ -12,10 +11,8 @@ public class ContactResponse {
     public String fullName;
     public String avatarUrl;
     public String nickname;
-    @JsonProperty("isFavorite")
-    public boolean isFavorite;
-    @JsonProperty("isOnline")
-    public boolean isOnline;
+    public boolean favorite;
+    public boolean online;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     public Instant lastSeen;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")

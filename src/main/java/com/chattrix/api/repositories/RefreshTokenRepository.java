@@ -93,7 +93,7 @@ public class RefreshTokenRepository {
     @Transactional
     public int deleteRevokedTokens() {
         return entityManager
-                .createQuery("DELETE FROM RefreshToken rt WHERE rt.isRevoked = true AND rt.revokedAt < :threshold")
+                .createQuery("DELETE FROM RefreshToken rt WHERE rt.revoked = true AND rt.revokedAt < :threshold")
                 .setParameter("threshold", Instant.now().minusSeconds(86400 * 7))
                 .executeUpdate();
     }

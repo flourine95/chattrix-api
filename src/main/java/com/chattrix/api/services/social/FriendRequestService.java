@@ -8,6 +8,7 @@ import com.chattrix.api.repositories.ContactRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.SendFriendRequestRequest;
 import com.chattrix.api.responses.FriendRequestResponse;
+import com.chattrix.api.services.notification.WebSocketNotificationService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -24,6 +25,9 @@ public class FriendRequestService {
 
     @Inject
     private UserRepository userRepository;
+
+    @Inject
+    private WebSocketNotificationService webSocketService;
 
     @Transactional
     public FriendRequestResponse sendFriendRequest(Long senderId, SendFriendRequestRequest request) {
@@ -58,7 +62,12 @@ public class FriendRequestService {
 
         contactRepository.save(contact);
 
-        return mapToFriendRequestResponse(contact, receiver);
+        FriendRequestResponse response = mapToFriendRequestResponse(contact, receiver);
+
+        // Send WebSocket notification to receiver
+        webSocketService.sendFriendRequestReceived(receiver.getId(), response);
+
+        return response;
     }
 
     @Transactional
@@ -85,7 +94,12 @@ public class FriendRequestService {
         reverseContact.setAcceptedAt(Instant.now());
         contactRepository.save(reverseContact);
 
-        return mapToFriendRequestResponse(request, request.getUser());
+        FriendRequestResponse response = mapToFriendRequestResponse(request, request.getUser());
+
+        // Send WebSocket notification to sender (original requester)
+        webSocketService.sendFriendRequestAccepted(request.getUser().getId(), response);
+
+        return response;
     }
 
     @Transactional
@@ -104,6 +118,9 @@ public class FriendRequestService {
         request.setStatus(Contact.ContactStatus.REJECTED);
         request.setRejectedAt(Instant.now());
         contactRepository.save(request);
+
+        // Send WebSocket notification to sender (original requester)
+        webSocketService.sendFriendRequestRejected(request.getUser().getId(), request.getId(), userId);
     }
 
     @Transactional
@@ -119,7 +136,13 @@ public class FriendRequestService {
             throw new BadRequestException("Friend request is not pending");
         }
 
+        Long receiverId = request.getContactUser().getId();
+        Long requestIdToSend = request.getId();
+
         contactRepository.delete(request);
+
+        // Send WebSocket notification to receiver
+        webSocketService.sendFriendRequestCancelled(receiverId, requestIdToSend, userId);
     }
 
     public List<FriendRequestResponse> getPendingRequestsReceived(Long userId) {

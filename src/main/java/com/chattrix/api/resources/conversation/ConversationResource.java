@@ -37,9 +37,11 @@ public class ConversationResource {
 
     @GET
     public Response getConversations(
-            @QueryParam("filter") @DefaultValue("all") String filter) {
-        var list = conversationService.getConversations(userContext.getCurrentUserId(), filter);
-        return Response.ok(ApiResponse.success(list, "Conversations retrieved successfully")).build();
+            @QueryParam("filter") @DefaultValue("all") String filter,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        var result = conversationService.getConversations(userContext.getCurrentUserId(), filter, page, size);
+        return Response.ok(ApiResponse.success(result, "Conversations retrieved successfully")).build();
     }
 
     @GET

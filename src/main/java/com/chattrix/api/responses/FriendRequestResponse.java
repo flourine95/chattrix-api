@@ -16,7 +16,7 @@ public class FriendRequestResponse {
     private String avatarUrl;
     private String status;
     private String nickname;
-    private boolean isOnline;
+    private boolean online;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     private Instant requestedAt;

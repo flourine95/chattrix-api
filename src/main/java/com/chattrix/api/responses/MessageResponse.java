@@ -47,25 +47,12 @@ public class MessageResponse {
     private Instant updatedAt;
 
     // Edit/Delete/Forward
-    @JsonProperty("isEdited")
-    private boolean isEdited;
-
-    @JsonProperty("editedAt")
+    private boolean edited;
     private Instant editedAt;
-
-    @JsonProperty("isDeleted")
-    private boolean isDeleted;
-
-    @JsonProperty("deletedAt")
+    private boolean deleted;
     private Instant deletedAt;
-
-    @JsonProperty("isForwarded")
-    private boolean isForwarded;
-
-    @JsonProperty("originalMessageId")
+    private boolean forwarded;
     private Long originalMessageId;
-
-    @JsonProperty("forwardCount")
     private Integer forwardCount;
 
     // Read receipts

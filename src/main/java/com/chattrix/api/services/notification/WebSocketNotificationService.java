@@ -1,11 +1,14 @@
 package com.chattrix.api.services.notification;
 
+import com.chattrix.api.responses.FriendRequestResponse;
 import com.chattrix.api.websocket.dto.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
 
 @ApplicationScoped
 @RequiredArgsConstructor(onConstructor_ = {@Inject})
@@ -14,6 +17,74 @@ import lombok.extern.slf4j.Slf4j;
 public class WebSocketNotificationService {
 
     private final ChatSessionService chatSessionService;
+
+    // ==================== Friend Request Events ====================
+
+    /**
+     * Send friend request received notification to the receiver
+     * Message Type: "friend.request.received"
+     */
+    public void sendFriendRequestReceived(Long receiverId, FriendRequestResponse friendRequest) {
+        try {
+            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>("friend.request.received", friendRequest);
+            chatSessionService.sendDirectMessage(receiverId, message);
+            log.info("Sent friend request notification to user {} from user {}", receiverId, friendRequest.getUserId());
+        } catch (Exception e) {
+            log.error("Failed to send friend request notification to user {}", receiverId, e);
+        }
+    }
+
+    /**
+     * Send friend request accepted notification to the sender
+     * Message Type: "friend.request.accepted"
+     */
+    public void sendFriendRequestAccepted(Long senderId, FriendRequestResponse friendRequest) {
+        try {
+            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>("friend.request.accepted", friendRequest);
+            chatSessionService.sendDirectMessage(senderId, message);
+            log.info("Sent friend request accepted notification to user {} from user {}", senderId, friendRequest.getUserId());
+        } catch (Exception e) {
+            log.error("Failed to send friend request accepted notification to user {}", senderId, e);
+        }
+    }
+
+    /**
+     * Send friend request rejected notification to the sender
+     * Message Type: "friend.request.rejected"
+     */
+    public void sendFriendRequestRejected(Long senderId, Long requestId, Long rejectedBy) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "requestId", requestId,
+                    "rejectedBy", rejectedBy
+            );
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.rejected", payload);
+            chatSessionService.sendDirectMessage(senderId, message);
+            log.info("Sent friend request rejected notification to user {} from user {}", senderId, rejectedBy);
+        } catch (Exception e) {
+            log.error("Failed to send friend request rejected notification to user {}", senderId, e);
+        }
+    }
+
+    /**
+     * Send friend request cancelled notification to the receiver
+     * Message Type: "friend.request.cancelled"
+     */
+    public void sendFriendRequestCancelled(Long receiverId, Long requestId, Long cancelledBy) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "requestId", requestId,
+                    "cancelledBy", cancelledBy
+            );
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.cancelled", payload);
+            chatSessionService.sendDirectMessage(receiverId, message);
+            log.info("Sent friend request cancelled notification to user {} from user {}", receiverId, cancelledBy);
+        } catch (Exception e) {
+            log.error("Failed to send friend request cancelled notification to user {}", receiverId, e);
+        }
+    }
+
+    // ==================== Call Events ====================
 
     public void sendCallInvitation(String calleeId, CallInvitationDto data) {
         try {

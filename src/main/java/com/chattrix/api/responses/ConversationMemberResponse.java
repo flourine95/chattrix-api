@@ -10,6 +10,6 @@ public class ConversationMemberResponse {
     private String fullName;
     private String username;
     private String avatarUrl;
-    private boolean isOnline;
+    private boolean online;
 }
 

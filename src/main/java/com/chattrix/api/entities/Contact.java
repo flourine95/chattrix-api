@@ -32,8 +32,8 @@ public class Contact {
     @Column(name = "nickname", length = 100)
     private String nickname;
 
-    @Column(name = "is_favorite", nullable = false)
-    private boolean isFavorite = false;
+    @Column(name = "favorite", nullable = false)
+    private boolean favorite = false;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

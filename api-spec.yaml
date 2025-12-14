@@ -8,20 +8,37 @@ info:
 
     ### Chi tiết các sự kiện WebSocket
     Tất cả các tin nhắn từ server đều được bọc trong một đối tượng `WebSocketMessage` chung.
+    
+    **Message Events:**
     *   **`chat.message`**: Tin nhắn trò chuyện mới. (Payload: `OutgoingMessageDto`)
     *   **`message.updated`**: Một tin nhắn đã được cập nhật. (Payload: `MessageUpdateDto`)
     *   **`message.deleted`**: Một tin nhắn đã bị xóa. (Payload: `MessageDeleteDto`)
+    *   **`message.reaction`**: Reaction đã được thêm/xóa khỏi tin nhắn. (Payload: `ReactionEventDto`)
+    
+    **Conversation Events:**
     *   **`conversation.update`**: Thông tin cuộc trò chuyện đã được cập nhật (ví dụ: tin nhắn cuối cùng). (Payload: `ConversationUpdateDto`)
+    *   **`typing.indicator`**: User đang typing trong conversation. (Payload: `TypingIndicatorResponseDto`)
+    
+    **User Events:**
     *   **`user.status`**: Trạng thái trực tuyến của người dùng đã thay đổi. (Payload: `UserStatusDto`)
+    
+    **Friend Request Events:**
+    *   **`friend.request.received`**: Nhận được friend request mới. (Payload: `FriendRequestResponse`)
+    *   **`friend.request.accepted`**: Friend request được chấp nhận. (Payload: `FriendRequestResponse`)
+    *   **`friend.request.rejected`**: Friend request bị từ chối. (Payload: `FriendRequestRejectDto`)
+    *   **`friend.request.cancelled`**: Friend request bị hủy bởi người gửi. (Payload: `FriendRequestCancelDto`)
+    
+    **Note Events:**
     *   **`note.created`**: Note mới được tạo từ contact. (Payload: `UserNoteDto`)
     *   **`note.updated`**: Note của contact được cập nhật. (Payload: `UserNoteDto`)
     *   **`note.deleted`**: Note của contact bị xóa. (Payload: `NoteDeleteDto`)
+    
+    **Call Events:**
     *   **`call.incoming`**: Thông báo có cuộc gọi đến. (Payload: `CallInvitationDto`)
     *   **`call.accepted`**: Cuộc gọi đã được chấp nhận. (Payload: `CallAcceptDto`)
     *   **`call.rejected`**: Cuộc gọi đã bị từ chối. (Payload: `CallRejectDto`)
     *   **`call.ended`**: Cuộc gọi đã kết thúc. (Payload: `CallEndDto`)
     *   **`call.timeout`**: Cuộc gọi hết thời gian chờ. (Payload: `CallTimeoutDto`)
-    *   **`call.quality_warning`**: Cảnh báo chất lượng kết nối. (Payload: `CallQualityWarningDto`)
   version: "1.0.0"
 servers:
   - url: /api
@@ -84,33 +101,102 @@ components:
         conversationId: { type: integer, format: int64 }
         senderId: { type: integer, format: int64 }
         senderUsername: { type: string, nullable: true }
-        senderName: { type: string, nullable: true }
-        senderAvatarUrl: { type: string, format: uri, nullable: true }
+        senderFullName: { type: string, nullable: true }
         content: { type: string, nullable: true }
-        type: { type: string, description: "Message type (TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, etc)" }
+        type: { type: string, enum: [TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION], description: "Message type" }
+        # Rich media fields
         mediaUrl: { type: string, format: uri, nullable: true }
         thumbnailUrl: { type: string, format: uri, nullable: true }
         fileName: { type: string, nullable: true }
         fileSize: { type: integer, format: int64, nullable: true }
-        duration: { type: integer, nullable: true }
+        duration: { type: integer, nullable: true, description: "Duration in seconds for audio/video" }
+        # Location fields
         latitude: { type: number, format: double, nullable: true }
         longitude: { type: number, format: double, nullable: true }
         locationName: { type: string, nullable: true }
+        # Reply context
+        replyToMessageId: { type: integer, format: int64, nullable: true }
+        replyToMessage:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, format: int64 }
+            content: { type: string }
+            senderId: { type: integer, format: int64 }
+            senderUsername: { type: string }
+        # Reactions: {"👍": [1, 2, 3], "❤️": [4, 5]}
         reactions:
           type: object
-          description: "Map of reaction (emoji or short key) to array of userIds or counts. Implementation may vary."
+          description: "Map of emoji to array of user IDs"
           additionalProperties:
             type: array
             items:
               type: integer
               format: int64
+        # Mentions
+        mentions:
+          type: array
+          nullable: true
+          items:
+            type: integer
+            format: int64
+        mentionedUsers:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              userId: { type: integer, format: int64 }
+              username: { type: string }
+              fullName: { type: string }
+        # Timestamps
         sentAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time, nullable: true }
-        forwardCount: { type: integer, format: int32, default: 0 }
-        forwarded: { type: boolean, default: false }
-        deleted: { type: boolean, default: false }
+        updatedAt: { type: string, format: date-time }
+        # Edit/Delete/Forward
         edited: { type: boolean, default: false }
+        editedAt: { type: string, format: date-time, nullable: true }
+        deleted: { type: boolean, default: false }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        forwarded: { type: boolean, default: false }
+        originalMessageId: { type: integer, format: int64, nullable: true }
+        forwardCount: { type: integer, format: int32, default: 0 }
+        # Read receipts
+        readCount: { type: integer, format: int64, default: 0 }
+        readBy:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              userId: { type: integer, format: int64 }
+              username: { type: string }
+              fullName: { type: string }
+              avatarUrl: { type: string }
+              readAt: { type: string, format: date-time }
+      example:
+        id: 5
+        conversationId: 1
+        senderId: 2
+        senderUsername: "user2"
+        senderFullName: "Tran Van Binh"
+        content: "Hì hì đúng thật, cũng đã nhiều năm trôi qua"
+        type: "TEXT"
+        reactions: {}
+        sentAt: "2025-12-14T06:18:25.432835Z"
+        createdAt: "2025-12-14T06:18:25.432836Z"
+        updatedAt: "2025-12-14T06:18:25.432837Z"
+        edited: false
+        deleted: false
+        forwarded: false
+        forwardCount: 0
+        readCount: 1
+        readBy:
+          - userId: 1
+            username: "user1"
+            fullName: "Nguyen Linh La"
+            avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+            readAt: "2025-12-14T06:50:24.557Z"
 
     ChatMessageRequest:
       type: object
@@ -169,6 +255,31 @@ components:
         success: { type: boolean, example: true }
         message: { type: string }
         data: { nullable: true }
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: "RESOURCE_NOT_FOUND"
+            message:
+              type: string
+              example: "The requested resource was not found"
+        requestId:
+          type: string
+          example: "req-12345-abcde"
 
     ApiResponse_AuthResponse:
       type: object
@@ -245,95 +356,292 @@ components:
         reason: { type: string, enum: [hangup, "network error", "device error", timeout], default: "hangup" }
 
     # --- WebSocket DTOs ---
+    OutgoingMessageDto:
+      type: object
+      description: "WebSocket payload for new chat message (event: chat.message)"
+      properties:
+        id: { type: integer, format: int64 }
+        conversationId: { type: integer, format: int64 }
+        sender:
+          type: object
+          properties:
+            id: { type: integer, format: int64 }
+            username: { type: string }
+            fullName: { type: string }
+            avatarUrl: { type: string, format: uri, nullable: true }
+        content: { type: string }
+        type: { type: string, enum: [TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION] }
+        createdAt: { type: string, format: date-time }
+        mediaUrl: { type: string, format: uri, nullable: true }
+        thumbnailUrl: { type: string, format: uri, nullable: true }
+        fileName: { type: string, nullable: true }
+        fileSize: { type: integer, format: int64, nullable: true }
+        duration: { type: integer, nullable: true }
+        latitude: { type: number, format: double, nullable: true }
+        longitude: { type: number, format: double, nullable: true }
+        locationName: { type: string, nullable: true }
+        replyToMessageId: { type: integer, format: int64, nullable: true }
+        replyToMessage:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, format: int64 }
+            content: { type: string }
+            senderId: { type: integer, format: int64 }
+            senderUsername: { type: string }
+        reactions:
+          type: object
+          description: "Map of emoji to array of user IDs"
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+        mentions:
+          type: array
+          nullable: true
+          items:
+            type: integer
+            format: int64
+        mentionedUsers:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              userId: { type: integer, format: int64 }
+              username: { type: string }
+              fullName: { type: string }
+
     MessageUpdateDto:
       type: object
+      description: "WebSocket payload for message update (event: message.updated)"
       properties:
         messageId: { type: integer, format: int64 }
         conversationId: { type: integer, format: int64 }
         content: { type: string }
-        isEdited: { type: boolean }
+        edited: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
     MessageDeleteDto:
       type: object
+      description: "WebSocket payload for message deletion (event: message.deleted)"
       properties:
         messageId: { type: integer, format: int64 }
         conversationId: { type: integer, format: int64 }
 
+    ConversationUpdateDto:
+      type: object
+      description: "WebSocket payload for conversation update (event: conversation.update)"
+      properties:
+        conversationId: { type: integer, format: int64 }
+        updatedAt: { type: string, format: date-time }
+        lastMessage:
+          type: object
+          properties:
+            id: { type: integer, format: int64 }
+            content: { type: string }
+            senderId: { type: integer, format: int64 }
+            senderUsername: { type: string }
+            sentAt: { type: string, format: date-time }
+            type: { type: string }
+
+    ReactionEventDto:
+      type: object
+      description: "WebSocket payload for reaction events (event: message.reaction)"
+      properties:
+        messageId: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        userName: { type: string }
+        emoji: { type: string }
+        action: { type: string, enum: [add, remove] }
+        reactions:
+          type: object
+          description: "Updated reactions map"
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+              format: int64
+        timestamp: { type: string, format: date-time }
+
+    TypingIndicatorDto:
+      type: object
+      description: "Client-to-server payload for typing indicator (send to server)"
+      properties:
+        conversationId: { type: integer, format: int64 }
+        typing: { type: boolean, description: "true = start typing, false = stop typing" }
+
+    TypingIndicatorResponseDto:
+      type: object
+      description: "WebSocket payload for typing indicator (event: typing.indicator)"
+      properties:
+        conversationId: { type: integer, format: int64 }
+        typingUsers:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: integer, format: int64 }
+              username: { type: string }
+              fullName: { type: string }
+
+    UserStatusDto:
+      type: object
+      description: "WebSocket payload for user status change (event: user.status)"
+      properties:
+        userId: { type: string }
+        username: { type: string }
+        fullName: { type: string }
+        online: { type: boolean }
+        lastSeen: { type: string, format: date-time, nullable: true }
+
+    FriendRequestRejectDto:
+      type: object
+      description: "WebSocket payload for friend request rejected (event: friend.request.rejected)"
+      properties:
+        requestId: { type: integer, format: int64 }
+        rejectedBy: { type: integer, format: int64 }
+
+    FriendRequestCancelDto:
+      type: object
+      description: "WebSocket payload for friend request cancelled (event: friend.request.cancelled)"
+      properties:
+        requestId: { type: integer, format: int64 }
+        cancelledBy: { type: integer, format: int64 }
+
     CallInvitationDto:
       type: object
+      description: "WebSocket payload for incoming call (event: call.incoming)"
       properties:
-        callId: { type: string, format: uuid }
+        callId: { type: string }
         channelId: { type: string }
         callerId: { type: integer, format: int64 }
         callerName: { type: string }
-        callerAvatar: { type: string, format: uri }
+        callerAvatar: { type: string, format: uri, nullable: true }
         callType: { type: string, enum: [AUDIO, VIDEO] }
 
     CallAcceptDto:
       type: object
+      description: "WebSocket payload for call accepted (event: call.accepted)"
       properties:
-        callId: { type: string, format: uuid }
+        callId: { type: string }
         acceptedBy: { type: integer, format: int64 }
 
     CallRejectDto:
       type: object
+      description: "WebSocket payload for call rejected (event: call.rejected)"
       properties:
-        callId: { type: string, format: uuid }
+        callId: { type: string }
         rejectedBy: { type: integer, format: int64 }
         reason: { type: string, enum: [busy, declined, unavailable] }
 
     CallEndDto:
       type: object
+      description: "WebSocket payload for call ended (event: call.ended)"
       properties:
-        callId: { type: string, format: uuid }
+        callId: { type: string }
         endedBy: { type: integer, format: int64 }
         durationSeconds: { type: integer }
 
     CallTimeoutDto:
       type: object
+      description: "WebSocket payload for call timeout (event: call.timeout)"
       properties:
-        callId: { type: string, format: uuid }
+        callId: { type: string }
         reason: { type: string, example: "no_answer" }
 
-    CallQualityWarningDto:
-      type: object
-      properties:
-        callId: { type: string, format: uuid }
-        userId: { type: integer, format: int64 }
-        message: { type: string }
 
     # --- Contacts & Social Schemas ---
     ContactResponse:
       type: object
       properties:
         id: { type: integer, format: int64 }
-        userId: { type: integer, format: int64 }
         contactUserId: { type: integer, format: int64 }
-        contactUser: { $ref: '#/components/schemas/UserResponse' }
+        username: { type: string }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
         nickname: { type: string, nullable: true }
-        isFavorite: { type: boolean }
-        status: { type: string, enum: [PENDING, ACCEPTED, BLOCKED] }
+        favorite: { type: boolean }
+        online: { type: boolean }
+        lastSeen: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
+      example:
+        id: 5
+        contactUserId: 10
+        username: "user10"
+        fullName: "Nguyen Van A"
+        avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+        nickname: "Best Friend"
+        favorite: true
+        online: true
+        lastSeen: "2025-12-14T08:30:15.123Z"
+        createdAt: "2025-12-10T10:20:30.456Z"
 
     AddContactRequest:
       type: object
       required: [contactUserId]
       properties:
-        contactUserId: { type: integer, format: int64 }
-        nickname: { type: string, nullable: true }
+        contactUserId:
+          type: integer
+          format: int64
+          description: "User ID của người cần add vào contacts"
+        nickname:
+          type: string
+          nullable: true
+          description: "Nickname cho contact (optional)"
 
     UpdateContactRequest:
       type: object
       properties:
+        nickname:
+          type: string
+          nullable: true
+          description: "Update nickname"
+        isFavorite:
+          type: boolean
+          nullable: true
+          description: "Mark as favorite hoặc unfavorite"
+
+    FriendRequestResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, description: "ID của người gửi/nhận (tùy context)" }
+        username: { type: string }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        status: { type: string, enum: [PENDING, ACCEPTED, REJECTED, BLOCKED] }
         nickname: { type: string, nullable: true }
-        isFavorite: { type: boolean, nullable: true }
+        online: { type: boolean }
+        requestedAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+        rejectedAt: { type: string, format: date-time, nullable: true }
+      example:
+        id: 15
+        userId: 20
+        username: "user20"
+        fullName: "Tran Thi B"
+        avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/20.png"
+        status: "PENDING"
+        nickname: null
+        online: false
+        requestedAt: "2025-12-14T07:00:00.000Z"
+        acceptedAt: null
+        rejectedAt: null
 
     SendFriendRequestRequest:
       type: object
-      required: [receiverId]
+      required: [receiverUserId]
       properties:
-        receiverId: { type: integer, format: int64 }
+        receiverUserId:
+          type: integer
+          format: int64
+          description: "User ID của người nhận friend request"
+        nickname:
+          type: string
+          nullable: true
+          description: "Nickname cho friend (optional)"
 
     # --- Read Receipts Schemas ---
     ReadReceiptResponse:
@@ -409,30 +717,52 @@ components:
               role: { type: string, enum: [ADMIN, MEMBER] }
           description: "Danh sách participants với userId, username và role"
         lastMessage:
-          oneOf:
-            - $ref: '#/components/schemas/MessageResponse'
-            - type: "null"
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, format: int64 }
+            content: { type: string }
+            senderId: { type: integer, format: int64 }
+            senderUsername: { type: string }
+            sentAt: { type: string, format: date-time }
+            type: { type: string, enum: [TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION] }
+            readCount: { type: integer, format: int64 }
+            readBy:
+              type: array
+              items:
+                type: object
+                properties:
+                  userId: { type: integer, format: int64 }
+                  username: { type: string }
+                  fullName: { type: string }
+                  avatarUrl: { type: string }
+                  readAt: { type: string, format: date-time }
           description: "Last message in the conversation, or null if empty."
-        unreadCount: { type: integer, description: "Số tin nhắn chưa đọc (optional)" }
+        unreadCount: { type: integer, description: "Số tin nhắn chưa đọc" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       example:
-        id: 5
-        name: null
-        type: "GROUP"
-        avatarUrl: null
-        createdAt: "2025-12-12T09:39:16.600310058Z"
-        updatedAt: "2025-12-12T09:39:16.600312653Z"
+        id: 1
+        type: "DIRECT"
+        createdAt: "2025-12-14T05:57:39.801682Z"
+        updatedAt: "2025-12-14T06:29:24.717139Z"
         participants:
-          - userId: 12
-            username: "hungly"
+          - userId: 1
+            username: "user1"
             role: "ADMIN"
           - userId: 2
-            username: "binhtran"
+            username: "user2"
             role: "MEMBER"
-          - userId: 3
-            username: "hoale"
-            role: "MEMBER"
+        lastMessage:
+          id: 8
+          content: "Tao phải đỡ cho em tao"
+          senderId: 2
+          senderUsername: "user2"
+          sentAt: "2025-12-14T06:29:24.691046Z"
+          type: "TEXT"
+          readCount: 0
+          readBy: []
+        unreadCount: 4
 
     CreateConversationRequest:
       type: object
@@ -650,8 +980,56 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+              example:
+                success: true
+                message: "Registration successful. Please check your email to verify your account."
+                data:
+                  user:
+                    id: 1
+                    username: "newuser"
+                    email: "newuser@example.com"
+                    fullName: "New User"
+                  accessToken: "eyJhbGciOiJIUzI1NiJ9..."
+                  refreshToken: "refresh_token_here"
         '400':
-          description: "Bad Request (e.g., invalid input, username/email already exists)."
+          description: "Bad Request - Validation failed or user already exists."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                username_exists:
+                  summary: "Username already taken"
+                  value:
+                    success: false
+                    error:
+                      code: "CONFLICT"
+                      message: "Username already exists"
+                    requestId: "req-reg001"
+                email_exists:
+                  summary: "Email already registered"
+                  value:
+                    success: false
+                    error:
+                      code: "CONFLICT"
+                      message: "Email already exists"
+                    requestId: "req-reg002"
+                invalid_email:
+                  summary: "Invalid email format"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid email format"
+                    requestId: "req-reg003"
+                weak_password:
+                  summary: "Password too weak"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Password must be at least 8 characters"
+                    requestId: "req-reg004"
 
   /v1/auth/login:
     post:
@@ -669,10 +1047,64 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+              example:
+                success: true
+                message: "Login successful"
+                data:
+                  user:
+                    id: 1
+                    username: "user1"
+                    email: "user1@example.com"
+                    fullName: "Nguyen Linh La"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                  accessToken: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyMSIsImp0aSI6ImZmYjM4NjU5LTMwMWUtNGQzNy1hNWQ1LTljNGIzNTUzNGYzMiIsImlhdCI6MTc2NTY5NDkxOSwiZXhwIjoxNzY1OTEwOTE5fQ.FjPFJXewRaHQg8ulpVXxbHAUoo24UH7hRdPA7mWzeO0"
+                  refreshToken: "refresh_token_here"
         '400':
-          description: "Bad Request (e.g., invalid credentials)."
+          description: "Bad Request - Invalid credentials."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_credentials:
+                  summary: "Wrong username or password"
+                  value:
+                    success: false
+                    error:
+                      code: "INVALID_CREDENTIALS"
+                      message: "Invalid username or password"
+                    requestId: "req-login001"
+                missing_fields:
+                  summary: "Missing required fields"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Username and password are required"
+                    requestId: "req-login002"
         '401':
-          description: "Unauthorized (e.g., account not verified)."
+          description: "Unauthorized - Account not verified or locked."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_verified:
+                  summary: "Email not verified"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Please verify your email address before logging in"
+                    requestId: "req-login003"
+                account_locked:
+                  summary: "Account locked"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Your account has been locked. Please contact support."
+                    requestId: "req-login004"
 
   /v1/auth/refresh:
     post:
@@ -888,37 +1320,69 @@ paths:
                 success: true
                 message: "Conversation created successfully"
                 data:
-                  id: 5
-                  name: null
-                  type: "GROUP"
-                  avatarUrl: null
-                  createdAt: "2025-12-12T09:39:16.600310058Z"
-                  updatedAt: "2025-12-12T09:39:16.600312653Z"
+                  id: 7
+                  type: "DIRECT"
+                  createdAt: "2025-12-14T06:50:02.634141682Z"
+                  updatedAt: "2025-12-14T06:50:02.634143143Z"
                   participants:
-                    - userId: 12
-                      username: "hungly"
+                    - userId: 1
+                      username: "user1"
                       role: "ADMIN"
-                    - userId: 2
-                      username: "binhtran"
-                      role: "MEMBER"
-                    - userId: 3
-                      username: "hoale"
-                      role: "MEMBER"
-                    - userId: 4
-                      username: "tuanpham"
-                      role: "MEMBER"
-                    - userId: 5
-                      username: "thuyvo"
+                    - userId: 15
+                      username: "sontrinh"
                       role: "MEMBER"
         '400':
           description: |
-            Bad Request:
-            - "DIRECT conversation must have exactly 1 other participant. Found: X"
-            - "GROUP conversation must have at least 1 other participant"
-            - "At least one participant is required"
-            - "Participant not found: {id}"
+            Bad Request - Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                direct_multiple_participants:
+                  summary: "DIRECT conversation with multiple participants"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "DIRECT conversation must have exactly 1 other participant. Found: 3"
+                    requestId: "req-abc123"
+                no_participants:
+                  summary: "No participants provided"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "At least one participant is required"
+                    requestId: "req-def456"
+                participant_not_found:
+                  summary: "Participant user not found"
+                  value:
+                    success: false
+                    error:
+                      code: "RESOURCE_NOT_FOUND"
+                      message: "Participant not found: 99999"
+                    requestId: "req-ghi789"
+                conversation_exists:
+                  summary: "Conversation already exists (DIRECT)"
+                  value:
+                    success: false
+                    error:
+                      code: "CONFLICT"
+                      message: "A conversation with this user already exists"
+                    requestId: "req-jkl012"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-mno345"
     get:
       summary: "Get all conversations"
       description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất. Hỗ trợ filter theo loại conversation."
@@ -1056,15 +1520,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: false }
-                  error:
-                    type: object
-                    properties:
-                      code: { type: string, example: "UNAUTHORIZED" }
-                      message: { type: string, example: "Invalid or expired token" }
-                  requestId: { type: string, format: uuid, example: "27fcc299-9b9b-4cfd-a87f-82260d7fc124" }
+                $ref: '#/components/schemas/ErrorResponse'
               example:
                 success: false
                 error:
@@ -1118,19 +1574,11 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: false }
-                  error:
-                    type: object
-                    properties:
-                      code: { type: string, example: "BAD_REQUEST" }
-                      message: { type: string, example: "You do not have access to this conversation" }
-                  requestId: { type: string, format: uuid, example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+                $ref: '#/components/schemas/ErrorResponse'
               example:
                 success: false
                 error:
-                  code: "BAD_REQUEST"
+                  code: "FORBIDDEN"
                   message: "You do not have access to this conversation"
                 requestId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         '401':
@@ -1138,15 +1586,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: false }
-                  error:
-                    type: object
-                    properties:
-                      code: { type: string, example: "UNAUTHORIZED" }
-                      message: { type: string, example: "Invalid or expired token" }
-                  requestId: { type: string, format: uuid, example: "27fcc299-9b9b-4cfd-a87f-82260d7fc124" }
+                $ref: '#/components/schemas/ErrorResponse'
               example:
                 success: false
                 error:
@@ -1158,19 +1598,11 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: false }
-                  error:
-                    type: object
-                    properties:
-                      code: { type: string, example: "NOT_FOUND" }
-                      message: { type: string, example: "Conversation not found" }
-                  requestId: { type: string, format: uuid, example: "783376db-aad3-4ae8-9886-9074a79356d0" }
+                $ref: '#/components/schemas/ErrorResponse'
               example:
                 success: false
                 error:
-                  code: "NOT_FOUND"
+                  code: "RESOURCE_NOT_FOUND"
                   message: "Conversation not found"
                 requestId: "783376db-aad3-4ae8-9886-9074a79356d0"
     put:
@@ -1440,10 +1872,84 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse_MessageListResponse'
+              example:
+                success: true
+                message: "Messages retrieved successfully"
+                data:
+                  - id: 8
+                    conversationId: 1
+                    senderId: 2
+                    senderUsername: "user2"
+                    senderFullName: "Tran Van Binh"
+                    content: "Tao phải đỡ cho em tao"
+                    type: "TEXT"
+                    reactions: {}
+                    sentAt: "2025-12-14T06:29:24.691046Z"
+                    createdAt: "2025-12-14T06:29:24.691048Z"
+                    updatedAt: "2025-12-14T06:29:24.691049Z"
+                    edited: false
+                    deleted: false
+                    forwarded: false
+                    forwardCount: 0
+                    readCount: 0
+                  - id: 5
+                    conversationId: 1
+                    senderId: 2
+                    senderUsername: "user2"
+                    senderFullName: "Tran Van Binh"
+                    content: "Hì hì đúng thật, cũng đã nhiều năm trôi qua"
+                    type: "TEXT"
+                    reactions: {}
+                    sentAt: "2025-12-14T06:18:25.432835Z"
+                    createdAt: "2025-12-14T06:18:25.432836Z"
+                    updatedAt: "2025-12-14T06:18:25.432837Z"
+                    edited: false
+                    deleted: false
+                    forwarded: false
+                    forwardCount: 0
+                    readCount: 1
+                    readBy:
+                      - userId: 1
+                        username: "user1"
+                        fullName: "Nguyen Linh La"
+                        avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                        readAt: "2025-12-14T06:50:24.557Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-msgs001"
+        '403':
+          description: "Forbidden - Not a member of this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "You are not a member of this conversation"
+                requestId: "req-msgs002"
         '404':
           description: "Conversation not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "req-msgs003"
     post:
       summary: "Send a message"
       description: "Gửi một tin nhắn mới vào cuộc trò chuyện."
@@ -1468,12 +1974,93 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse_MessageResponse'
+              example:
+                success: true
+                message: "Message sent successfully"
+                data:
+                  id: 25
+                  conversationId: 1
+                  senderId: 1
+                  senderUsername: "user1"
+                  senderFullName: "Nguyen Linh La"
+                  content: "Hello, how are you?"
+                  type: "TEXT"
+                  reactions: {}
+                  sentAt: "2025-12-14T06:53:17.372188410Z"
+                  createdAt: "2025-12-14T06:53:17.372191027Z"
+                  updatedAt: "2025-12-14T06:53:17.372191325Z"
+                  edited: false
+                  deleted: false
+                  forwarded: false
+                  forwardCount: 0
+                  readCount: 0
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                empty_content:
+                  summary: "Empty message content"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Content is required"
+                    requestId: "req-msg001"
+                invalid_reply:
+                  summary: "Reply to non-existent message"
+                  value:
+                    success: false
+                    error:
+                      code: "RESOURCE_NOT_FOUND"
+                      message: "Reply message not found: 99999"
+                    requestId: "req-msg002"
+                invalid_mentions:
+                  summary: "Mention non-existent user"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Mentioned user not found: 88888"
+                    requestId: "req-msg003"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-msg004"
+        '403':
+          description: "Forbidden - Not a member of this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "You are not a member of this conversation"
+                requestId: "req-msg005"
         '404':
           description: "Conversation not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "req-msg006"
 
   /v1/conversations/{conversationId}/messages/{messageId}:
     get:
@@ -1497,10 +2084,79 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+              example:
+                success: true
+                message: "Message retrieved successfully"
+                data:
+                  id: 5
+                  conversationId: 1
+                  senderId: 2
+                  senderUsername: "user2"
+                  senderFullName: "Tran Van Binh"
+                  content: "Hì hì đúng thật, cũng đã nhiều năm trôi qua"
+                  type: "TEXT"
+                  reactions: {}
+                  sentAt: "2025-12-14T06:18:25.432835Z"
+                  createdAt: "2025-12-14T06:18:25.432836Z"
+                  updatedAt: "2025-12-14T06:18:25.432837Z"
+                  edited: false
+                  deleted: false
+                  forwarded: false
+                  forwardCount: 0
+                  readCount: 1
+                  readBy:
+                    - userId: 1
+                      username: "user1"
+                      fullName: "Nguyen Linh La"
+                      avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                      readAt: "2025-12-14T06:50:24.557Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-getmsg001"
+        '403':
+          description: "Forbidden - Not a member of this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "You are not a member of this conversation"
+                requestId: "req-getmsg002"
         '404':
           description: "Message or Conversation not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                message_not_found:
+                  summary: "Message not found"
+                  value:
+                    success: false
+                    error:
+                      code: "RESOURCE_NOT_FOUND"
+                      message: "Message not found"
+                    requestId: "req-getmsg003"
+                conversation_not_found:
+                  summary: "Conversation not found"
+                  value:
+                    success: false
+                    error:
+                      code: "RESOURCE_NOT_FOUND"
+                      message: "Conversation not found"
+                    requestId: "req-getmsg004"
     put:
       summary: "Update a message"
       description: "Cập nhật nội dung của một tin nhắn đã gửi. Chỉ người gửi mới có thể sửa tin nhắn."
@@ -1527,14 +2183,81 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
+              example:
+                success: true
+                message: "Message edited successfully"
+                data:
+                  id: 3
+                  conversationId: 1
+                  senderId: 1
+                  senderUsername: "user1"
+                  senderFullName: "Nguyen Linh La"
+                  content: "da thay doi"
+                  type: "TEXT"
+                  sentAt: "2025-12-14T06:10:21.019500Z"
+                  edited: true
+                  editedAt: "2025-12-14T06:51:40.617582834Z"
+                  deleted: false
+                  forwarded: false
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                empty_content:
+                  summary: "Empty message content"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Content is required"
+                    requestId: "req-editmsg001"
+                message_deleted:
+                  summary: "Cannot edit deleted message"
+                  value:
+                    success: false
+                    error:
+                      code: "BUSINESS_ERROR"
+                      message: "Cannot edit a deleted message"
+                    requestId: "req-editmsg002"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-editmsg003"
         '403':
-          description: "Forbidden."
+          description: "Forbidden - Not the message sender."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "You can only edit your own messages"
+                requestId: "req-editmsg004"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-editmsg005"
     delete:
       summary: "Delete a message"
       description: "Xóa một tin nhắn đã gửi. Chỉ người gửi mới có thể xóa tin nhắn."
@@ -1556,12 +2279,45 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse' }
+              example:
+                success: true
+                message: "Message deleted successfully"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-delmsg001"
         '403':
-          description: "Forbidden."
+          description: "Forbidden - Not the message sender."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "FORBIDDEN"
+                  message: "You can only delete your own messages"
+                requestId: "req-delmsg002"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-delmsg003"
 
   # --- Message Reactions ---
   /v1/messages/{messageId}/reactions:
@@ -1587,12 +2343,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+              example:
+                success: true
+                message: "Reaction toggled successfully"
+                data:
+                  messageId: 1
+                  reactions:
+                    "😀":
+                      - 1
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Emoji is required"
+                requestId: "req-react001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-react002"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-react003"
     get:
       summary: "Get message reactions"
       description: "Lấy tất cả reactions của một tin nhắn."
@@ -1610,10 +2404,38 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+              example:
+                success: true
+                message: "Reactions retrieved successfully"
+                data:
+                  messageId: 1
+                  reactions:
+                    "😀":
+                      - 1
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-getreact001"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-getreact002"
 
   /v1/messages/{messageId}/reactions/{emoji}:
     delete:
@@ -1637,16 +2459,42 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_MessageReactionsResponse' }
+              example:
+                success: true
+                message: "Reaction removed successfully"
+                data:
+                  messageId: 1
+                  reactions: {}
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-delreact001"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-delreact002"
 
   # --- Read Receipts ---
-  /v1/messages/{messageId}/read:
+  /v1/read-receipts/messages/{messageId}:
     post:
       summary: "Mark message as read"
-      description: "Đánh dấu một tin nhắn đã đọc."
+      description: "Đánh dấu một tin nhắn cụ thể là đã đọc. Tự động tạo read receipt."
       tags: [Messages]
       security:
         - bearerAuth: []
@@ -1655,18 +2503,49 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của tin nhắn cần đánh dấu đã đọc"
       responses:
         '204':
-          description: "Message marked as read successfully."
+          description: "Message marked as read successfully (no content)."
+        '400':
+          description: "Bad Request - Not a participant in this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You are not a participant in this conversation"
+                requestId: "req-read001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-read002"
         '404':
           description: "Message not found."
-
-  /v1/messages/{messageId}/receipts:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-read003"
     get:
       summary: "Get read receipts for message"
-      description: "Lấy danh sách người đã đọc tin nhắn."
+      description: "Lấy danh sách người dùng đã đọc tin nhắn này, bao gồm thời gian đọc."
       tags: [Messages]
       security:
         - bearerAuth: []
@@ -1675,21 +2554,76 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của tin nhắn"
       responses:
         '200':
           description: "Read receipts retrieved successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ReadReceiptListResponse' }
+              example:
+                success: true
+                message: "Read receipts retrieved successfully"
+                data:
+                  - userId: 1
+                    username: "user1"
+                    fullName: "Nguyen Linh La"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                    readAt: "2025-12-14T06:50:24.557Z"
+                  - userId: 3
+                    username: "hoale"
+                    fullName: "Le Thi Hoa"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/3.png"
+                    readAt: "2025-12-14T07:15:30.123Z"
+        '400':
+          description: "Bad Request - Not a participant in this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You are not a participant in this conversation"
+                requestId: "req-getread001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-getread002"
         '404':
           description: "Message not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Message not found"
+                requestId: "req-getread003"
 
-  /v1/conversations/{conversationId}/mark-read:
+  /v1/read-receipts/conversations/{conversationId}:
     post:
       summary: "Mark conversation as read"
-      description: "Đánh dấu tất cả tin nhắn trong conversation đã đọc."
+      description: |
+        Đánh dấu tất cả tin nhắn trong conversation là đã đọc.
+        
+        **Features:**
+        - Tạo read receipts cho tất cả tin nhắn chưa đọc
+        - Bỏ qua tin nhắn của chính user
+        - Bỏ qua tin nhắn đã đọc rồi
+        - Reset unread count trong participant table
+        - Có thể chỉ định lastMessageId để chỉ đánh dấu đến tin nhắn đó
       tags: [Messages]
       security:
         - bearerAuth: []
@@ -1698,23 +2632,59 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của conversation"
         - name: lastMessageId
           in: query
-          required: true
+          required: false
           schema: { type: integer, format: int64 }
-          description: "ID của tin nhắn cuối cùng đã đọc."
+          description: "ID của tin nhắn cuối cùng cần đánh dấu đã đọc. Nếu không có, sẽ đánh dấu tất cả."
       responses:
         '204':
-          description: "Conversation marked as read successfully."
+          description: "Conversation marked as read successfully (no content)."
+        '400':
+          description: "Bad Request - Not a participant in this conversation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You are not a participant in this conversation"
+                requestId: "req-convread001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-convread002"
         '404':
           description: "Conversation not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Conversation not found"
+                requestId: "req-convread003"
 
-  /v1/messages/unread-count:
+  /v1/read-receipts/unread-count:
     get:
-      summary: "Get total unread count"
-      description: "Lấy tổng số tin nhắn chưa đọc từ tất cả conversations."
+      summary: "Get global unread count"
+      description: |
+        Lấy tổng số tin nhắn chưa đọc từ tất cả conversations của user hiện tại.
+        
+        **Use case:** Badge notification trên app icon hoặc tab.
       tags: [Messages]
       security:
         - bearerAuth: []
@@ -1727,19 +2697,44 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
-                  message: { type: string }
+                  message: { type: string, example: "Unread count retrieved" }
                   data:
                     type: object
                     properties:
-                      unreadCount: { type: integer, format: int64 }
+                      unreadCount: { type: integer, format: int64, description: "Total unread messages across all conversations" }
+              example:
+                success: true
+                message: "Unread count retrieved"
+                data:
+                  unreadCount: 15
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-unread001"
 
   # --- Call Paths ---
   /v1/calls/initiate:
     post:
       summary: "Initiate a new call"
-      description: "Bắt đầu một cuộc gọi đến một người dùng khác. User ID của người gọi được lấy từ token xác thực."
+      description: |
+        Bắt đầu một cuộc gọi đến một người dùng khác.
+        
+        **Flow:**
+        1. Validate cả caller và callee không busy
+        2. Tạo Call record với status RINGING
+        3. Generate Agora token cho caller
+        4. Send WebSocket invitation tới callee
+        5. Schedule timeout (30s)
+        
+        **Note:** User ID của caller được lấy từ JWT token.
       tags: [Call]
       security:
         - bearerAuth: []
@@ -1748,21 +2743,112 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/InitiateCallRequest' }
+            examples:
+              audio_call:
+                summary: "Audio call"
+                value:
+                  calleeId: 10
+                  callType: "AUDIO"
+              video_call:
+                summary: "Video call"
+                value:
+                  calleeId: 15
+                  callType: "VIDEO"
       responses:
         '201':
           description: "Call initiated successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_CallConnectionResponse' }
+              example:
+                success: true
+                message: "Call initiated"
+                data:
+                  callInfo:
+                    id: "call-uuid-123"
+                    channelId: "channel_1734160800000_1_10"
+                    status: "RINGING"
+                    callType: "VIDEO"
+                    callerId: 1
+                    callerName: "Nguyen Linh La"
+                    callerAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                    calleeId: 10
+                    calleeName: "Nguyen Van A"
+                    calleeAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                    createdAt: "2025-12-14T10:00:00.000Z"
+                    durationSeconds: null
+                  token: "agora_token_here_for_caller"
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                user_busy:
+                  summary: "User is busy"
+                  value:
+                    success: false
+                    error:
+                      code: "USER_BUSY"
+                      message: "User is busy in another call"
+                    requestId: "req-call001"
+                missing_callee_id:
+                  summary: "Missing calleeId"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Callee ID is required"
+                    requestId: "req-call002"
+                missing_call_type:
+                  summary: "Missing callType"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Call type is required"
+                    requestId: "req-call003"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-call004"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-call005"
 
   /v1/calls/{callId}/accept:
     post:
       summary: "Accept a call"
-      description: "Người nhận chấp nhận một cuộc gọi đến. User ID của người nhận được lấy từ token xác thực."
+      description: |
+        Người nhận chấp nhận một cuộc gọi đến.
+        
+        **Flow:**
+        1. Validate user là callee
+        2. Validate call status là RINGING
+        3. Update status = CONNECTED
+        4. Cancel timeout scheduler
+        5. Generate Agora token cho callee
+        6. Send WebSocket notification tới caller
+        
+        **Note:** Chỉ callee mới có thể accept call.
       tags: [Call]
       security:
         - bearerAuth: []
@@ -1770,22 +2856,97 @@ paths:
         - name: callId
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
+          description: "UUID của call"
+          example: "call-uuid-123"
       responses:
         '200':
           description: "Call accepted successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_CallConnectionResponse' }
+              example:
+                success: true
+                message: "Call accepted"
+                data:
+                  callInfo:
+                    id: "call-uuid-123"
+                    channelId: "channel_1734160800000_1_10"
+                    status: "CONNECTED"
+                    callType: "VIDEO"
+                    callerId: 1
+                    callerName: "Nguyen Linh La"
+                    callerAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                    calleeId: 10
+                    calleeName: "Nguyen Van A"
+                    calleeAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                    createdAt: "2025-12-14T10:00:00.000Z"
+                    durationSeconds: null
+                  token: "agora_token_here_for_callee"
+        '400':
+          description: "Bad Request - Invalid status."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "INVALID_STATUS"
+                  message: "Call is not ringing"
+                requestId: "req-accept001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Not the callee or invalid token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_callee:
+                  summary: "Not the callee"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Only callee can accept this call"
+                    requestId: "req-accept002"
+                invalid_token:
+                  summary: "Invalid token"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Invalid or expired token"
+                    requestId: "req-accept003"
         '404':
           description: "Call not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Call not found"
+                requestId: "req-accept004"
 
   /v1/calls/{callId}/reject:
     post:
       summary: "Reject a call"
-      description: "Người nhận từ chối một cuộc gọi đến. User ID của người nhận được lấy từ token xác thực."
+      description: |
+        Người nhận từ chối một cuộc gọi đến.
+        
+        **Flow:**
+        1. Validate user là callee
+        2. Validate call status là RINGING
+        3. Update status = REJECTED
+        4. Cancel timeout scheduler
+        5. Send WebSocket notification tới caller
+        
+        **Reasons:** busy, declined, unavailable
+        
+        **Note:** Chỉ callee mới có thể reject call.
       tags: [Call]
       security:
         - bearerAuth: []
@@ -1793,27 +2954,133 @@ paths:
         - name: callId
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
+          description: "UUID của call"
+          example: "call-uuid-123"
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RejectCallRequest' }
+            examples:
+              busy:
+                summary: "User is busy"
+                value:
+                  reason: "busy"
+              declined:
+                summary: "User declined"
+                value:
+                  reason: "declined"
+              unavailable:
+                summary: "User unavailable"
+                value:
+                  reason: "unavailable"
       responses:
         '200':
           description: "Call rejected successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_CallResponse' }
+              example:
+                success: true
+                message: "Call rejected"
+                data:
+                  id: "call-uuid-123"
+                  channelId: "channel_1734160800000_1_10"
+                  status: "REJECTED"
+                  callType: "VIDEO"
+                  callerId: 1
+                  callerName: "Nguyen Linh La"
+                  callerAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                  calleeId: 10
+                  calleeName: "Nguyen Van A"
+                  calleeAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                  createdAt: "2025-12-14T10:00:00.000Z"
+                  durationSeconds: null
+        '400':
+          description: "Bad Request - Invalid status or reason."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_status:
+                  summary: "Call not ringing"
+                  value:
+                    success: false
+                    error:
+                      code: "INVALID_STATUS"
+                      message: "Cannot reject call"
+                    requestId: "req-reject001"
+                invalid_reason:
+                  summary: "Invalid reason"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Reason must be one of: busy, declined, unavailable"
+                    requestId: "req-reject002"
+                missing_reason:
+                  summary: "Missing reason"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Reason cannot be blank"
+                    requestId: "req-reject003"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Not the callee or invalid token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_callee:
+                  summary: "Not the callee"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Only callee can reject this call"
+                    requestId: "req-reject004"
+                invalid_token:
+                  summary: "Invalid token"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Invalid or expired token"
+                    requestId: "req-reject005"
         '404':
           description: "Call not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Call not found"
+                requestId: "req-reject006"
 
   /v1/calls/{callId}/end:
     post:
       summary: "End a call"
-      description: "Một trong hai bên kết thúc cuộc gọi. User ID của người thực hiện hành động được lấy từ token xác thực."
+      description: |
+        Một trong hai bên kết thúc cuộc gọi.
+        
+        **Flow:**
+        1. Validate user là caller hoặc callee
+        2. Validate call chưa ended
+        3. Update status = ENDED
+        4. Calculate duration
+        5. Cancel timeout scheduler
+        6. Send WebSocket notification tới partner
+        
+        **Reasons:** hangup (default), network error, device error, timeout
+        
+        **Note:** Cả caller và callee đều có thể end call.
       tags: [Call]
       security:
         - bearerAuth: []
@@ -1821,22 +3088,111 @@ paths:
         - name: callId
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
+          description: "UUID của call"
+          example: "call-uuid-123"
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/EndCallRequest' }
+            examples:
+              normal_hangup:
+                summary: "Normal hangup"
+                value:
+                  reason: "hangup"
+              network_error:
+                summary: "Network error"
+                value:
+                  reason: "network error"
+              device_error:
+                summary: "Device error"
+                value:
+                  reason: "device error"
+              timeout:
+                summary: "Timeout"
+                value:
+                  reason: "timeout"
       responses:
         '200':
           description: "Call ended successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_CallResponse' }
+              example:
+                success: true
+                message: "Call ended"
+                data:
+                  id: "call-uuid-123"
+                  channelId: "channel_1734160800000_1_10"
+                  status: "ENDED"
+                  callType: "VIDEO"
+                  callerId: 1
+                  callerName: "Nguyen Linh La"
+                  callerAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                  calleeId: 10
+                  calleeName: "Nguyen Van A"
+                  calleeAvatar: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                  createdAt: "2025-12-14T10:00:00.000Z"
+                  durationSeconds: 180
+        '400':
+          description: "Bad Request - Call already ended or invalid reason."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_ended:
+                  summary: "Call already ended"
+                  value:
+                    success: false
+                    error:
+                      code: "CALL_ALREADY_ENDED"
+                      message: "Call already ended"
+                    requestId: "req-end001"
+                invalid_reason:
+                  summary: "Invalid reason"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Reason must be one of: hangup, network error, device error, timeout"
+                    requestId: "req-end002"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Not a participant or invalid token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_participant:
+                  summary: "Not a participant"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "You are not a participant of this call"
+                    requestId: "req-end003"
+                invalid_token:
+                  summary: "Invalid token"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Invalid or expired token"
+                    requestId: "req-end004"
         '404':
           description: "Call not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Call not found"
+                requestId: "req-end005"
 
   # --- Contacts Paths ---
   /v1/contacts:
@@ -1852,8 +3208,42 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+              example:
+                success: true
+                message: "Contacts retrieved successfully"
+                data:
+                  - id: 5
+                    contactUserId: 10
+                    username: "user10"
+                    fullName: "Nguyen Van A"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                    nickname: "Best Friend"
+                    favorite: true
+                    online: true
+                    lastSeen: null
+                    createdAt: "2025-12-10T10:20:30.456Z"
+                  - id: 8
+                    contactUserId: 15
+                    username: "user15"
+                    fullName: "Le Thi C"
+                    avatarUrl: null
+                    nickname: null
+                    favorite: false
+                    online: false
+                    lastSeen: "2025-12-14T06:30:00.000Z"
+                    createdAt: "2025-12-11T14:15:20.123Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-contacts001"
     post:
       summary: "Add a new contact"
       description: "Thêm một contact mới vào danh bạ."
@@ -1865,21 +3255,89 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/AddContactRequest' }
+            example:
+              contactUserId: 25
+              nickname: "My Colleague"
       responses:
         '201':
           description: "Contact added successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+              example:
+                success: true
+                message: "Contact added successfully"
+                data:
+                  id: 12
+                  contactUserId: 25
+                  username: "user25"
+                  fullName: "Pham Van D"
+                  avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/25.png"
+                  nickname: "My Colleague"
+                  favorite: false
+                  online: true
+                  lastSeen: null
+                  createdAt: "2025-12-14T09:00:00.000Z"
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                add_yourself:
+                  summary: "Cannot add yourself"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Cannot add yourself as contact"
+                    requestId: "req-addcontact001"
+                already_exists:
+                  summary: "Contact already exists"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Contact already exists"
+                    requestId: "req-addcontact002"
+                missing_user_id:
+                  summary: "Missing contactUserId"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Contact user ID is required"
+                    requestId: "req-addcontact003"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-addcontact004"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-addcontact005"
 
   /v1/contacts/favorites:
     get:
       summary: "Get favorite contacts"
-      description: "Lấy danh sách contacts yêu thích."
+      description: "Lấy danh sách contacts yêu thích (đã đánh dấu favorite)."
       tags: [Contacts]
       security:
         - bearerAuth: []
@@ -1889,8 +3347,32 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+              example:
+                success: true
+                message: "Favorite contacts retrieved successfully"
+                data:
+                  - id: 5
+                    contactUserId: 10
+                    username: "user10"
+                    fullName: "Nguyen Van A"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                    nickname: "Best Friend"
+                    favorite: true
+                    online: true
+                    lastSeen: null
+                    createdAt: "2025-12-10T10:20:30.456Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-favcontacts001"
 
   /v1/contacts/{contactId}:
     put:
@@ -1904,23 +3386,82 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của contact cần update"
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UpdateContactRequest' }
+            examples:
+              update_nickname:
+                summary: "Update nickname"
+                value:
+                  nickname: "New Nickname"
+              mark_favorite:
+                summary: "Mark as favorite"
+                value:
+                  isFavorite: true
+              update_both:
+                summary: "Update both"
+                value:
+                  nickname: "VIP Friend"
+                  isFavorite: true
       responses:
         '200':
           description: "Contact updated successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+              example:
+                success: true
+                message: "Contact updated successfully"
+                data:
+                  id: 5
+                  contactUserId: 10
+                  username: "user10"
+                  fullName: "Nguyen Van A"
+                  avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/10.png"
+                  nickname: "VIP Friend"
+                  favorite: true
+                  online: true
+                  lastSeen: null
+                  createdAt: "2025-12-10T10:20:30.456Z"
         '400':
-          description: "Bad Request."
+          description: "Bad Request - No access to this contact."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You do not have access to this contact"
+                requestId: "req-updatecontact001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-updatecontact002"
         '404':
           description: "Contact not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Contact not found"
+                requestId: "req-updatecontact003"
     delete:
       summary: "Delete a contact"
       description: "Xóa một contact khỏi danh bạ."
@@ -1932,22 +3473,69 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của contact cần xóa"
       responses:
         '200':
           description: "Contact deleted successfully."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse' }
+              example:
+                success: true
+                message: "Contact deleted successfully"
+                data: null
+        '400':
+          description: "Bad Request - No access to this contact."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "You do not have access to this contact"
+                requestId: "req-deletecontact001"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-deletecontact002"
         '404':
           description: "Contact not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Contact not found"
+                requestId: "req-deletecontact003"
 
   # --- Friend Requests Paths ---
   /v1/friend-requests:
     post:
       summary: "Send friend request"
-      description: "Gửi lời mời kết bạn đến một người dùng."
+      description: |
+        Gửi lời mời kết bạn đến một người dùng.
+        
+        **Status Flow:**
+        1. PENDING - Request được gửi, chờ accept/reject
+        2. ACCEPTED - Request được chấp nhận, tạo bidirectional contact
+        3. REJECTED - Request bị từ chối
+        
+        **Note:** Không thể gửi request nếu:
+        - Đã có contact relationship (PENDING/ACCEPTED/BLOCKED)
+        - Receiver là chính mình
       tags: [Social]
       security:
         - bearerAuth: []
@@ -1956,21 +3544,106 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/SendFriendRequestRequest' }
+            example:
+              receiverUserId: 30
+              nickname: "Potential Friend"
       responses:
         '201':
           description: "Friend request sent successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/FriendRequestResponse' }
+              example:
+                success: true
+                message: "Friend request sent successfully"
+                data:
+                  id: 25
+                  userId: 30
+                  username: "user30"
+                  fullName: "Hoang Van E"
+                  avatarUrl: null
+                  status: "PENDING"
+                  nickname: "Potential Friend"
+                  online: false
+                  requestedAt: "2025-12-14T09:30:00.000Z"
+                  acceptedAt: null
+                  rejectedAt: null
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                send_to_yourself:
+                  summary: "Cannot send to yourself"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Cannot send friend request to yourself"
+                    requestId: "req-friendreq001"
+                already_sent:
+                  summary: "Already sent"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Friend request already sent"
+                    requestId: "req-friendreq002"
+                already_friends:
+                  summary: "Already friends"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Already friends"
+                    requestId: "req-friendreq003"
+                user_blocked:
+                  summary: "User is blocked"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Cannot send friend request to blocked user"
+                    requestId: "req-friendreq004"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-friendreq005"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Receiver not found"
+                requestId: "req-friendreq006"
 
   /v1/friend-requests/received:
     get:
       summary: "Get pending friend requests received"
-      description: "Lấy danh sách lời mời kết bạn đã nhận."
+      description: |
+        Lấy danh sách lời mời kết bạn mà user hiện tại đã nhận (chưa accept/reject).
+        
+        **Use case:** Hiển thị notification "X wants to be your friend"
       tags: [Social]
       security:
         - bearerAuth: []
@@ -1979,14 +3652,61 @@ paths:
           description: "Pending requests retrieved successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FriendRequestResponse'
+              example:
+                success: true
+                message: "Pending requests retrieved successfully"
+                data:
+                  - id: 20
+                    userId: 25
+                    username: "user25"
+                    fullName: "Pham Van D"
+                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/25.png"
+                    status: "PENDING"
+                    nickname: null
+                    online: true
+                    requestedAt: "2025-12-14T08:00:00.000Z"
+                    acceptedAt: null
+                    rejectedAt: null
+                  - id: 22
+                    userId: 28
+                    username: "user28"
+                    fullName: "Nguyen Thi F"
+                    avatarUrl: null
+                    status: "PENDING"
+                    nickname: null
+                    online: false
+                    requestedAt: "2025-12-14T07:30:00.000Z"
+                    acceptedAt: null
+                    rejectedAt: null
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-friendreqrecv001"
 
   /v1/friend-requests/sent:
     get:
       summary: "Get pending friend requests sent"
-      description: "Lấy danh sách lời mời kết bạn đã gửi."
+      description: |
+        Lấy danh sách lời mời kết bạn mà user hiện tại đã gửi (chưa được accept/reject).
+        
+        **Use case:** Hiển thị danh sách "Pending requests" để có thể cancel
       tags: [Social]
       security:
         - bearerAuth: []
@@ -1995,14 +3715,53 @@ paths:
           description: "Sent requests retrieved successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_ContactListResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FriendRequestResponse'
+              example:
+                success: true
+                message: "Sent requests retrieved successfully"
+                data:
+                  - id: 18
+                    userId: 22
+                    username: "user22"
+                    fullName: "Tran Van G"
+                    avatarUrl: null
+                    status: "PENDING"
+                    nickname: "Work Colleague"
+                    online: false
+                    requestedAt: "2025-12-14T06:00:00.000Z"
+                    acceptedAt: null
+                    rejectedAt: null
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-friendreqsent001"
 
   /v1/friend-requests/{requestId}/accept:
     post:
       summary: "Accept friend request"
-      description: "Chấp nhận lời mời kết bạn."
+      description: |
+        Chấp nhận lời mời kết bạn.
+        
+        **Action:**
+        - Set request status = ACCEPTED
+        - Tạo reverse contact (bidirectional friendship)
+        - Both users become friends
       tags: [Social]
       security:
         - bearerAuth: []
@@ -2011,21 +3770,90 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của friend request cần accept"
       responses:
         '200':
           description: "Friend request accepted successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_ContactResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/FriendRequestResponse' }
+              example:
+                success: true
+                message: "Friend request accepted successfully"
+                data:
+                  id: 20
+                  userId: 25
+                  username: "user25"
+                  fullName: "Pham Van D"
+                  avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/25.png"
+                  status: "ACCEPTED"
+                  nickname: null
+                  online: true
+                  requestedAt: "2025-12-14T08:00:00.000Z"
+                  acceptedAt: "2025-12-14T09:45:00.000Z"
+                  rejectedAt: null
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_receiver:
+                  summary: "Not the receiver"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "You are not the receiver of this request"
+                    requestId: "req-acceptreq001"
+                not_pending:
+                  summary: "Request not pending"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Friend request is not pending"
+                    requestId: "req-acceptreq002"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-acceptreq003"
         '404':
           description: "Request not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Friend request not found"
+                requestId: "req-acceptreq004"
 
   /v1/friend-requests/{requestId}/reject:
     post:
       summary: "Reject friend request"
-      description: "Từ chối lời mời kết bạn."
+      description: |
+        Từ chối lời mời kết bạn.
+        
+        **Action:**
+        - Set request status = REJECTED
+        - Keep the record for history (not deleted)
       tags: [Social]
       security:
         - bearerAuth: []
@@ -2034,18 +3862,67 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của friend request cần reject"
       responses:
         '204':
-          description: "Friend request rejected successfully."
+          description: "Friend request rejected successfully (no content)."
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_receiver:
+                  summary: "Not the receiver"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "You are not the receiver of this request"
+                    requestId: "req-rejectreq001"
+                not_pending:
+                  summary: "Request not pending"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Friend request is not pending"
+                    requestId: "req-rejectreq002"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-rejectreq003"
         '404':
           description: "Request not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Friend request not found"
+                requestId: "req-rejectreq004"
 
   /v1/friend-requests/{requestId}:
     delete:
       summary: "Cancel friend request"
-      description: "Hủy lời mời kết bạn đã gửi."
+      description: |
+        Hủy lời mời kết bạn đã gửi (chỉ sender mới có thể cancel).
+        
+        **Action:**
+        - Delete the request record completely
+        - Only PENDING requests can be cancelled
       tags: [Social]
       security:
         - bearerAuth: []
@@ -2054,13 +3931,57 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "ID của friend request cần cancel"
       responses:
         '204':
-          description: "Friend request cancelled successfully."
+          description: "Friend request cancelled successfully (no content)."
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_sender:
+                  summary: "Not the sender"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "You are not the sender of this request"
+                    requestId: "req-cancelreq001"
+                not_pending:
+                  summary: "Request not pending"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Friend request is not pending"
+                    requestId: "req-cancelreq002"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-cancelreq003"
         '404':
           description: "Request not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Friend request not found"
+                requestId: "req-cancelreq004"
 
   # --- Messenger Notes Paths ---
   /v1/notes:

@@ -27,16 +27,17 @@ public class VerificationToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false)
+    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "verified_at")
     private Instant verifiedAt;
 
-    @Column(name = "is_used", nullable = false)
-    private boolean isUsed = false;
+    @Column(name = "used", nullable = false)
+    private boolean used = false;
 
     @PrePersist
     protected void onCreate() {
@@ -48,11 +49,11 @@ public class VerificationToken {
     }
 
     public boolean isValid() {
-        return !isUsed && !isExpired() && verifiedAt == null;
+        return !used && !isExpired() && verifiedAt == null;
     }
 
     public void markAsUsed() {
-        this.isUsed = true;
+        this.used = true;
         this.verifiedAt = Instant.now();
     }
 }

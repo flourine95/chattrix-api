@@ -15,9 +15,9 @@ public interface ContactMapper {
     @Mapping(target = "username", source = "contactUser.username")
     @Mapping(target = "fullName", source = "contactUser.fullName")
     @Mapping(target = "avatarUrl", source = "contactUser.avatarUrl")
-    @Mapping(target = "isOnline", source = "contactUser.online")
+    @Mapping(target = "online", source = "contactUser.online")
     @Mapping(target = "lastSeen", source = "contactUser.lastSeen")
-    @Mapping(target = "isFavorite", source = "favorite")
+    @Mapping(target = "favorite", source = "favorite")
     ContactResponse toResponse(Contact contact);
 
     List<ContactResponse> toResponseList(List<Contact> contacts);
