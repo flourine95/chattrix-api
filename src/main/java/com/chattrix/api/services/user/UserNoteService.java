@@ -1,8 +1,9 @@
 package com.chattrix.api.services.user;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.*;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UserNoteRequest;
@@ -44,7 +45,7 @@ public class UserNoteService {
     @Transactional
     public UserNoteResponse createOrUpdateNote(Long userId, UserNoteRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         // Delete existing note if any
         noteRepository.deleteByUserId(userId);
@@ -76,7 +77,7 @@ public class UserNoteService {
         // Check if users are contacts
         boolean areContacts = contactRepository.areUsersConnected(currentUserId, targetUserId);
         if (!areContacts && !currentUserId.equals(targetUserId)) {
-            throw new BadRequestException("You can only view notes from your contacts");
+            throw BusinessException.badRequest("You can only view notes from your contacts", "BAD_REQUEST");
         }
 
         return noteRepository.findByUserId(targetUserId)
@@ -121,17 +122,17 @@ public class UserNoteService {
     @Transactional
     public MessageResponse replyToNote(Long userId, Long noteId, String replyText) {
         UserNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new ResourceNotFoundException("Note not found or expired"));
+                .orElseThrow(() -> BusinessException.notFound("Note not found or expired", "RESOURCE_NOT_FOUND"));
 
         // Cannot reply to own note
         if (note.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You cannot reply to your own note");
+            throw BusinessException.badRequest("You cannot reply to your own note", "BAD_REQUEST");
         }
 
         // Check if users are contacts
         boolean areContacts = contactRepository.areUsersConnected(userId, note.getUser().getId());
         if (!areContacts) {
-            throw new BadRequestException("You can only reply to notes from your contacts");
+            throw BusinessException.badRequest("You can only reply to notes from your contacts", "BAD_REQUEST");
         }
 
         // Find or create direct conversation
@@ -157,12 +158,12 @@ public class UserNoteService {
     @Transactional
     public MessageResponse reactToNote(Long userId, Long noteId, String emoji) {
         UserNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new ResourceNotFoundException("Note not found or expired"));
+                .orElseThrow(() -> BusinessException.notFound("Note not found or expired", "RESOURCE_NOT_FOUND"));
 
         // Check if users are contacts
         boolean areContacts = contactRepository.areUsersConnected(userId, note.getUser().getId());
         if (!areContacts && !note.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You can only react to notes from your contacts");
+            throw BusinessException.badRequest("You can only react to notes from your contacts", "BAD_REQUEST");
         }
 
         // Find or create direct conversation
@@ -186,11 +187,11 @@ public class UserNoteService {
      */
     public List<Message> getNoteMessages(Long userId, Long noteId) {
         UserNote note = noteRepository.findById(noteId)
-                .orElseThrow(() -> new ResourceNotFoundException("Note not found or expired"));
+                .orElseThrow(() -> BusinessException.notFound("Note not found or expired", "RESOURCE_NOT_FOUND"));
 
         // Only note owner can see messages
         if (!note.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You can only view messages to your own notes");
+            throw BusinessException.badRequest("You can only view messages to your own notes", "BAD_REQUEST");
         }
 
         return messageRepository.findByReplyToNoteId(noteId);
@@ -216,9 +217,9 @@ public class UserNoteService {
 
         // Create new direct conversation
         User user1 = userRepository.findById(userId1)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
         User user2 = userRepository.findById(userId2)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Conversation conversation = new Conversation();
         conversation.setType(Conversation.ConversationType.DIRECT);
@@ -263,4 +264,9 @@ public class UserNoteService {
         return response;
     }
 }
+
+
+
+
+
 

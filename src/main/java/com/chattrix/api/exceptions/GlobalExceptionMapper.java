@@ -1,7 +1,6 @@
 package com.chattrix.api.exceptions;
 
 import com.chattrix.api.responses.ApiResponse;
-import com.chattrix.api.responses.ErrorResponse;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import jakarta.json.bind.JsonbException;
@@ -11,119 +10,91 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+@Slf4j
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
-    private static final Logger LOGGER = Logger.getLogger(GlobalExceptionMapper.class.getName());
-
     @Override
-    public Response toResponse(Throwable exception) {
+    public Response toResponse(Throwable ex) {
         String requestId = UUID.randomUUID().toString();
-        LOGGER.log(Level.SEVERE, "Exception occurred [requestId: " + requestId + "]: " + exception.getMessage(), exception);
 
         // Handle Jackson JSON parsing errors
-        if (exception instanceof JsonParseException) {
-            ErrorResponse response = ErrorResponse.of(
-                    "JSON_PARSE_ERROR",
-                    "Malformed JSON - syntax error in request body",
-                    requestId
-            );
+        if (ex instanceof JsonParseException) {
+            log.warn("JSON parse error [{}]: {}", requestId, ex.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(response)
+                    .entity(ApiResponse.error("JSON_PARSE_ERROR", "Malformed JSON - syntax error in request body", requestId))
                     .build();
         }
 
         // Handle Jackson JSON mapping errors
-        if (exception instanceof JsonMappingException) {
-            ErrorResponse response = ErrorResponse.of(
-                    "JSON_MAPPING_ERROR",
-                    "Invalid JSON structure - field mapping failed",
-                    requestId
-            );
+        if (ex instanceof JsonMappingException) {
+            log.warn("JSON mapping error [{}]: {}", requestId, ex.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(response)
+                    .entity(ApiResponse.error("JSON_MAPPING_ERROR", "Invalid JSON structure - field mapping failed", requestId))
                     .build();
         }
 
         // Handle JSON-B parsing errors
-        if (exception instanceof JsonbException) {
-            ErrorResponse response = ErrorResponse.of(
-                    "JSON_PARSE_ERROR",
-                    "Invalid JSON format",
-                    requestId
-            );
+        if (ex instanceof JsonbException) {
+            log.warn("JSON-B error [{}]: {}", requestId, ex.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(response)
+                    .entity(ApiResponse.error("JSON_PARSE_ERROR", "Invalid JSON format", requestId))
                     .build();
         }
 
         // Handle ProcessingException with JsonParseException cause
-        if (exception instanceof ProcessingException && exception.getCause() instanceof JsonParseException) {
-            ErrorResponse response = ErrorResponse.of(
-                    "JSON_PARSE_ERROR",
-                    "Malformed JSON input",
-                    requestId
-            );
+        if (ex instanceof ProcessingException && ex.getCause() instanceof JsonParseException) {
+            log.warn("Processing exception with JSON parse error [{}]: {}", requestId, ex.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(response)
+                    .entity(ApiResponse.error("JSON_PARSE_ERROR", "Malformed JSON input", requestId))
                     .build();
         }
 
         // Handle NotFoundException (404 errors including path parameter issues)
-        if (exception instanceof NotFoundException) {
-            String message = exception.getMessage();
+        if (ex instanceof NotFoundException) {
+            String message = ex.getMessage();
 
             // Check if it's a path parameter extraction error
             if (message != null && message.contains("Unable to extract parameter")) {
-                // Extract parameter name if possible
                 String paramName = extractParameterName(message);
                 message = paramName != null
                         ? "Invalid or missing path parameter: " + paramName
                         : "Invalid request path or missing required parameter";
 
-                ErrorResponse response = ErrorResponse.of("INVALID_PATH_PARAMETER", message, requestId);
+                log.info("Path parameter error [{}]: {}", requestId, message);
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(response)
+                        .entity(ApiResponse.error("INVALID_PATH_PARAMETER", message, requestId))
                         .build();
             }
 
             // Regular 404 - resource not found
-            ErrorResponse response = ErrorResponse.of(
-                    "RESOURCE_NOT_FOUND",
-                    "Resource not found",
-                    requestId
-            );
+            log.info("Resource not found [{}]: {}", requestId, message);
             return Response.status(Response.Status.NOT_FOUND)
-                    .entity(response)
+                    .entity(ApiResponse.error("RESOURCE_NOT_FOUND", "Resource not found", requestId))
                     .build();
         }
 
-        // Handle other WebApplicationException
-        if (exception instanceof WebApplicationException webEx) {
+        // Handle other WebApplicationException (framework errors)
+        if (ex instanceof WebApplicationException webEx) {
             if (webEx.getResponse().hasEntity()) {
                 return webEx.getResponse();
             }
 
-            String message = exception.getMessage() != null ? exception.getMessage() : "Request failed";
-            ErrorResponse response = ErrorResponse.of("REQUEST_ERROR", message, requestId);
+            String message = ex.getMessage() != null ? ex.getMessage() : "Request failed";
+            log.warn("Web application error [{}]: {}", requestId, message);
             return Response.status(webEx.getResponse().getStatus())
-                    .entity(response)
+                    .entity(ApiResponse.error("API_ERROR", message, requestId))
                     .build();
         }
 
-        // Handle all other unexpected errors
-        ErrorResponse response = ErrorResponse.of(
-                "INTERNAL_SERVER_ERROR",
-                "An unexpected error occurred",
-                requestId
-        );
+        // Handle all other unexpected errors (500)
+        log.error("System error [" + requestId + "]", ex);
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(response)
+                .entity(ApiResponse.error("INTERNAL_SERVER_ERROR", "An unexpected error occurred", requestId))
                 .build();
     }
 
@@ -151,3 +122,4 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
         return null;
     }
 }
+

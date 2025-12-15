@@ -1,4 +1,5 @@
 package com.chattrix.api.resources.call;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.CallHistoryStatus;
 import com.chattrix.api.entities.CallType;
@@ -63,7 +64,8 @@ public class CallHistoryResource {
         try {
             return Enum.valueOf(enumType, value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid " + paramName + ": " + value);
+            throw BusinessException.badRequest("Invalid " + paramName + ": " + value, "BAD_REQUEST");
         }
     }
 }
+

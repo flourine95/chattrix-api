@@ -1,8 +1,9 @@
 package com.chattrix.api.services.user;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.ConflictException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.UpdateUserProfileRequest;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -17,13 +18,13 @@ public class UserProfileService {
 
     public User getUserProfile(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> BusinessException.notFound("User not found with id: " + userId, "RESOURCE_NOT_FOUND"));
     }
 
     @Transactional
     public User updateUserProfile(Long userId, UpdateUserProfileRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> BusinessException.notFound("User not found with id: " + userId, "RESOURCE_NOT_FOUND"));
 
         // Validate và cập nhật username
         if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
@@ -31,7 +32,7 @@ public class UserProfileService {
             if (!newUsername.equals(user.getUsername())) {
                 // Kiểm tra username đã tồn tại chưa
                 if (userRepository.existsUsernameExcludingUser(newUsername, userId)) {
-                    throw new ConflictException("Username already exists");
+                    throw BusinessException.conflict("Username already exists", "CONFLICT");
                 }
                 user.setUsername(newUsername);
             }
@@ -43,7 +44,7 @@ public class UserProfileService {
             if (!newEmail.equals(user.getEmail())) {
                 // Kiểm tra email đã tồn tại chưa
                 if (userRepository.existsEmailExcludingUser(newEmail, userId)) {
-                    throw new ConflictException("Email already exists");
+                    throw BusinessException.conflict("Email already exists", "CONFLICT");
                 }
                 user.setEmail(newEmail);
                 // Khi đổi email, cần xác thực lại
@@ -89,7 +90,11 @@ public class UserProfileService {
 
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+                .orElseThrow(() -> BusinessException.notFound("User not found with username: " + username, "RESOURCE_NOT_FOUND"));
     }
 }
+
+
+
+
 

@@ -1,9 +1,10 @@
 package com.chattrix.api.services.social;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Contact;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ContactRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.SendFriendRequestRequest;
@@ -32,24 +33,24 @@ public class FriendRequestService {
     @Transactional
     public FriendRequestResponse sendFriendRequest(Long senderId, SendFriendRequestRequest request) {
         if (senderId.equals(request.receiverUserId)) {
-            throw new BadRequestException("Cannot send friend request to yourself");
+            throw BusinessException.badRequest("Cannot send friend request to yourself", "BAD_REQUEST");
         }
 
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sender not found"));
+                .orElseThrow(() -> BusinessException.notFound("Sender not found", "RESOURCE_NOT_FOUND"));
 
         User receiver = userRepository.findById(request.receiverUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receiver not found"));
+                .orElseThrow(() -> BusinessException.notFound("Receiver not found", "RESOURCE_NOT_FOUND"));
 
         Optional<Contact> existingContact = contactRepository.findByUserIdAndContactUserId(senderId, request.receiverUserId);
         if (existingContact.isPresent()) {
             Contact contact = existingContact.get();
             if (contact.getStatus() == Contact.ContactStatus.PENDING) {
-                throw new BadRequestException("Friend request already sent");
+                throw BusinessException.badRequest("Friend request already sent", "BAD_REQUEST");
             } else if (contact.getStatus() == Contact.ContactStatus.ACCEPTED) {
-                throw new BadRequestException("Already friends");
+                throw BusinessException.badRequest("Already friends", "BAD_REQUEST");
             } else if (contact.getStatus() == Contact.ContactStatus.BLOCKED) {
-                throw new BadRequestException("Cannot send friend request to blocked user");
+                throw BusinessException.badRequest("Cannot send friend request to blocked user", "BAD_REQUEST");
             }
         }
 
@@ -73,14 +74,14 @@ public class FriendRequestService {
     @Transactional
     public FriendRequestResponse acceptFriendRequest(Long userId, Long requestId) {
         Contact request = contactRepository.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
+                .orElseThrow(() -> BusinessException.notFound("Friend request not found", "RESOURCE_NOT_FOUND"));
 
         if (!request.getContactUser().getId().equals(userId)) {
-            throw new BadRequestException("You are not the receiver of this request");
+            throw BusinessException.badRequest("You are not the receiver of this request", "BAD_REQUEST");
         }
 
         if (request.getStatus() != Contact.ContactStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
         request.setStatus(Contact.ContactStatus.ACCEPTED);
@@ -105,14 +106,14 @@ public class FriendRequestService {
     @Transactional
     public void rejectFriendRequest(Long userId, Long requestId) {
         Contact request = contactRepository.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
+                .orElseThrow(() -> BusinessException.notFound("Friend request not found", "RESOURCE_NOT_FOUND"));
 
         if (!request.getContactUser().getId().equals(userId)) {
-            throw new BadRequestException("You are not the receiver of this request");
+            throw BusinessException.badRequest("You are not the receiver of this request", "BAD_REQUEST");
         }
 
         if (request.getStatus() != Contact.ContactStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
         request.setStatus(Contact.ContactStatus.REJECTED);
@@ -126,14 +127,14 @@ public class FriendRequestService {
     @Transactional
     public void cancelFriendRequest(Long userId, Long requestId) {
         Contact request = contactRepository.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
+                .orElseThrow(() -> BusinessException.notFound("Friend request not found", "RESOURCE_NOT_FOUND"));
 
         if (!request.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You are not the sender of this request");
+            throw BusinessException.badRequest("You are not the sender of this request", "BAD_REQUEST");
         }
 
         if (request.getStatus() != Contact.ContactStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
         Long receiverId = request.getContactUser().getId();
@@ -175,4 +176,9 @@ public class FriendRequestService {
         return response;
     }
 }
+
+
+
+
+
 

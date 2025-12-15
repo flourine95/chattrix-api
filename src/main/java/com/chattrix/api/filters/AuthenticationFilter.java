@@ -1,7 +1,8 @@
 package com.chattrix.api.filters;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.UnauthorizedException;
+// Removed old exception import
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.auth.TokenService;
 import jakarta.annotation.Priority;
@@ -39,19 +40,19 @@ public class AuthenticationFilter implements ContainerRequestFilter {
         String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
         
         if (!isTokenBasedAuthentication(authorizationHeader)) {
-            throw new UnauthorizedException("Missing or invalid Authorization header");
+            throw BusinessException.unauthorized("Missing or invalid Authorization header");
         }
 
         String token = authorizationHeader.substring(AUTHENTICATION_SCHEME.length()).trim();
 
         try {
             if (!tokenService.validateToken(token)) {
-                throw new UnauthorizedException("Invalid or expired token");
+                throw BusinessException.unauthorized("Invalid or expired token");
             }
 
             Long userId = tokenService.getUserIdFromToken(token);
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new UnauthorizedException("User not found"));
+                    .orElseThrow(() -> BusinessException.unauthorized("User not found"));
 
             final SecurityContext currentSecurityContext = requestContext.getSecurityContext();
             final UserPrincipal userPrincipal = new UserPrincipal(user, token);
@@ -83,11 +84,11 @@ public class AuthenticationFilter implements ContainerRequestFilter {
             // Store in request attribute for CDI beans to access
             request.setAttribute(SECURITY_CONTEXT_ATTRIBUTE, newSecurityContext);
 
-        } catch (UnauthorizedException e) {
+        } catch (BusinessException e) {
             // Re-throw UnauthorizedException to be handled by BusinessExceptionMapper
             throw e;
         } catch (Exception e) {
-            throw new UnauthorizedException("Authentication failed");
+            throw BusinessException.unauthorized("Authentication failed");
         }
     }
 
@@ -96,3 +97,8 @@ public class AuthenticationFilter implements ContainerRequestFilter {
                 .startsWith(AUTHENTICATION_SCHEME.toLowerCase() + " ");
     }
 }
+
+
+
+
+

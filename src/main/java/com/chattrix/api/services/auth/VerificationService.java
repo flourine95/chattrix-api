@@ -1,10 +1,11 @@
 package com.chattrix.api.services.auth;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.PasswordResetToken;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.entities.VerificationToken;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.PasswordResetTokenRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.repositories.VerificationTokenRepository;
@@ -38,10 +39,10 @@ public class VerificationService {
     @Transactional
     public void sendVerificationEmail(ResendVerificationRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
 
         if (user.isEmailVerified()) {
-            throw new BadRequestException("Email is already verified");
+            throw BusinessException.badRequest("Email is already verified", "BAD_REQUEST");
         }
 
         // Delete old verification tokens for this user
@@ -64,21 +65,21 @@ public class VerificationService {
     @Transactional
     public void verifyEmail(VerifyEmailRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
 
         if (user.isEmailVerified()) {
-            throw new BadRequestException("Email is already verified");
+            throw BusinessException.badRequest("Email is already verified", "BAD_REQUEST");
         }
 
         VerificationToken token = verificationTokenRepository.findByToken(request.getOtp())
-                .orElseThrow(() -> new BadRequestException("Invalid verification code"));
+                .orElseThrow(() -> BusinessException.badRequest("Invalid verification code", "BAD_REQUEST"));
 
         if (!token.getUser().getId().equals(user.getId())) {
-            throw new BadRequestException("Invalid verification code");
+            throw BusinessException.badRequest("Invalid verification code", "BAD_REQUEST");
         }
 
         if (!token.isValid()) {
-            throw new BadRequestException("Verification code has expired or already been used");
+            throw BusinessException.badRequest("Verification code has expired or already been used", "BAD_REQUEST");
         }
 
         // Mark token as used
@@ -93,7 +94,7 @@ public class VerificationService {
     @Transactional
     public void sendPasswordResetEmail(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
 
         // Delete old password reset tokens for this user
         passwordResetTokenRepository.deleteByUser(user);
@@ -115,17 +116,17 @@ public class VerificationService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
 
         PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getOtp())
-                .orElseThrow(() -> new BadRequestException("Invalid reset code"));
+                .orElseThrow(() -> BusinessException.badRequest("Invalid reset code", "BAD_REQUEST"));
 
         if (!token.getUser().getId().equals(user.getId())) {
-            throw new BadRequestException("Invalid reset code");
+            throw BusinessException.badRequest("Invalid reset code", "BAD_REQUEST");
         }
 
         if (!token.isValid()) {
-            throw new BadRequestException("Reset code has expired or already been used");
+            throw BusinessException.badRequest("Reset code has expired or already been used", "BAD_REQUEST");
         }
 
         // Mark token as used
@@ -144,3 +145,11 @@ public class VerificationService {
         passwordResetTokenRepository.deleteExpiredTokens();
     }
 }
+
+
+
+
+
+
+
+

@@ -1,9 +1,10 @@
 package com.chattrix.api.services.call;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.*;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
-import com.chattrix.api.exceptions.UnauthorizedException;
+// Removed old exception import
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.mappers.CallHistoryMapper;
 import com.chattrix.api.repositories.CallHistoryRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -64,15 +65,15 @@ public class CallHistoryService {
 
         // Validate pagination parameters
         if (page < 0) {
-            throw new BadRequestException("Page number must be non-negative");
+            throw BusinessException.badRequest("Page number must be non-negative", "BAD_REQUEST");
         }
 
         if (size <= 0) {
-            throw new BadRequestException("Page size must be positive");
+            throw BusinessException.badRequest("Page size must be positive", "BAD_REQUEST");
         }
 
         if (size > MAX_PAGE_SIZE) {
-            throw new BadRequestException("Page size cannot exceed " + MAX_PAGE_SIZE);
+            throw BusinessException.badRequest("Page size cannot exceed " + MAX_PAGE_SIZE, "BAD_REQUEST");
         }
 
         // Query call history with pagination and filters
@@ -152,7 +153,7 @@ public class CallHistoryService {
 
         // Get remote user info
         User remoteUser = userRepository.findById(remoteUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Remote user not found: " + remoteUserId));
+                .orElseThrow(() -> BusinessException.notFound("Remote user not found: " + remoteUserId, "RESOURCE_NOT_FOUND"));
 
         // Create history entry with all fields
         CallHistory historyEntry = new CallHistory();
@@ -177,3 +178,8 @@ public class CallHistoryService {
         return saved;
     }
 }
+
+
+
+
+

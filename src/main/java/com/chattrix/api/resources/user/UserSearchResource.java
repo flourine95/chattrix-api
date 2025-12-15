@@ -23,14 +23,16 @@ public class UserSearchResource {
     @GET
     public Response searchUsers(
             @QueryParam("query") @DefaultValue("") String query,
-            @QueryParam("limit") @DefaultValue("20") int limit) {
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
 
-        var users = userSearchService.searchUsers(
+        var result = userSearchService.searchUsers(
                 userContext.getCurrentUserId(),
                 query.trim(),
-                limit
+                page,
+                size
         );
 
-        return Response.ok(ApiResponse.success(users, "Users found successfully")).build();
+        return Response.ok(ApiResponse.success(result, "Users found successfully")).build();
     }
 }

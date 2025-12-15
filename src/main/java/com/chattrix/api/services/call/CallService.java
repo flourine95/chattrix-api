@@ -1,12 +1,13 @@
 package com.chattrix.api.services.call;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.config.AgoraConfig;
 import com.chattrix.api.entities.Call;
 import com.chattrix.api.entities.CallStatus;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
-import com.chattrix.api.exceptions.UnauthorizedException;
+// Removed old exception import
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.mappers.CallMapper;
 import com.chattrix.api.repositories.CallRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -76,13 +77,13 @@ public class CallService {
         Call call = findCall(callId);
 
         if (!call.isCallee(userId)) {
-            throw new UnauthorizedException("Only callee can accept this call");
+            throw BusinessException.unauthorized("Only callee can accept this call");
         }
 
         try {
             call.accept();
         } catch (IllegalStateException e) {
-            throw new BadRequestException("Call is not ringing", "INVALID_STATUS");
+            throw BusinessException.badRequest("Call is not ringing", "INVALID_STATUS");
         }
 
         timeoutScheduler.cancelTimeout(callId);
@@ -98,10 +99,10 @@ public class CallService {
         Call call = findCall(callId);
 
         if (!call.isCallee(userId)) {
-            throw new UnauthorizedException("Only callee can reject this call");
+            throw BusinessException.unauthorized("Only callee can reject this call");
         }
         if (call.getStatus() != CallStatus.RINGING) {
-            throw new BadRequestException("Cannot reject call", "INVALID_STATUS");
+            throw BusinessException.badRequest("Cannot reject call", "INVALID_STATUS");
         }
 
         finalizeCall(call, CallStatus.REJECTED);
@@ -117,10 +118,10 @@ public class CallService {
         Call call = findCall(callId);
 
         if (!call.isParticipant(userId)) {
-            throw new UnauthorizedException("You are not a participant of this call");
+            throw BusinessException.unauthorized("You are not a participant of this call");
         }
         if (call.isFinished()) {
-            throw new BadRequestException("Call already ended", "CALL_ALREADY_ENDED");
+            throw BusinessException.badRequest("Call already ended", "CALL_ALREADY_ENDED");
         }
 
         finalizeCall(call, CallStatus.ENDED);
@@ -180,17 +181,17 @@ public class CallService {
     }
 
     private Call findCall(String id) {
-        return callRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Call not found"));
+        return callRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Call not found", "RESOURCE_NOT_FOUND"));
     }
 
     private User findUser(Long id) {
-        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return userRepository.findById(id).orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
     }
 
     private void validateUserBusy(Long callerId, Long calleeId) {
         if (callRepository.findActiveCallByUserId(callerId).isPresent() ||
                 callRepository.findActiveCallByUserId(calleeId).isPresent()) {
-            throw new BadRequestException("User is busy in another call", "USER_BUSY");
+            throw BusinessException.badRequest("User is busy in another call", "USER_BUSY");
         }
     }
 
@@ -218,3 +219,7 @@ public class CallService {
                 .build());
     }
 }
+
+
+
+

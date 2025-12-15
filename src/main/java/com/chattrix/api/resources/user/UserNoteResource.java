@@ -124,7 +124,7 @@ public class UserNoteResource {
         String replyText = body.get("replyText");
         if (replyText == null || replyText.trim().isEmpty()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ApiResponse.error(null, "Reply text is required"))
+                    .entity(ApiResponse.error("BAD_REQUEST", "Reply text is required", java.util.UUID.randomUUID().toString()))
                     .build();
         }
 
@@ -154,7 +154,7 @@ public class UserNoteResource {
         String emoji = body.get("emoji");
         if (emoji == null || emoji.trim().isEmpty()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ApiResponse.error(null, "Emoji is required"))
+                    .entity(ApiResponse.error("BAD_REQUEST", "Emoji is required", java.util.UUID.randomUUID().toString()))
                     .build();
         }
 

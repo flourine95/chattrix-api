@@ -19,7 +19,7 @@ import java.util.logging.Logger;
  * <pre>
  * try {
  *     // Process message
- * } catch (ResourceNotFoundException e) {
+ * } catch (BusinessException e) {
  *     WebSocketErrorHelper.sendError(session, callId, "call_not_found", e.getMessage());
  * }
  * </pre>
@@ -103,3 +103,4 @@ public class WebSocketErrorHelper {
         }
     }
 }
+

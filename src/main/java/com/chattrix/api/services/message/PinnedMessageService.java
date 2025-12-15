@@ -1,11 +1,12 @@
 package com.chattrix.api.services.message;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.PinnedMessage;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
@@ -42,37 +43,37 @@ public class PinnedMessageService {
     @Transactional
     public PinnedMessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw new BadRequestException("Message does not belong to this conversation");
+            throw BusinessException.badRequest("Message does not belong to this conversation", "BAD_REQUEST");
         }
 
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         if (conversation.getType() == Conversation.ConversationType.GROUP) {
             if (!participantRepository.isUserAdmin(conversationId, userId)) {
-                throw new BadRequestException("Only admins can pin messages in groups");
+                throw BusinessException.badRequest("Only admins can pin messages in groups", "BAD_REQUEST");
             }
         }
 
         Optional<PinnedMessage> existing = pinnedMessageRepository.findByConversationIdAndMessageId(conversationId, messageId);
         if (existing.isPresent()) {
-            throw new BadRequestException("Message is already pinned");
+            throw BusinessException.badRequest("Message is already pinned", "BAD_REQUEST");
         }
 
         long pinnedCount = pinnedMessageRepository.countByConversationId(conversationId);
         if (pinnedCount >= MAX_PINNED_MESSAGES) {
-            throw new BadRequestException("Maximum " + MAX_PINNED_MESSAGES + " messages can be pinned");
+            throw BusinessException.badRequest("Maximum " + MAX_PINNED_MESSAGES + " messages can be pinned", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Integer maxOrder = pinnedMessageRepository.getMaxPinOrder(conversationId);
         
@@ -89,27 +90,27 @@ public class PinnedMessageService {
     @Transactional
     public void unpinMessage(Long userId, Long conversationId, Long messageId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         if (conversation.getType() == Conversation.ConversationType.GROUP) {
             if (!participantRepository.isUserAdmin(conversationId, userId)) {
-                throw new BadRequestException("Only admins can unpin messages in groups");
+                throw BusinessException.badRequest("Only admins can unpin messages in groups", "BAD_REQUEST");
             }
         }
 
         PinnedMessage pinnedMessage = pinnedMessageRepository.findByConversationIdAndMessageId(conversationId, messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Pinned message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Pinned message not found", "RESOURCE_NOT_FOUND"));
 
         pinnedMessageRepository.delete(pinnedMessage);
     }
 
     public List<PinnedMessageResponse> getPinnedMessages(Long userId, Long conversationId) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         List<PinnedMessage> pinnedMessages = pinnedMessageRepository.findByConversationId(conversationId);
@@ -133,4 +134,9 @@ public class PinnedMessageService {
         return response;
     }
 }
+
+
+
+
+
 

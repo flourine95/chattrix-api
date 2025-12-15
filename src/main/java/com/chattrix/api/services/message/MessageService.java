@@ -4,9 +4,10 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ForbiddenException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
+// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
@@ -71,13 +72,13 @@ public class MessageService {
 
     public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         List<Message> messages = messageRepository.findByConversationIdWithSort(conversationId, page, size, sort);
@@ -89,22 +90,22 @@ public class MessageService {
     public MessageResponse getMessage(Long userId, Long conversationId, Long messageId) {
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         // Get specific message
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Verify message belongs to this conversation
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw new ResourceNotFoundException("Message not found");
+            throw BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND");
         }
 
         return mapMessageToResponse(message);
@@ -114,28 +115,28 @@ public class MessageService {
     public MessageResponse sendMessage(Long userId, Long conversationId, ChatMessageRequest request) {
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         // Get sender
         User sender = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         // Validate reply to message if provided
         Message replyToMessage = null;
         if (request.replyToMessageId() != null) {
             replyToMessage = messageRepository.findByIdSimple(request.replyToMessageId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Reply to message not found"));
+                    .orElseThrow(() -> BusinessException.notFound("Reply to message not found", "RESOURCE_NOT_FOUND"));
 
             // Verify reply message belongs to same conversation
             if (!replyToMessage.getConversation().getId().equals(conversationId)) {
-                throw new BadRequestException("Cannot reply to message from different conversation");
+                throw BusinessException.badRequest("Cannot reply to message from different conversation", "BAD_REQUEST");
             }
         }
 
@@ -147,7 +148,7 @@ public class MessageService {
 
             for (Long mentionedUserId : request.mentions()) {
                 if (!participantIds.contains(mentionedUserId)) {
-                    throw new BadRequestException("Cannot mention user who is not in this conversation");
+                    throw BusinessException.badRequest("Cannot mention user who is not in this conversation", "BAD_REQUEST");
                 }
             }
         }
@@ -164,7 +165,7 @@ public class MessageService {
             try {
                 messageType = Message.MessageType.valueOf(request.type().toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new BadRequestException("Invalid message type: " + request.type());
+                throw BusinessException.badRequest("Invalid message type: " + request.type(), "BAD_REQUEST");
             }
         }
         message.setType(messageType);
@@ -206,14 +207,14 @@ public class MessageService {
     @Transactional
     public MessageResponse updateMessage(Long userId, Long conversationId, Long messageId, UpdateMessageRequest request) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw new ResourceNotFoundException("Message not found in this conversation");
+            throw BusinessException.notFound("Message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
         if (!message.getSender().getId().equals(userId)) {
-            throw new ForbiddenException("You can only edit your own messages");
+            throw BusinessException.forbidden("You can only edit your own messages");
         }
 
         message.setContent(request.getContent());
@@ -241,14 +242,14 @@ public class MessageService {
     @Transactional
     public void deleteMessage(Long userId, Long conversationId, Long messageId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw new ResourceNotFoundException("Message not found in this conversation");
+            throw BusinessException.notFound("Message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
         if (!message.getSender().getId().equals(userId)) {
-            throw new ForbiddenException("You can only delete your own messages");
+            throw BusinessException.forbidden("You can only delete your own messages");
         }
 
         Conversation conversation = message.getConversation();
@@ -391,7 +392,7 @@ public class MessageService {
     public Map<String, Object> searchMessages(Long userId, Long conversationId, String query, String type, Long senderId, int page, int size, String sort) {
         // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         List<Message> messages = messageRepository.searchMessages(conversationId, query, type, senderId, page, size, sort);
@@ -417,7 +418,7 @@ public class MessageService {
     public Map<String, Object> getMediaFiles(Long userId, Long conversationId, String type, int page, int size) {
         // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         List<Message> messages = messageRepository.findMediaByConversationId(conversationId, type, page, size);
@@ -455,3 +456,7 @@ public class MessageService {
         return response;
     }
 }
+
+
+
+

@@ -51,8 +51,9 @@ public class RateLimitedFilter implements ContainerRequestFilter {
 
         if (!isAllowed(key, maxRequests, windowSeconds)) {
             ApiResponse<Void> errorResponse = ApiResponse.error(
+                    "RATE_LIMIT_EXCEEDED",
                     "Too many requests. Please try again in " + windowSeconds + " seconds.",
-                    "RATE_LIMIT_EXCEEDED"
+                    java.util.UUID.randomUUID().toString()
             );
 
             requestContext.abortWith(

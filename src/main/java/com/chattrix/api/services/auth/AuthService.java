@@ -1,11 +1,12 @@
 package com.chattrix.api.services.auth;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.InvalidatedToken;
 import com.chattrix.api.entities.RefreshToken;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
-import com.chattrix.api.exceptions.UnauthorizedException;
+// Removed old exception import
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.InvalidatedTokenRepository;
 import com.chattrix.api.repositories.RefreshTokenRepository;
@@ -84,14 +85,14 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByUsernameOrEmail(loginRequest.getUsernameOrEmail().trim())
-                .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password"));
+                .orElseThrow(() -> BusinessException.unauthorized("Invalid username/email or password"));
 
         if (!BCrypt.checkpw(loginRequest.getPassword(), user.getPassword())) {
-            throw new UnauthorizedException("Invalid username/email or password");
+            throw BusinessException.unauthorized("Invalid username/email or password");
         }
 
         if (!user.isEmailVerified()) {
-            throw new UnauthorizedException("Email not verified. Please check your email to verify your account.");
+            throw BusinessException.unauthorized("Email not verified. Please check your email to verify your account.");
         }
 
         user.setOnline(true);
@@ -112,14 +113,14 @@ public class AuthService {
 
     public UserResponse getCurrentUserById(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
         return userMapper.toResponse(user);
     }
 
     @Transactional
     public void logout(Long userId, String accessToken) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         user.setOnline(false);
         user.setLastSeen(Instant.now());
@@ -139,7 +140,7 @@ public class AuthService {
     @Transactional
     public void logoutAllDevices(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         user.setOnline(false);
         user.setLastSeen(Instant.now());
@@ -151,7 +152,7 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(String refreshTokenString) {
         RefreshToken refreshToken = refreshTokenRepository.findValidToken(refreshTokenString)
-                .orElseThrow(() -> new UnauthorizedException("Invalid or expired refresh token"));
+                .orElseThrow(() -> BusinessException.unauthorized("Invalid or expired refresh token"));
 
         User user = refreshToken.getUser();
 
@@ -185,14 +186,14 @@ public class AuthService {
     @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         if (!BCrypt.checkpw(request.getCurrentPassword(), user.getPassword())) {
-            throw new BadRequestException("Current password is incorrect");
+            throw BusinessException.badRequest("Current password is incorrect", "BAD_REQUEST");
         }
 
         if (request.getNewPassword().equals(request.getCurrentPassword())) {
-            throw new BadRequestException("New password must be different from current password");
+            throw BusinessException.badRequest("New password must be different from current password", "BAD_REQUEST");
         }
 
         String hashedPassword = BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt());
@@ -200,3 +201,9 @@ public class AuthService {
         userRepository.save(user);
     }
 }
+
+
+
+
+
+

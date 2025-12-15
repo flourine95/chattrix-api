@@ -1,11 +1,12 @@
 package com.chattrix.api.services.conversation;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.mappers.ConversationMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
@@ -46,21 +47,21 @@ public class ConversationService {
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
         if (request.getParticipantIds() == null || request.getParticipantIds().isEmpty()) {
-            throw new BadRequestException("At least one participant is required");
+            throw BusinessException.badRequest("At least one participant is required", "BAD_REQUEST");
         }
 
         if ("DIRECT".equals(request.getType())) {
             long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
-            if (count != 1) throw new BadRequestException("DIRECT conversation must have exactly 1 other participant.");
+            if (count != 1) throw BusinessException.badRequest("DIRECT conversation must have exactly 1 other participant.", "BAD_REQUEST");
         }
 
         if ("GROUP".equals(request.getType())) {
             long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
-            if (count < 1) throw new BadRequestException("GROUP conversation must have at least 1 other participant");
+            if (count < 1) throw BusinessException.badRequest("GROUP conversation must have at least 1 other participant", "BAD_REQUEST");
         }
 
         User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Conversation conversation = Conversation.builder()
                 .name(request.getName())
@@ -78,7 +79,7 @@ public class ConversationService {
         for (Long participantId : request.getParticipantIds()) {
             if (!participantId.equals(currentUserId)) {
                 User participant = userRepository.findById(participantId)
-                        .orElseThrow(() -> new BadRequestException("Participant not found: " + participantId));
+                        .orElseThrow(() -> BusinessException.badRequest("Participant not found: " + participantId, "BAD_REQUEST"));
 
                 participants.add(ConversationParticipant.builder()
                         .user(participant)
@@ -173,14 +174,14 @@ public class ConversationService {
 
     public ConversationResponse getConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
         validateParticipant(conversation, userId);
         return conversationMapper.toResponse(conversation);
     }
 
     public List<ConversationMemberResponse> getConversationMembers(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
         validateParticipant(conversation, userId);
 
         List<User> users = conversation.getParticipants().stream()
@@ -193,7 +194,7 @@ public class ConversationService {
     @Transactional
     public ConversationResponse updateConversation(Long userId, Long conversationId, UpdateConversationRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
 
@@ -207,15 +208,15 @@ public class ConversationService {
     @Transactional
     public void deleteConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Participant not found"));
+                .orElseThrow(() -> BusinessException.notFound("Participant not found", "RESOURCE_NOT_FOUND"));
 
         participantRepository.delete(participant);
     }
@@ -223,15 +224,15 @@ public class ConversationService {
     @Transactional
     public void leaveConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (conversation.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Cannot leave a direct conversation");
+            throw BusinessException.badRequest("Cannot leave a direct conversation", "BAD_REQUEST");
         }
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, userId)
-                .orElseThrow(() -> new BadRequestException("You are not a member of this conversation"));
+                .orElseThrow(() -> BusinessException.badRequest("You are not a member of this conversation", "BAD_REQUEST"));
 
         participantRepository.delete(participant);
     }
@@ -239,7 +240,7 @@ public class ConversationService {
     @Transactional
     public AddMembersResponse addMembers(Long userId, Long conversationId, AddMembersRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
 
@@ -249,7 +250,7 @@ public class ConversationService {
             if (participantRepository.isUserParticipant(conversationId, newUserId)) continue;
 
             User newUser = userRepository.findById(newUserId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found: " + newUserId));
+                    .orElseThrow(() -> BusinessException.notFound("User not found: " + newUserId, "RESOURCE_NOT_FOUND"));
 
             ConversationParticipant newParticipant = ConversationParticipant.builder()
                     .user(newUser)
@@ -276,17 +277,17 @@ public class ConversationService {
     @Transactional
     public void removeMember(Long userId, Long conversationId, Long memberUserId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
 
         if (userId.equals(memberUserId)) {
-            throw new BadRequestException("Use leave endpoint to remove yourself from the conversation");
+            throw BusinessException.badRequest("Use leave endpoint to remove yourself from the conversation", "BAD_REQUEST");
         }
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, memberUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
+                .orElseThrow(() -> BusinessException.notFound("Member not found", "RESOURCE_NOT_FOUND"));
 
         participantRepository.delete(participant);
     }
@@ -294,13 +295,13 @@ public class ConversationService {
     @Transactional
     public ConversationResponse.ParticipantResponse updateMemberRole(Long userId, Long conversationId, Long memberUserId, UpdateMemberRoleRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
 
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, memberUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
+                .orElseThrow(() -> BusinessException.notFound("Member not found", "RESOURCE_NOT_FOUND"));
 
         participant.setRole(ConversationParticipant.Role.valueOf(request.getRole()));
         participantRepository.save(participant);
@@ -315,7 +316,7 @@ public class ConversationService {
 
     public ConversationSettingsResponse getConversationSettings(Long userId, Long conversationId) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         ConversationSettings settings = settingsRepository
@@ -336,7 +337,7 @@ public class ConversationService {
     @Transactional
     public ConversationSettingsResponse updateConversationSettings(Long userId, Long conversationId, UpdateConversationSettingsRequest request) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         ConversationSettings settings = settingsRepository
@@ -364,7 +365,7 @@ public class ConversationService {
     @Transactional
     public MuteConversationResponse muteConversation(Long userId, Long conversationId, MuteConversationRequest request) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         ConversationSettings settings = settingsRepository
@@ -394,7 +395,7 @@ public class ConversationService {
     public BlockUserResponse blockUser(Long userId, Long conversationId) {
         validateDirectConversation(conversationId);
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("Access denied");
+            throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
         }
 
         ConversationSettings settings = settingsRepository
@@ -415,7 +416,7 @@ public class ConversationService {
     public BlockUserResponse unblockUser(Long userId, Long conversationId) {
         validateDirectConversation(conversationId);
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("Access denied");
+            throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
         }
 
         ConversationSettings settings = settingsRepository
@@ -434,9 +435,9 @@ public class ConversationService {
 
     private ConversationSettings createDefaultSettings(Long userId, Long conversationId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         ConversationSettings settings = ConversationSettings.builder()
                 .user(user)
@@ -448,26 +449,30 @@ public class ConversationService {
     private void validateParticipant(Conversation conversation, Long userId) {
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
-        if (!isParticipant) throw new BadRequestException("You do not have access to this conversation");
+        if (!isParticipant) throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
     }
 
     private void validateGroupAdmin(Long conversationId, Long userId) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("Access denied");
+            throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
         }
         Conversation c = conversationRepository.findById(conversationId).orElseThrow();
         if (c.getType() != Conversation.ConversationType.GROUP) {
-            throw new BadRequestException("Only group conversations support this action");
+            throw BusinessException.badRequest("Only group conversations support this action", "BAD_REQUEST");
         }
         if (!participantRepository.isUserAdmin(conversationId, userId)) {
-            throw new BadRequestException("Only admins can perform this action");
+            throw BusinessException.badRequest("Only admins can perform this action", "BAD_REQUEST");
         }
     }
 
     private void validateDirectConversation(Long conversationId) {
         Conversation c = conversationRepository.findById(conversationId).orElseThrow();
         if (c.getType() != Conversation.ConversationType.DIRECT) {
-            throw new BadRequestException("Action only available for direct conversations");
+            throw BusinessException.badRequest("Action only available for direct conversations", "BAD_REQUEST");
         }
     }
 }
+
+
+
+

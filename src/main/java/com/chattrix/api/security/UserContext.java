@@ -1,7 +1,8 @@
 package com.chattrix.api.security;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.UnauthorizedException;
+// Removed old exception import
 import com.chattrix.api.filters.AuthenticationFilter;
 import com.chattrix.api.filters.UserPrincipal;
 import jakarta.enterprise.context.RequestScoped;
@@ -21,7 +22,7 @@ public class UserContext {
         if (securityContext != null && securityContext.getUserPrincipal() instanceof UserPrincipal principal) {
             return principal;
         }
-        throw new UnauthorizedException("You must be logged in to perform this action");
+        throw BusinessException.unauthorized("You must be logged in to perform this action");
     }
 
     public Long getCurrentUserId() {
@@ -36,3 +37,6 @@ public class UserContext {
         return getPrincipal().user();
     }
 }
+
+
+

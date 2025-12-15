@@ -63,35 +63,149 @@ components:
       type: object
       required: [username, email, password, fullName]
       properties:
-        username: { type: string, description: "Tên đăng nhập mới." }
-        email: { type: string, format: email, description: "Email của người dùng." }
-        password: { type: string, format: password, description: "Mật khẩu." }
-        fullName: { type: string, description: "Họ và tên đầy đủ." }
+        username:
+          type: string
+          minLength: 4
+          maxLength: 20
+          pattern: '^(?![_.])(?!.*[_.]{2})(?=.*[a-zA-Z])[a-zA-Z0-9._]+(?<![_.])$'
+          description: "Username (4-20 chars, must contain letter, no leading/trailing . or _)"
+        email:
+          type: string
+          format: email
+          description: "Valid email address"
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 100
+          description: "Password (min 6 characters)"
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: "Full name"
 
     RefreshTokenRequest:
       type: object
       required: [refreshToken]
       properties:
-        refreshToken: { type: string, description: "Refresh token nhận được khi đăng nhập." }
-    
+        refreshToken:
+          type: string
+          description: "Refresh token từ login/refresh response"
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          description: "Current password"
+        newPassword:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: "New password (min 6 characters)"
+
+    VerifyEmailRequest:
+      type: object
+      required: [email, otp]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Email address to verify"
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: "6-digit OTP from email"
+
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Email address to resend verification"
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Email address for password reset"
+
+    ResetPasswordRequest:
+      type: object
+      required: [email, otp, newPassword]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Email address"
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: "6-digit OTP from email"
+        newPassword:
+          type: string
+          minLength: 6
+          maxLength: 100
+          description: "New password (min 6 characters)"
+
     AuthResponse:
       type: object
       properties:
-        accessToken: { type: string, description: "Token truy cập chính." }
-        refreshToken: { type: string, description: "Token dùng để làm mới access token." }
-        tokenType: { type: string, example: "Bearer" }
-        expiresIn: { type: integer, format: int64, description: "Thời gian hết hạn của access token (tính bằng giây)." }
+        accessToken:
+          type: string
+          description: "JWT access token"
+        refreshToken:
+          type: string
+          description: "Refresh token UUID"
+        tokenType:
+          type: string
+          example: "Bearer"
+          default: "Bearer"
+        expiresIn:
+          type: integer
+          format: int64
+          description: "Access token expiry time in seconds"
+          example: 86400
 
     UserResponse:
       type: object
+      description: "Complete user information (same as UserProfileResponse)"
       properties:
         id: { type: integer, format: int64 }
         username: { type: string }
         email: { type: string, format: email }
+        emailVerified: { type: boolean }
+        phone: { type: string, nullable: true }
         fullName: { type: string }
         avatarUrl: { type: string, format: uri, nullable: true }
-        isOnline: { type: boolean }
+        bio: { type: string, maxLength: 500, nullable: true }
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+          nullable: true
+        dateOfBirth: { type: string, format: date-time, nullable: true }
+        location: { type: string, nullable: true }
+        profileVisibility:
+          type: string
+          enum: [PUBLIC, FRIENDS_ONLY, PRIVATE]
+          nullable: true
+        online: { type: boolean }
         lastSeen: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    UserProfileResponse:
+      deprecated: true
+      description: "DEPRECATED: Use UserResponse instead. This schema is identical to UserResponse."
+      allOf:
+        - $ref: '#/components/schemas/UserResponse'
 
     # --- Message Schemas ---
     MessageResponse:
@@ -277,9 +391,33 @@ components:
             message:
               type: string
               example: "The requested resource was not found"
+            details:
+              type: array
+              description: "Array of detailed error information (present for validation errors)"
+              items:
+                $ref: '#/components/schemas/ErrorDetail'
         requestId:
           type: string
           example: "req-12345-abcde"
+
+    ErrorDetail:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          description: "The field name that failed validation"
+          example: "email"
+        code:
+          type: string
+          description: "Error code for internationalization (e.g., UNIQUE_EMAIL, NOT_BLANK)"
+          example: "UNIQUE_EMAIL"
+        message:
+          type: string
+          description: "Human-readable error message"
+          example: "Email already exists"
 
     ApiResponse_AuthResponse:
       type: object
@@ -835,15 +973,93 @@ components:
         message: { type: string }
         data: { $ref: '#/components/schemas/ConversationResponse' }
 
+    PaginatedResponse:
+      type: object
+      description: "Generic paginated response with metadata"
+      properties:
+        data:
+          type: array
+          items: {}
+          description: "Array of items for current page"
+        page:
+          type: integer
+          format: int32
+          description: "Current page number (0-indexed)"
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: "Page size (items per page)"
+          example: 20
+        total:
+          type: integer
+          format: int64
+          description: "Total number of items across all pages"
+          example: 45
+        totalPages:
+          type: integer
+          format: int32
+          description: "Total number of pages"
+          example: 3
+        hasNextPage:
+          type: boolean
+          description: "Whether there is a next page"
+          example: true
+        hasPrevPage:
+          type: boolean
+          description: "Whether there is a previous page"
+          example: false
+
+    PaginatedConversationResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConversationResponse'
+
+    UserSearchResponse:
+      type: object
+      description: "User search result with additional context (contact status, conversation info)"
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        online: { type: boolean }
+        lastSeen: { type: string, format: date-time, nullable: true }
+        contact:
+          type: boolean
+          description: "Whether this user is in current user's contact list"
+        hasConversation:
+          type: boolean
+          description: "Whether a conversation exists with this user"
+        conversationId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "Conversation ID if exists"
+
+    PaginatedUserSearchResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserSearchResponse'
+
     ApiResponse_ConversationListResponse:
       type: object
       properties:
         success: { type: boolean, example: true }
         message: { type: string }
         data:
-          type: array
-          items:
-            $ref: '#/components/schemas/ConversationResponse'
+          $ref: '#/components/schemas/PaginatedConversationResponse'
 
     ApiResponse_ParticipantListResponse:
       type: object
@@ -967,163 +1183,326 @@ paths:
   /v1/auth/register:
     post:
       summary: "User Registration"
-      description: "Đăng ký một tài khoản người dùng mới."
+      description: |
+        Đăng ký tài khoản người dùng mới.
+        
+        **Flow:**
+        1. Validate input (username, email, password, fullName)
+        2. Create user account
+        3. Generate avatar automatically from Cloudinary
+        4. Send verification email with 6-digit OTP
+        5. User must verify email before login
+        
+        **Rate Limit:** 3 requests per 5 minutes
       tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RegisterRequest' }
+            example:
+              username: "newuser123"
+              email: "newuser@example.com"
+              password: "SecurePass123"
+              fullName: "New User"
       responses:
         '201':
-          description: "Registration successful."
+          description: "Registration successful. Verification email sent."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
               example:
                 success: true
                 message: "Registration successful. Please check your email to verify your account."
-                data:
-                  user:
-                    id: 1
-                    username: "newuser"
-                    email: "newuser@example.com"
-                    fullName: "New User"
-                  accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                  refreshToken: "refresh_token_here"
+                data: null
         '400':
-          description: "Bad Request - Validation failed or user already exists."
+          description: "Bad Request - Validation failed."
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
-                username_exists:
-                  summary: "Username already taken"
+                username_taken:
+                  summary: "Username already exists"
                   value:
                     success: false
                     error:
-                      code: "CONFLICT"
-                      message: "Username already exists"
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "username"
+                          code: "UNIQUE_USERNAME"
+                          message: "Username already exists"
                     requestId: "req-reg001"
-                email_exists:
+                email_taken:
                   summary: "Email already registered"
                   value:
                     success: false
                     error:
-                      code: "CONFLICT"
-                      message: "Email already exists"
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "email"
+                          code: "UNIQUE_EMAIL"
+                          message: "Email already exists"
                     requestId: "req-reg002"
+                multiple_validation_errors:
+                  summary: "Multiple validation errors"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "email"
+                          code: "UNIQUE_EMAIL"
+                          message: "Email already exists"
+                        - field: "username"
+                          code: "UNIQUE_USERNAME"
+                          message: "Username already exists"
+                    requestId: "req-reg003"
+                invalid_username:
+                  summary: "Invalid username format"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "username"
+                          code: "PATTERN"
+                          message: "Username must contain at least one letter, and cannot start or end with '.' or '_'"
+                    requestId: "req-reg004"
+                username_too_short:
+                  summary: "Username too short"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "username"
+                          code: "SIZE"
+                          message: "Username must be between 4 and 20 characters"
+                    requestId: "req-reg005"
                 invalid_email:
                   summary: "Invalid email format"
                   value:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Invalid email format"
-                    requestId: "req-reg003"
-                weak_password:
-                  summary: "Password too weak"
+                      message: "Validation failed"
+                      details:
+                        - field: "email"
+                          code: "EMAIL"
+                          message: "Email must be valid"
+                    requestId: "req-reg006"
+                password_too_short:
+                  summary: "Password too short"
                   value:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Password must be at least 8 characters"
-                    requestId: "req-reg004"
+                      message: "Validation failed"
+                      details:
+                        - field: "password"
+                          code: "SIZE"
+                          message: "Password must be at least 6 characters"
+                    requestId: "req-reg007"
+                missing_fullname:
+                  summary: "Full name missing"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "fullName"
+                          code: "NOT_BLANK"
+                          message: "Full name cannot be blank"
+                    requestId: "req-reg008"
+        '429':
+          description: "Too Many Requests - Rate limit exceeded"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many registration attempts. Please try again later."
+                requestId: "req-reg008"
 
   /v1/auth/login:
     post:
       summary: "User Login"
-      description: "Xác thực người dùng bằng username/email và password để nhận về access token và refresh token."
+      description: |
+        Xác thực người dùng để nhận access token và refresh token.
+        
+        **Flow:**
+        1. Validate credentials (username/email + password)
+        2. Check email verified
+        3. Mark user as online
+        4. Generate access token (JWT) và refresh token
+        5. Return tokens
+        
+        **Rate Limit:** 10 requests per 60 seconds
       tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/LoginRequest' }
+            examples:
+              with_username:
+                summary: "Login with username"
+                value:
+                  usernameOrEmail: "user1"
+                  password: "password123"
+              with_email:
+                summary: "Login with email"
+                value:
+                  usernameOrEmail: "user1@example.com"
+                  password: "password123"
       responses:
         '200':
-          description: "Login successful."
+          description: "Login successful. Tokens returned."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/AuthResponse' }
               example:
                 success: true
                 message: "Login successful"
                 data:
-                  user:
-                    id: 1
-                    username: "user1"
-                    email: "user1@example.com"
-                    fullName: "Nguyen Linh La"
-                    avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
                   accessToken: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyMSIsImp0aSI6ImZmYjM4NjU5LTMwMWUtNGQzNy1hNWQ1LTljNGIzNTUzNGYzMiIsImlhdCI6MTc2NTY5NDkxOSwiZXhwIjoxNzY1OTEwOTE5fQ.FjPFJXewRaHQg8ulpVXxbHAUoo24UH7hRdPA7mWzeO0"
-                  refreshToken: "refresh_token_here"
+                  refreshToken: "d47f9e4c-8b2a-4e1f-9c3d-5a6b7c8d9e0f"
+                  tokenType: "Bearer"
+                  expiresIn: 86400
         '400':
-          description: "Bad Request - Invalid credentials."
+          description: "Bad Request - Missing fields."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Validation failed"
+                  details:
+                    - field: "usernameOrEmail"
+                      code: "NOT_BLANK"
+                      message: "Username or email cannot be blank"
+                requestId: "req-login001"
+        '401':
+          description: "Unauthorized - Invalid credentials or email not verified."
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 invalid_credentials:
-                  summary: "Wrong username or password"
+                  summary: "Wrong username/email or password"
                   value:
                     success: false
                     error:
-                      code: "INVALID_CREDENTIALS"
-                      message: "Invalid username or password"
-                    requestId: "req-login001"
-                missing_fields:
-                  summary: "Missing required fields"
-                  value:
-                    success: false
-                    error:
-                      code: "VALIDATION_ERROR"
-                      message: "Username and password are required"
+                      code: "UNAUTHORIZED"
+                      message: "Invalid username/email or password"
                     requestId: "req-login002"
-        '401':
-          description: "Unauthorized - Account not verified or locked."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_verified:
+                email_not_verified:
                   summary: "Email not verified"
                   value:
                     success: false
                     error:
                       code: "UNAUTHORIZED"
-                      message: "Please verify your email address before logging in"
+                      message: "Email not verified. Please check your email to verify your account."
                     requestId: "req-login003"
-                account_locked:
-                  summary: "Account locked"
-                  value:
-                    success: false
-                    error:
-                      code: "UNAUTHORIZED"
-                      message: "Your account has been locked. Please contact support."
-                    requestId: "req-login004"
+        '429':
+          description: "Too Many Requests - Rate limit exceeded"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many login attempts. Please try again later."
+                requestId: "req-login004"
 
   /v1/auth/refresh:
     post:
       summary: "Refresh Access Token"
-      description: "Sử dụng refresh token để lấy một access token mới."
+      description: |
+        Sử dụng refresh token để lấy access token mới.
+        
+        **Flow:**
+        1. Validate refresh token
+        2. Invalidate old access token (if still valid)
+        3. Revoke old refresh token
+        4. Generate new access token và refresh token
+        5. Return new tokens
       tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+            example:
+              refreshToken: "d47f9e4c-8b2a-4e1f-9c3d-5a6b7c8d9e0f"
       responses:
         '200':
-          description: "Token refreshed successfully."
+          description: "Token refreshed successfully. New tokens returned."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_AuthResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/AuthResponse' }
+              example:
+                success: true
+                message: "Token refreshed successfully"
+                data:
+                  accessToken: "eyJhbGciOiJIUzI1NiJ9.new_token_here..."
+                  refreshToken: "new_refresh_token_uuid"
+                  tokenType: "Bearer"
+                  expiresIn: 86400
         '401':
-          description: "Unauthorized (e.g., invalid or expired refresh token)."
+          description: "Unauthorized - Invalid or expired refresh token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_token:
+                  summary: "Invalid refresh token"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Invalid or expired refresh token"
+                    requestId: "req-refresh001"
+                token_revoked:
+                  summary: "Token already revoked"
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Refresh token has been revoked"
+                    requestId: "req-refresh002"
 
   /v1/auth/me:
     get:
@@ -1138,52 +1517,790 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+              example:
+                success: true
+                message: "User retrieved successfully"
+                data:
+                  id: 1
+                  username: "user1"
+                  email: "user1@example.com"
+                  emailVerified: true
+                  phone: null
+                  fullName: "Nguyen Linh La"
+                  avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/1.png"
+                  bio: "Software developer"
+                  gender: "MALE"
+                  dateOfBirth: "1990-01-15T00:00:00.000Z"
+                  location: "Ho Chi Minh City"
+                  profileVisibility: "PUBLIC"
+                  online: true
+                  lastSeen: null
+                  createdAt: "2025-01-01T00:00:00.000Z"
+                  updatedAt: "2025-01-10T00:00:00.000Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-me001"
 
-  # --- User Paths ---
-  /v1/users:
-    get:
-      summary: "Get All Users"
-      description: "Lấy danh sách tất cả người dùng trong hệ thống. Yêu cầu xác thực."
-      tags: [Users]
+  /v1/auth/logout:
+    post:
+      summary: "Logout from current device"
+      description: |
+        Logout user khỏi device hiện tại.
+        
+        **Actions:**
+        - Mark user as offline
+        - Invalidate current access token
+        - Revoke associated refresh token
+      tags: [Authentication]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: "Users retrieved successfully."
+          description: "Logged out successfully from this device."
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponse_UserListResponse'
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Logged out from this device successfully"
+                data: null
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-logout001"
+
+  /v1/auth/logout-all:
+    post:
+      summary: "Logout from all devices"
+      description: |
+        Logout user khỏi tất cả devices.
+        
+        **Actions:**
+        - Mark user as offline
+        - Revoke all refresh tokens
+        - All existing access tokens will be invalid after expiry
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Logged out successfully from all devices."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Logged out from all devices successfully"
+                data: null
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-logoutall001"
+
+  /v1/auth/change-password:
+    put:
+      summary: "Change password"
+      description: |
+        Thay đổi password của user hiện tại.
+        
+        **Validation:**
+        - Current password must be correct
+        - New password must be different from current
+        - New password minimum 6 characters
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+            example:
+              currentPassword: "oldPassword123"
+              newPassword: "newSecurePass456"
+      responses:
+        '200':
+          description: "Password changed successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Password changed successfully"
+                data: null
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_current_password:
+                  summary: "Current password incorrect"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Current password is incorrect"
+                    requestId: "req-changepw001"
+                same_password:
+                  summary: "New password same as current"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "New password must be different from current password"
+                    requestId: "req-changepw002"
+                password_too_short:
+                  summary: "New password too short"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "newPassword"
+                          code: "SIZE"
+                          message: "New password must be at least 6 characters"
+                    requestId: "req-changepw003"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-changepw004"
+
+  /v1/auth/verify-email:
+    post:
+      summary: "Verify email with OTP"
+      description: |
+        Xác thực email sau khi đăng ký.
+        
+        **Flow:**
+        1. User receives 6-digit OTP via email
+        2. Submit email + OTP
+        3. Email marked as verified
+        4. User can now login
+        
+        **OTP:**
+        - 6 digits
+        - Valid for 10 minutes
+        - Rate limit: 1 request per 5 minutes
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyEmailRequest' }
+            example:
+              email: "user@example.com"
+              otp: "123456"
+      responses:
+        '200':
+          description: "Email verified successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Email verified successfully. You can now login."
+                data: null
+        '400':
+          description: "Bad Request - Invalid OTP or validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_otp:
+                  summary: "Invalid or expired OTP"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid or expired verification code"
+                    requestId: "req-verify001"
+                already_verified:
+                  summary: "Email already verified"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Email already verified"
+                    requestId: "req-verify002"
+                invalid_otp_format:
+                  summary: "OTP format invalid"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "otp"
+                          code: "PATTERN"
+                          message: "OTP must be 6 digits"
+                    requestId: "req-verify003"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-verify004"
+        '429':
+          description: "Too Many Requests - Rate limit exceeded."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many verification attempts. Please try again later."
+                requestId: "req-verify005"
+
+  /v1/auth/resend-verification:
+    post:
+      summary: "Resend verification email"
+      description: |
+        Gửi lại email verification với OTP mới.
+        
+        **Rate limit:** 3 requests per 10 minutes
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResendVerificationRequest' }
+            example:
+              email: "user@example.com"
+      responses:
+        '200':
+          description: "Verification email sent successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Verification email sent successfully"
+                data: null
+        '400':
+          description: "Bad Request - Email already verified."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "BAD_REQUEST"
+                  message: "Email already verified"
+                requestId: "req-resend001"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-resend002"
+        '429':
+          description: "Too Many Requests - Rate limit exceeded."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many requests. Please try again later."
+                requestId: "req-resend003"
+
+  /v1/auth/forgot-password:
+    post:
+      summary: "Request password reset"
+      description: |
+        Gửi email với OTP để reset password.
+        
+        **Flow:**
+        1. Submit email
+        2. Receive 6-digit OTP via email
+        3. Use OTP with /reset-password endpoint
+        
+        **Rate limit:** 3 requests per 10 minutes
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForgotPasswordRequest' }
+            example:
+              email: "user@example.com"
+      responses:
+        '200':
+          description: "Password reset email sent successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Password reset email sent successfully"
+                data: null
+        '404':
+          description: "User not found (silently return 200 for security)."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Password reset email sent successfully"
+                data: null
+        '429':
+          description: "Too Many Requests - Rate limit exceeded."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many requests. Please try again later."
+                requestId: "req-forgot001"
+
+  /v1/auth/reset-password:
+    post:
+      summary: "Reset password with OTP"
+      description: |
+        Reset password sử dụng OTP từ email.
+        
+        **Flow:**
+        1. User receives OTP from /forgot-password
+        2. Submit email + OTP + new password
+        3. Password is reset
+        4. User can login with new password
+        
+        **Rate limit:** 1 request per 5 minutes
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetPasswordRequest' }
+            example:
+              email: "user@example.com"
+              otp: "123456"
+              newPassword: "newSecurePassword123"
+      responses:
+        '200':
+          description: "Password reset successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Password reset successfully"
+                data: null
+        '400':
+          description: "Bad Request - Invalid OTP or validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_otp:
+                  summary: "Invalid or expired OTP"
+                  value:
+                    success: false
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid or expired reset code"
+                    requestId: "req-reset001"
+                password_too_short:
+                  summary: "Password too short"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "newPassword"
+                          code: "SIZE"
+                          message: "Password must be at least 6 characters"
+                    requestId: "req-reset002"
+                invalid_otp_format:
+                  summary: "OTP format invalid"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "otp"
+                          code: "PATTERN"
+                          message: "OTP must be 6 digits"
+                    requestId: "req-reset003"
+                    requestId: "req-reset003"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-reset004"
+        '429':
+          description: "Too Many Requests - Rate limit exceeded."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RATE_LIMIT_EXCEEDED"
+                  message: "Too many reset attempts. Please try again later."
+                requestId: "req-reset005"
 
   /v1/users/search:
     get:
       summary: "Search users"
-      description: "Tìm kiếm người dùng theo username, email hoặc tên."
+      description: |
+        Tìm kiếm người dùng theo username, email hoặc full name với phân trang.
+        
+        **Search:** Case-insensitive partial match trên username, email, fullName
+        **Additional info:** Includes contact status and conversation info
+        **Pagination:** Default 20 items per page
       tags: [Users]
       security:
         - bearerAuth: []
       parameters:
         - name: query
           in: query
-          required: true
-          schema: { type: string }
-          description: "Từ khóa tìm kiếm."
-        - name: limit
+          required: false
+          schema:
+            type: string
+            default: ""
+          description: "Search keyword (username, email, or name). Empty = all users"
+          example: "nguyen"
+        - name: page
           in: query
-          schema: { type: integer, default: 20 }
-          description: "Số lượng kết quả tối đa."
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+          description: "Page number (0-indexed)"
+          example: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: "Number of items per page"
+          example: 20
       responses:
         '200':
           description: "Users found successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserListResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    $ref: '#/components/schemas/PaginatedUserSearchResponse'
+              example:
+                success: true
+                message: "Users found successfully"
+                data:
+                  data:
+                    - id: 7
+                      username: "lanbui"
+                      email: "lanbui@gmail.com"
+                      fullName: "Bui Thi Lan"
+                      avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/7.png"
+                      online: false
+                      lastSeen: "2025-12-11T18:17:10.777888Z"
+                      contact: false
+                      hasConversation: false
+                      conversationId: null
+                    - id: 2
+                      username: "user2"
+                      email: "binhtran@gmail.com"
+                      fullName: "Tran Van Binh"
+                      avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/2.png"
+                      online: false
+                      lastSeen: "2025-12-14T06:12:27.806735Z"
+                      contact: false
+                      hasConversation: true
+                      conversationId: 1
+                    - id: 3
+                      username: "hoale"
+                      email: "hoale@gmail.com"
+                      fullName: "Le Thi Hoa"
+                      avatarUrl: "https://res.cloudinary.com/dk3gud5kq/image/upload/v1765476687/avatars/3.png"
+                      online: false
+                      lastSeen: "2025-12-12T08:30:00Z"
+                      contact: true
+                      hasConversation: true
+                      conversationId: 3
+                  page: 0
+                  size: 20
+                  total: 19
+                  totalPages: 1
+                  hasNextPage: false
+                  hasPrevPage: false
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-search002"
+
+  /v1/users/status/batch:
+    get:
+      summary: "Get batch user status"
+      description: |
+        Lấy online status của nhiều users cùng lúc.
+        
+        **Use case:** Update online status for contact list, conversation participants
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userIds
+          in: query
+          required: true
+          schema:
+            type: string
+          description: "Comma-separated user IDs"
+          example: "1,5,10,15"
+      responses:
+        '200':
+          description: "User statuses retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId: { type: integer, format: int64 }
+                        online: { type: boolean }
+                        lastSeen: { type: string, format: date-time, nullable: true }
+              example:
+                success: true
+                message: "Statuses retrieved successfully"
+                data:
+                  - userId: 1
+                    online: true
+                    lastSeen: null
+                  - userId: 5
+                    online: false
+                    lastSeen: "2025-12-14T08:30:00.000Z"
+                  - userId: 10
+                    online: true
+                    lastSeen: null
+        '400':
+          description: "Bad Request - Invalid user IDs."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Validation failed"
+                  details:
+                    - field: "userIds"
+                      code: "NOT_NULL"
+                      message: "User IDs parameter is required"
+                requestId: "req-status001"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-status002"
+
+  /v1/users/status:
+    put:
+      summary: "Update user status manually"
+      description: |
+        Manually set online/offline status.
+        
+        **Note:** Usually automatic via WebSocket connect/disconnect.
+        This endpoint for manual override.
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [online]
+              properties:
+                online:
+                  type: boolean
+                  description: "Set online or offline"
+            example:
+              online: true
+      responses:
+        '200':
+          description: "Status updated successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Status updated successfully"
+                data: null
+        '400':
+          description: "Bad Request - Invalid status value."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Validation failed"
+                  details:
+                    - field: "online"
+                      code: "NOT_NULL"
+                      message: "Online field is required"
+                requestId: "req-statusupd001"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-statusupd002"
 
   /v1/profile/me:
     get:
@@ -1197,12 +2314,50 @@ paths:
           description: "Profile retrieved successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/UserResponse' }
+              example:
+                success: true
+                message: "Profile retrieved successfully"
+                data:
+                  id: 1
+                  username: "user1"
+                  email: "user1@example.com"
+                  emailVerified: true
+                  phone: "+84987654321"
+                  fullName: "Nguyen Linh La"
+                  avatarUrl: "https://res.cloudinary.com/.../1.png"
+                  bio: "Software Developer | Tech Enthusiast"
+                  gender: "MALE"
+                  dateOfBirth: "1995-05-15T00:00:00.000Z"
+                  location: "Ho Chi Minh City, Vietnam"
+                  profileVisibility: "PUBLIC"
+                  online: true
+                  lastSeen: null
+                  createdAt: "2025-01-01T00:00:00.000Z"
+                  updatedAt: "2025-01-08T00:00:00.000Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-profile001"
     put:
       summary: "Update my profile"
-      description: "Cập nhật thông tin profile của người dùng hiện tại."
+      description: |
+        Cập nhật thông tin profile của người dùng hiện tại.
+        
+        **Updatable fields:** fullName, avatarUrl, phone, bio, dateOfBirth, gender, location, profileVisibility
       tags: [Users]
       security:
         - bearerAuth: []
@@ -1211,16 +2366,115 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+            examples:
+              update_name:
+                summary: "Update full name"
+                value:
+                  fullName: "Nguyen Van New Name"
+              update_avatar:
+                summary: "Update avatar"
+                value:
+                  avatarUrl: "https://res.cloudinary.com/.../new-avatar.png"
+              update_bio:
+                summary: "Update bio"
+                value:
+                  bio: "Full-stack developer with passion for AI"
+              update_all:
+                summary: "Update multiple fields"
+                value:
+                  fullName: "Nguyen Van New Name"
+                  avatarUrl: "https://res.cloudinary.com/.../new-avatar.png"
+                  bio: "Full-stack developer"
+                  phone: "+84987654321"
+                  gender: "MALE"
+                  location: "Hanoi, Vietnam"
+                  profileVisibility: "FRIENDS_ONLY"
       responses:
         '200':
           description: "Profile updated successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/UserResponse' }
+              example:
+                success: true
+                message: "Profile updated successfully"
+                data:
+                  id: 1
+                  username: "user1"
+                  email: "user1@example.com"
+                  emailVerified: true
+                  phone: "+84987654321"
+                  fullName: "Nguyen Van New Name"
+                  avatarUrl: "https://res.cloudinary.com/.../new-avatar.png"
+                  bio: "Full-stack developer"
+                  gender: "MALE"
+                  dateOfBirth: "1995-05-15T00:00:00.000Z"
+                  location: "Hanoi, Vietnam"
+                  profileVisibility: "FRIENDS_ONLY"
+                  online: true
+                  lastSeen: null
+                  createdAt: "2025-01-01T00:00:00.000Z"
+                  updatedAt: "2025-01-10T10:30:00.000Z"
         '400':
-          description: "Bad Request."
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_fullname:
+                  summary: "Full name too long"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "fullName"
+                          code: "SIZE"
+                          message: "Full name must be between 1 and 100 characters"
+                    requestId: "req-profileupd001"
+                invalid_bio:
+                  summary: "Bio too long"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "bio"
+                          code: "SIZE"
+                          message: "Bio must not exceed 500 characters"
+                    requestId: "req-profileupd002"
+                invalid_avatar_url:
+                  summary: "Invalid avatar URL"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "avatarUrl"
+                          code: "URL"
+                          message: "Avatar URL must be valid"
+                    requestId: "req-profileupd003"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-profileupd004"
 
   /v1/profile/{userId}:
     get:
@@ -1234,16 +2488,56 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: "User ID"
+          example: 5
       responses:
         '200':
           description: "Profile retrieved successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/UserResponse' }
+              example:
+                success: true
+                message: "Profile retrieved successfully"
+                data:
+                  id: 5
+                  username: "user5"
+                  email: "user5@example.com"
+                  fullName: "Nguyen Van A"
+                  avatarUrl: "https://res.cloudinary.com/.../5.png"
+                  online: false
+                  lastSeen: "2025-12-14T08:30:00.000Z"
+                  emailVerified: true
+                  createdAt: "2025-01-05T00:00:00.000Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-profileget001"
         '404':
           description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-profileget002"
 
   /v1/profile/username/{username}:
     get:
@@ -1257,16 +2551,385 @@ paths:
           in: path
           required: true
           schema: { type: string }
+          description: "Username"
+          example: "user5"
       responses:
         '200':
           description: "Profile retrieved successfully."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserResponse' }
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/UserResponse' }
+              example:
+                success: true
+                message: "Profile retrieved successfully"
+                data:
+                  id: 5
+                  username: "user5"
+                  email: "user5@example.com"
+                  fullName: "Nguyen Van A"
+                  avatarUrl: "https://res.cloudinary.com/.../5.png"
+                  online: false
+                  lastSeen: "2025-12-14T08:30:00.000Z"
+                  emailVerified: true
+                  createdAt: "2025-01-05T00:00:00.000Z"
         '401':
-          description: "Unauthorized."
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-profileusername001"
         '404':
           description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-profileusername002"
+
+  # --- User Notes Paths ---
+  /v1/notes:
+    post:
+      summary: "Create or update note"
+      description: |
+        Tạo hoặc cập nhật note (status) của người dùng hiện tại.
+        
+        **Rules:**
+        - Mỗi user chỉ có 1 note active tại một thời điểm
+        - Note tự động expire sau 24 giờ
+        - Tối đa 60 ký tự
+        - Emoji optional
+      tags: [User Notes]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [noteText]
+              properties:
+                noteText:
+                  type: string
+                  maxLength: 60
+                  description: "Note content (max 60 chars)"
+                emoji:
+                  type: string
+                  nullable: true
+                  description: "Optional emoji"
+            examples:
+              with_emoji:
+                summary: "Note with emoji"
+                value:
+                  noteText: "Feeling great today!"
+                  emoji: "😊"
+              without_emoji:
+                summary: "Note without emoji"
+                value:
+                  noteText: "Working on new project"
+      responses:
+        '200':
+          description: "Note created/updated successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { $ref: '#/components/schemas/UserNoteResponse' }
+              example:
+                success: true
+                message: "Note created successfully"
+                data:
+                  id: 15
+                  userId: 1
+                  noteText: "Feeling great today!"
+                  emoji: "😊"
+                  createdAt: "2025-12-14T10:00:00.000Z"
+                  expiresAt: "2025-12-15T10:00:00.000Z"
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                text_too_long:
+                  summary: "Note text too long"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "noteText"
+                          code: "SIZE"
+                          message: "Note text must not exceed 60 characters"
+                    requestId: "req-note001"
+                text_empty:
+                  summary: "Note text empty"
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Validation failed"
+                      details:
+                        - field: "noteText"
+                          code: "NOT_BLANK"
+                          message: "Note text cannot be blank"
+                    requestId: "req-note002"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-note003"
+    get:
+      summary: "Get my current note"
+      description: "Lấy note hiện tại của người dùng."
+      tags: [User Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Note retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/UserNoteResponse'
+                      - type: object
+                        nullable: true
+              examples:
+                has_note:
+                  summary: "User has active note"
+                  value:
+                    success: true
+                    message: "Note retrieved successfully"
+                    data:
+                      id: 15
+                      userId: 1
+                      noteText: "Feeling great today!"
+                      emoji: "😊"
+                      createdAt: "2025-12-14T10:00:00.000Z"
+                      expiresAt: "2025-12-15T10:00:00.000Z"
+                no_note:
+                  summary: "User has no note"
+                  value:
+                    success: true
+                    message: "No active note"
+                    data: null
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-noteget001"
+    delete:
+      summary: "Delete my note"
+      description: "Xóa note hiện tại của người dùng."
+      tags: [User Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Note deleted successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data: { type: object, nullable: true }
+              example:
+                success: true
+                message: "Note deleted successfully"
+                data: null
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-notedel001"
+        '404':
+          description: "Note not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "Note not found"
+                requestId: "req-notedel002"
+
+  /v1/notes/contacts:
+    get:
+      summary: "Get notes from contacts"
+      description: |
+        Lấy danh sách notes của tất cả contacts.
+        
+        **Use case:** Display notes/statuses in contact list
+      tags: [User Notes]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Contact notes retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserNoteResponse'
+              example:
+                success: true
+                message: "Contact notes retrieved successfully"
+                data:
+                  - id: 15
+                    userId: 5
+                    noteText: "On vacation 🏖️"
+                    emoji: "🏖️"
+                    createdAt: "2025-12-14T10:00:00.000Z"
+                    expiresAt: "2025-12-15T10:00:00.000Z"
+                  - id: 18
+                    userId: 10
+                    noteText: "Busy with meetings"
+                    emoji: "📅"
+                    createdAt: "2025-12-14T09:00:00.000Z"
+                    expiresAt: "2025-12-15T09:00:00.000Z"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-contactnotes001"
+
+  /v1/notes/user/{userId}:
+    get:
+      summary: "Get note of specific user"
+      description: "Lấy note của một user cụ thể."
+      tags: [User Notes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+          description: "User ID"
+          example: 5
+      responses:
+        '200':
+          description: "User note retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/UserNoteResponse'
+                      - type: object
+                        nullable: true
+              examples:
+                has_note:
+                  summary: "User has note"
+                  value:
+                    success: true
+                    message: "Note retrieved successfully"
+                    data:
+                      id: 15
+                      userId: 5
+                      noteText: "On vacation 🏖️"
+                      emoji: "🏖️"
+                      createdAt: "2025-12-14T10:00:00.000Z"
+                      expiresAt: "2025-12-15T10:00:00.000Z"
+                no_note:
+                  summary: "User has no note"
+                  value:
+                    success: true
+                    message: "No active note"
+                    data: null
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Invalid or expired token"
+                requestId: "req-usernote001"
+        '404':
+          description: "User not found."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: "RESOURCE_NOT_FOUND"
+                  message: "User not found"
+                requestId: "req-usernote002"
 
   # --- Conversation Paths ---
   /v1/conversations:
@@ -1385,7 +3048,7 @@ paths:
                 requestId: "req-mno345"
     get:
       summary: "Get all conversations"
-      description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất. Hỗ trợ filter theo loại conversation."
+      description: "Lấy danh sách tất cả cuộc trò chuyện của người dùng hiện tại, sắp xếp theo tin nhắn mới nhất. Hỗ trợ filter theo loại conversation và phân trang."
       tags: [Conversations]
       security:
         - bearerAuth: []
@@ -1403,6 +3066,27 @@ paths:
             enum: [all, unread, group]
             default: all
           example: all
+        - name: page
+          in: query
+          required: false
+          description: "Page number (0-indexed)"
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+          example: 0
+        - name: size
+          in: query
+          required: false
+          description: "Number of items per page"
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
       responses:
         '200':
           description: "Conversations retrieved successfully."
@@ -1411,110 +3095,131 @@ paths:
               schema: { $ref: '#/components/schemas/ApiResponse_ConversationListResponse' }
               examples:
                 all:
-                  summary: "All conversations (filter=all)"
+                  summary: "All conversations (filter=all) with pagination"
                   value:
                     success: true
                     message: "Conversations retrieved successfully"
                     data:
-                      - id: 1
-                        type: "DIRECT"
-                        createdAt: "2025-12-12T09:35:09.382687Z"
-                        updatedAt: "2025-12-13T07:38:26.471576Z"
-                        participants:
-                          - userId: 12
-                            username: "hungly"
-                            role: "ADMIN"
-                          - userId: 17
-                            username: "ducphan"
-                            role: "MEMBER"
-                        lastMessage:
-                          id: 6
-                          content: "đã sửa nha"
-                          senderId: 12
-                          senderUsername: "hungly"
-                          sentAt: "2025-12-13T07:38:26.438210Z"
-                          type: "TEXT"
-                      - id: 5
-                        type: "GROUP"
-                        createdAt: "2025-12-12T09:39:16.600310Z"
-                        updatedAt: "2025-12-12T09:39:16.600313Z"
-                        participants:
-                          - userId: 12
-                            username: "hungly"
-                            role: "ADMIN"
-                          - userId: 3
-                            username: "hoale"
-                            role: "MEMBER"
-                          - userId: 4
-                            username: "tuanpham"
-                            role: "MEMBER"
-                          - userId: 2
-                            username: "binhtran"
-                            role: "MEMBER"
-                          - userId: 5
-                            username: "thuyvo"
-                            role: "MEMBER"
-                      - id: 4
-                        type: "DIRECT"
-                        createdAt: "2025-12-12T09:38:52.749391Z"
-                        updatedAt: "2025-12-12T09:38:52.749395Z"
-                        participants:
-                          - userId: 12
-                            username: "hungly"
-                            role: "ADMIN"
-                          - userId: 17
-                            username: "ducphan"
-                            role: "MEMBER"
+                      data:
+                        - id: 1
+                          type: "DIRECT"
+                          createdAt: "2025-12-12T09:35:09.382687Z"
+                          updatedAt: "2025-12-13T07:38:26.471576Z"
+                          participants:
+                            - userId: 12
+                              username: "hungly"
+                              role: "ADMIN"
+                            - userId: 17
+                              username: "ducphan"
+                              role: "MEMBER"
+                          lastMessage:
+                            id: 6
+                            content: "đã sửa nha"
+                            senderId: 12
+                            senderUsername: "hungly"
+                            sentAt: "2025-12-13T07:38:26.438210Z"
+                            type: "TEXT"
+                        - id: 5
+                          type: "GROUP"
+                          createdAt: "2025-12-12T09:39:16.600310Z"
+                          updatedAt: "2025-12-12T09:39:16.600313Z"
+                          participants:
+                            - userId: 12
+                              username: "hungly"
+                              role: "ADMIN"
+                            - userId: 3
+                              username: "hoale"
+                              role: "MEMBER"
+                            - userId: 4
+                              username: "tuanpham"
+                              role: "MEMBER"
+                            - userId: 2
+                              username: "binhtran"
+                              role: "MEMBER"
+                            - userId: 5
+                              username: "thuyvo"
+                              role: "MEMBER"
+                        - id: 4
+                          type: "DIRECT"
+                          createdAt: "2025-12-12T09:38:52.749391Z"
+                          updatedAt: "2025-12-12T09:38:52.749395Z"
+                          participants:
+                            - userId: 12
+                              username: "hungly"
+                              role: "ADMIN"
+                            - userId: 17
+                              username: "ducphan"
+                              role: "MEMBER"
+                      page: 0
+                      size: 20
+                      total: 3
+                      totalPages: 1
+                      hasNextPage: false
+                      hasPrevPage: false
                 unread:
                   summary: "Only unread conversations (filter=unread)"
                   value:
                     success: true
                     message: "Conversations retrieved successfully"
                     data:
-                      - id: 1
-                        type: "DIRECT"
-                        createdAt: "2025-12-12T09:35:09.382687Z"
-                        updatedAt: "2025-12-13T07:38:26.471576Z"
-                        participants:
-                          - userId: 12
-                            username: "hungly"
-                            role: "ADMIN"
-                          - userId: 17
-                            username: "ducphan"
-                            role: "MEMBER"
-                        lastMessage:
-                          id: 6
-                          content: "đã sửa nha"
-                          senderId: 12
-                          senderUsername: "hungly"
-                          sentAt: "2025-12-13T07:38:26.438210Z"
-                          type: "TEXT"
+                      data:
+                        - id: 1
+                          type: "DIRECT"
+                          createdAt: "2025-12-12T09:35:09.382687Z"
+                          updatedAt: "2025-12-13T07:38:26.471576Z"
+                          participants:
+                            - userId: 12
+                              username: "hungly"
+                              role: "ADMIN"
+                            - userId: 17
+                              username: "ducphan"
+                              role: "MEMBER"
+                          lastMessage:
+                            id: 6
+                            content: "đã sửa nha"
+                            senderId: 12
+                            senderUsername: "hungly"
+                            sentAt: "2025-12-13T07:38:26.438210Z"
+                            type: "TEXT"
+                      page: 0
+                      size: 20
+                      total: 1
+                      totalPages: 1
+                      hasNextPage: false
+                      hasPrevPage: false
                 group:
                   summary: "Only group conversations (filter=group)"
                   value:
                     success: true
                     message: "Conversations retrieved successfully"
                     data:
-                      - id: 5
-                        type: "GROUP"
-                        createdAt: "2025-12-12T09:39:16.600310Z"
-                        updatedAt: "2025-12-12T09:39:16.600313Z"
-                        participants:
-                          - userId: 12
-                            username: "hungly"
-                            role: "ADMIN"
-                          - userId: 3
-                            username: "hoale"
-                            role: "MEMBER"
-                          - userId: 4
-                            username: "tuanpham"
-                            role: "MEMBER"
-                          - userId: 2
-                            username: "binhtran"
-                            role: "MEMBER"
-                          - userId: 5
-                            username: "thuyvo"
-                            role: "MEMBER"
+                      data:
+                        - id: 5
+                          type: "GROUP"
+                          createdAt: "2025-12-12T09:39:16.600310Z"
+                          updatedAt: "2025-12-12T09:39:16.600313Z"
+                          participants:
+                            - userId: 12
+                              username: "hungly"
+                              role: "ADMIN"
+                            - userId: 3
+                              username: "hoale"
+                              role: "MEMBER"
+                            - userId: 4
+                              username: "tuanpham"
+                              role: "MEMBER"
+                            - userId: 2
+                              username: "binhtran"
+                              role: "MEMBER"
+                            - userId: 5
+                              username: "thuyvo"
+                              role: "MEMBER"
+                      page: 0
+                      size: 20
+                      total: 1
+                      totalPages: 1
+                      hasNextPage: false
+                      hasPrevPage: false
         '401':
           description: "Unauthorized - Invalid or expired token."
           content:
@@ -2007,7 +3712,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Content is required"
+                      message: "Validation failed"
+                      details:
+                        - field: "content"
+                          code: "NOT_BLANK"
+                          message: "Content is required"
                     requestId: "req-msg001"
                 invalid_reply:
                   summary: "Reply to non-existent message"
@@ -2023,7 +3732,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Mentioned user not found: 88888"
+                      message: "Validation failed"
+                      details:
+                        - field: "mentionedUserIds"
+                          code: "VALID_USER_IDS"
+                          message: "Mentioned user not found: 88888"
                     requestId: "req-msg003"
         '401':
           description: "Unauthorized - Invalid or expired token."
@@ -2212,7 +3925,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Content is required"
+                      message: "Validation failed"
+                      details:
+                        - field: "content"
+                          code: "NOT_BLANK"
+                          message: "Content is required"
                     requestId: "req-editmsg001"
                 message_deleted:
                   summary: "Cannot edit deleted message"
@@ -2361,7 +4078,11 @@ paths:
                 success: false
                 error:
                   code: "VALIDATION_ERROR"
-                  message: "Emoji is required"
+                  message: "Validation failed"
+                  details:
+                    - field: "emoji"
+                      code: "NOT_BLANK"
+                      message: "Emoji is required"
                 requestId: "req-react001"
         '401':
           description: "Unauthorized - Invalid or expired token."
@@ -2799,7 +4520,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Callee ID is required"
+                      message: "Validation failed"
+                      details:
+                        - field: "calleeId"
+                          code: "NOT_NULL"
+                          message: "Callee ID is required"
                     requestId: "req-call002"
                 missing_call_type:
                   summary: "Missing callType"
@@ -2807,7 +4532,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Call type is required"
+                      message: "Validation failed"
+                      details:
+                        - field: "callType"
+                          code: "NOT_NULL"
+                          message: "Call type is required"
                     requestId: "req-call003"
         '401':
           description: "Unauthorized - Invalid or expired token."
@@ -3018,7 +4747,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Reason must be one of: busy, declined, unavailable"
+                      message: "Validation failed"
+                      details:
+                        - field: "reason"
+                          code: "PATTERN"
+                          message: "Reason must be one of: busy, declined, unavailable"
                     requestId: "req-reject002"
                 missing_reason:
                   summary: "Missing reason"
@@ -3026,7 +4759,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Reason cannot be blank"
+                      message: "Validation failed"
+                      details:
+                        - field: "reason"
+                          code: "NOT_BLANK"
+                          message: "Reason cannot be blank"
                     requestId: "req-reject003"
         '401':
           description: "Unauthorized - Not the callee or invalid token."
@@ -3156,7 +4893,11 @@ paths:
                     success: false
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Reason must be one of: hangup, network error, device error, timeout"
+                      message: "Validation failed"
+                      details:
+                        - field: "reason"
+                          code: "PATTERN"
+                          message: "Reason must be one of: hangup, network error, device error, timeout"
                     requestId: "req-end002"
         '401':
           description: "Unauthorized - Not a participant or invalid token."
@@ -3306,7 +5047,7 @@ paths:
                   value:
                     success: false
                     error:
-                      code: "VALIDATION_ERROR"
+                      code: "BAD_REQUEST"
                       message: "Contact user ID is required"
                     requestId: "req-addcontact003"
         '401':
@@ -3982,203 +5723,4 @@ paths:
                   code: "RESOURCE_NOT_FOUND"
                   message: "Friend request not found"
                 requestId: "req-cancelreq004"
-
-  # --- Messenger Notes Paths ---
-  /v1/notes:
-    post:
-      summary: "Create or update note"
-      description: |
-        Tạo hoặc cập nhật note (status) của người dùng hiện tại.
-        - Mỗi user chỉ có 1 note active tại một thời điểm
-        - Note tự động expire sau 24 giờ
-        - Tối đa 60 ký tự
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/UserNoteRequest' }
-      responses:
-        '201':
-          description: "Note created successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
-        '400':
-          description: "Bad Request."
-        '401':
-          description: "Unauthorized."
-    delete:
-      summary: "Delete current user's note"
-      description: "Xóa note của người dùng hiện tại."
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: "Note deleted successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse' }
-        '401':
-          description: "Unauthorized."
-
-  /v1/notes/me:
-    get:
-      summary: "Get current user's note"
-      description: "Lấy note của người dùng hiện tại (nếu có)."
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: "Note retrieved successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
-        '401':
-          description: "Unauthorized."
-
-  /v1/notes/contacts:
-    get:
-      summary: "Get notes from contacts"
-      description: "Lấy tất cả notes đang active từ danh sách contacts của user. Hiển thị trong inbox/chat list."
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: "Notes retrieved successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteListResponse' }
-        '401':
-          description: "Unauthorized."
-
-  /v1/notes/users/{userId}:
-    get:
-      summary: "Get a specific user's note"
-      description: "Lấy note của một user cụ thể. Chỉ xem được note của contacts."
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      responses:
-        '200':
-          description: "Note retrieved successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_UserNoteResponse' }
-        '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Not a contact."
-        '404':
-          description: "User not found or no active note."
-
-  /v1/notes/{noteId}/reply:
-    post:
-      summary: "Reply to a note"
-      description: |
-        Reply vào một note. Reply sẽ tạo một tin nhắn TEXT trong direct conversation giữa 2 người.
-        - Reply là message thật trong conversation
-        - Có thể reply nhiều lần
-        - Chỉ contacts mới reply được
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: noteId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/NoteReplyRequest' }
-      responses:
-        '201':
-          description: "Reply sent successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
-        '400':
-          description: "Bad Request."
-        '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Not a contact or replying to own note."
-        '404':
-          description: "Note not found or expired."
-
-  /v1/notes/{noteId}/react:
-    post:
-      summary: "React to a note with emoji"
-      description: |
-        React vào một note với emoji. Reaction sẽ tạo một tin nhắn TEXT với nội dung là emoji trong direct conversation.
-        - Mỗi reaction là 1 message riêng
-        - Có thể react nhiều lần với emojis khác nhau
-        - Chỉ contacts mới react được
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: noteId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/NoteReactRequest' }
-      responses:
-        '200':
-          description: "Reaction sent successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_MessageResponse' }
-        '400':
-          description: "Bad Request."
-        '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Not a contact."
-        '404':
-          description: "Note not found or expired."
-
-  /v1/notes/{noteId}/messages:
-    get:
-      summary: "Get all messages for a note"
-      description: |
-        Lấy tất cả messages (replies + reactions) liên quan đến một note.
-        - Chỉ note owner mới xem được
-        - Trả về danh sách messages từ conversation
-      tags: [Notes]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: noteId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      responses:
-        '200':
-          description: "Messages retrieved successfully."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ApiResponse_MessageListResponse' }
-        '401':
-          description: "Unauthorized."
-        '403':
-          description: "Forbidden - Only note owner can view."
-        '404':
-          description: "Note not found or expired."
 

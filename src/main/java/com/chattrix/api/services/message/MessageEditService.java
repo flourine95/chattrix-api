@@ -1,10 +1,11 @@
 package com.chattrix.api.services.message;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageEditHistory;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.MessageEditHistoryRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -33,27 +34,27 @@ public class MessageEditService {
     @Transactional
     public MessageResponse editMessage(Long userId, Long conversationId, Long messageId, EditMessageRequest request) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Validate message belongs to the specified conversation
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw new ResourceNotFoundException("Message not found in this conversation");
+            throw BusinessException.notFound("Message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
         if (!message.getSender().getId().equals(userId)) {
-            throw new BadRequestException("You can only edit your own messages");
+            throw BusinessException.badRequest("You can only edit your own messages", "BAD_REQUEST");
         }
 
         if (message.isDeleted()) {
-            throw new BadRequestException("Cannot edit deleted message");
+            throw BusinessException.badRequest("Cannot edit deleted message", "BAD_REQUEST");
         }
 
         if (message.getType() != Message.MessageType.TEXT) {
-            throw new BadRequestException("Can only edit text messages");
+            throw BusinessException.badRequest("Can only edit text messages", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         MessageEditHistory history = new MessageEditHistory();
         history.setMessage(message);
@@ -72,18 +73,18 @@ public class MessageEditService {
     @Transactional
     public void deleteMessage(Long userId, Long messageId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (!message.getSender().getId().equals(userId)) {
-            throw new BadRequestException("You can only delete your own messages");
+            throw BusinessException.badRequest("You can only delete your own messages", "BAD_REQUEST");
         }
 
         if (message.isDeleted()) {
-            throw new BadRequestException("Message already deleted");
+            throw BusinessException.badRequest("Message already deleted", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         message.setDeleted(true);
         message.setDeletedAt(Instant.now());
@@ -93,11 +94,11 @@ public class MessageEditService {
 
     public List<MessageEditHistoryResponse> getEditHistory(Long userId, Long conversationId, Long messageId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Validate message belongs to the specified conversation
         if (conversationId != null && !message.getConversation().getId().equals(conversationId)) {
-            throw new ResourceNotFoundException("Message not found in this conversation");
+            throw BusinessException.notFound("Message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
         List<MessageEditHistory> history = editHistoryRepository.findByMessageId(messageId);
@@ -133,4 +134,9 @@ public class MessageEditService {
         return response;
     }
 }
+
+
+
+
+
 

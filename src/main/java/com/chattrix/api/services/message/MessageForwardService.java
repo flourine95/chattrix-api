@@ -1,10 +1,11 @@
 package com.chattrix.api.services.message;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
@@ -37,23 +38,23 @@ public class MessageForwardService {
     @Transactional
     public List<MessageResponse> forwardMessage(Long userId, ForwardMessageRequest request) {
         Message originalMessage = messageRepository.findById(request.messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (originalMessage.isDeleted()) {
-            throw new BadRequestException("Cannot forward deleted message");
+            throw BusinessException.badRequest("Cannot forward deleted message", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         List<MessageResponse> forwardedMessages = new ArrayList<>();
 
         for (Long conversationId : request.conversationIds) {
             Conversation conversation = conversationRepository.findById(conversationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
+                    .orElseThrow(() -> BusinessException.notFound("Conversation not found: " + conversationId, "RESOURCE_NOT_FOUND"));
 
             if (!participantRepository.isUserParticipant(conversationId, userId)) {
-                throw new BadRequestException("You are not a participant in conversation: " + conversationId);
+                throw BusinessException.badRequest("You are not a participant in conversation: " + conversationId, "BAD_REQUEST");
             }
 
             Message forwardedMessage = new Message();
@@ -107,4 +108,9 @@ public class MessageForwardService {
         return response;
     }
 }
+
+
+
+
+
 

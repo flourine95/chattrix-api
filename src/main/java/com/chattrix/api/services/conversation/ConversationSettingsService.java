@@ -1,10 +1,11 @@
 package com.chattrix.api.services.conversation;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.ConversationSettingsRepository;
@@ -72,7 +73,7 @@ public class ConversationSettingsService {
         ConversationSettings settings = getOrCreateSettings(userId, conversationId);
         
         if (settings.isPinned()) {
-            throw new BadRequestException("Conversation is already pinned");
+            throw BusinessException.badRequest("Conversation is already pinned", "BAD_REQUEST");
         }
 
         Integer maxPinOrder = settingsRepository.getMaxPinOrder(userId);
@@ -118,14 +119,14 @@ public class ConversationSettingsService {
 
     private ConversationSettings getOrCreateSettings(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Optional<ConversationSettings> existing = settingsRepository.findByConversationIdAndUserId(conversationId, userId);
         if (existing.isPresent()) {
@@ -139,4 +140,9 @@ public class ConversationSettingsService {
         return settings;
     }
 }
+
+
+
+
+
 

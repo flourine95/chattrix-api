@@ -1,10 +1,11 @@
 package com.chattrix.api.services.message;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.MessageReadReceiptRepository;
 import com.chattrix.api.repositories.MessageRepository;
@@ -35,13 +36,13 @@ public class ReadReceiptService {
     @Transactional
     public void markAsRead(Long userId, Long messageId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         if (!participantRepository.isUserParticipant(message.getConversation().getId(), userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         if (message.getSender().getId().equals(userId)) {
@@ -62,11 +63,11 @@ public class ReadReceiptService {
     @Transactional
     public void markConversationAsRead(Long userId, Long conversationId, Long lastMessageId) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         // Get all unread messages in this conversation up to lastMessageId
         List<Message> unreadMessages;
@@ -101,10 +102,10 @@ public class ReadReceiptService {
 
     public List<ReadReceiptResponse> getReadReceipts(Long userId, Long messageId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         if (!participantRepository.isUserParticipant(message.getConversation().getId(), userId)) {
-            throw new BadRequestException("You are not a participant in this conversation");
+            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
         }
 
         List<MessageReadReceipt> receipts = readReceiptRepository.findByMessageId(messageId);
@@ -127,4 +128,9 @@ public class ReadReceiptService {
         return response;
     }
 }
+
+
+
+
+
 

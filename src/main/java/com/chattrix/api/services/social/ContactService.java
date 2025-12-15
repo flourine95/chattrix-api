@@ -1,9 +1,10 @@
 package com.chattrix.api.services.social;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Contact;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.mappers.ContactMapper;
 import com.chattrix.api.repositories.ContactRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -41,18 +42,18 @@ public class ContactService {
     @Transactional
     public ContactResponse addContact(Long userId, AddContactRequest request) {
         if (request.contactUserId.equals(userId)) {
-            throw new BadRequestException("Cannot add yourself as contact");
+            throw BusinessException.badRequest("Cannot add yourself as contact", "BAD_REQUEST");
         }
 
         User contactUser = userRepository.findById(request.contactUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         if (contactRepository.existsByUserIdAndContactUserId(userId, request.contactUserId)) {
-            throw new BadRequestException("Contact already exists");
+            throw BusinessException.badRequest("Contact already exists", "BAD_REQUEST");
         }
 
         User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Contact contact = new Contact();
         contact.setUser(currentUser);
@@ -66,10 +67,10 @@ public class ContactService {
     @Transactional
     public ContactResponse updateContact(Long userId, Long contactId, UpdateContactRequest request) {
         Contact contact = contactRepository.findById(contactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Contact not found"));
+                .orElseThrow(() -> BusinessException.notFound("Contact not found", "RESOURCE_NOT_FOUND"));
 
         if (!contact.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You do not have access to this contact");
+            throw BusinessException.badRequest("You do not have access to this contact", "BAD_REQUEST");
         }
 
         if (request.nickname != null) {
@@ -87,13 +88,18 @@ public class ContactService {
     @Transactional
     public void deleteContact(Long userId, Long contactId) {
         Contact contact = contactRepository.findById(contactId)
-                .orElseThrow(() -> new ResourceNotFoundException("Contact not found"));
+                .orElseThrow(() -> BusinessException.notFound("Contact not found", "RESOURCE_NOT_FOUND"));
 
         if (!contact.getUser().getId().equals(userId)) {
-            throw new BadRequestException("You do not have access to this contact");
+            throw BusinessException.badRequest("You do not have access to this contact", "BAD_REQUEST");
         }
 
         contactRepository.delete(contact);
     }
 }
+
+
+
+
+
 

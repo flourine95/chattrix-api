@@ -1,10 +1,11 @@
 package com.chattrix.api.services.message;
+import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.exceptions.BadRequestException;
-import com.chattrix.api.exceptions.ResourceNotFoundException;
+// Removed old exception import
+// Removed old exception import
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -40,27 +41,27 @@ public class ReactionService {
     public ReactionResponse addReaction(Long userId, Long messageId, String emoji) {
         // Validate emoji (basic validation)
         if (emoji == null || emoji.trim().isEmpty()) {
-            throw new BadRequestException("Emoji is required");
+            throw BusinessException.badRequest("Emoji is required", "BAD_REQUEST");
         }
 
         // Get message
         Message message = messageRepository.findByIdSimple(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Verify user has access to conversation
         Conversation conversation = conversationRepository.findByIdWithParticipants(message.getConversation().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         // Get user for event
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         // Get or initialize reactions map
         Map<String, List<Long>> reactions = message.getReactions();
@@ -120,22 +121,22 @@ public class ReactionService {
     public ReactionResponse removeReaction(Long userId, Long messageId, String emoji) {
         // Get message
         Message message = messageRepository.findByIdSimple(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Verify user has access to conversation
         Conversation conversation = conversationRepository.findByIdWithParticipants(message.getConversation().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         // Get user for event
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         // Get reactions map
         Map<String, List<Long>> reactions = message.getReactions();
@@ -181,17 +182,17 @@ public class ReactionService {
     public ReactionResponse getReactions(Long userId, Long messageId) {
         // Get message
         Message message = messageRepository.findByIdSimple(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
 
         // Verify user has access to conversation
         Conversation conversation = conversationRepository.findByIdWithParticipants(message.getConversation().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
 
         if (!isParticipant) {
-            throw new BadRequestException("You do not have access to this conversation");
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
         // Prepare response
@@ -202,4 +203,9 @@ public class ReactionService {
         return response;
     }
 }
+
+
+
+
+
 
