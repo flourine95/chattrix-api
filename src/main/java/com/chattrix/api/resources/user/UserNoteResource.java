@@ -21,7 +21,7 @@ import java.util.Optional;
  * Messenger Notes API
  * Status messages (max 60 chars) that appear on user avatars
  * Auto-expire after 24 hours
- *
+ * <p>
  * Reply & React: Mỗi reply/reaction là 1 tin nhắn riêng trong conversation
  */
 @Path("/v1/notes")
@@ -112,7 +112,7 @@ public class UserNoteResource {
      * Reply to a note
      * Tạo tin nhắn TEXT trong conversation
      * POST /v1/notes/{noteId}/reply
-     *
+     * <p>
      * Body: {"replyText": "Nice!"}
      */
     @POST
@@ -142,7 +142,7 @@ public class UserNoteResource {
      * React to a note with emoji
      * Tạo tin nhắn TEXT với nội dung là emoji
      * POST /v1/notes/{noteId}/react
-     *
+     * <p>
      * Body: {"emoji": "👍"}
      */
     @POST

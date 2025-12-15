@@ -18,8 +18,10 @@ import java.util.Map;
 @Secured
 public class MessageReadResource {
 
-    @Inject private ReadReceiptService readReceiptService;
-    @Inject private UserContext userContext;
+    @Inject
+    private ReadReceiptService readReceiptService;
+    @Inject
+    private UserContext userContext;
 
     // 1. Mark specific message as read
     // POST /api/v1/read-receipts/messages/{messageId}

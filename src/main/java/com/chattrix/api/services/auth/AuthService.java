@@ -1,12 +1,9 @@
 package com.chattrix.api.services.auth;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.InvalidatedToken;
 import com.chattrix.api.entities.RefreshToken;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.InvalidatedTokenRepository;
 import com.chattrix.api.repositories.RefreshTokenRepository;

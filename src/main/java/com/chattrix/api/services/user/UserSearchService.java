@@ -43,7 +43,7 @@ public class UserSearchService {
         for (UserSearchResponse response : responses) {
             // Kiểm tra xem user có phải là contact không
             boolean isContact = contactRepository.existsByUserIdAndContactUserId(
-                    currentUserId, 
+                    currentUserId,
                     response.getId()
             );
             response.setContact(isContact);

@@ -1,10 +1,8 @@
 package com.chattrix.api.services.social;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Contact;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.ContactMapper;
 import com.chattrix.api.repositories.ContactRepository;
 import com.chattrix.api.repositories.UserRepository;

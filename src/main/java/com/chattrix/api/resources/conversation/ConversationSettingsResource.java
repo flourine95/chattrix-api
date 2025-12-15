@@ -18,9 +18,12 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class ConversationSettingsResource {
 
-    @Inject private ConversationSettingsService settingsService;
-    @Inject private ConversationService conversationService; // Inject thêm để xử lý Block/Unblock
-    @Inject private UserContext userContext;
+    @Inject
+    private ConversationSettingsService settingsService;
+    @Inject
+    private ConversationService conversationService; // Inject thêm để xử lý Block/Unblock
+    @Inject
+    private UserContext userContext;
 
     @GET
     public Response getSettings(@PathParam("conversationId") Long conversationId) {

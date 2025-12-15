@@ -17,8 +17,10 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class MessageReactionResource {
 
-    @Inject private ReactionService reactionService;
-    @Inject private UserContext userContext;
+    @Inject
+    private ReactionService reactionService;
+    @Inject
+    private UserContext userContext;
 
     @POST
     public Response addReaction(

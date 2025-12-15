@@ -1,11 +1,9 @@
 package com.chattrix.api.services.auth;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.PasswordResetToken;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.entities.VerificationToken;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.PasswordResetTokenRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.repositories.VerificationTokenRepository;

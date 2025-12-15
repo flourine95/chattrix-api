@@ -1,11 +1,9 @@
 package com.chattrix.api.services.message;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageEditHistory;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.MessageEditHistoryRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;

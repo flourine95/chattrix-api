@@ -1,17 +1,11 @@
 package com.chattrix.api.services.message;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.PinnedMessage;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
-import com.chattrix.api.repositories.ConversationParticipantRepository;
-import com.chattrix.api.repositories.ConversationRepository;
-import com.chattrix.api.repositories.MessageRepository;
-import com.chattrix.api.repositories.PinnedMessageRepository;
-import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.exceptions.BusinessException;
+import com.chattrix.api.repositories.*;
 import com.chattrix.api.responses.PinnedMessageResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -23,22 +17,17 @@ import java.util.Optional;
 @ApplicationScoped
 public class PinnedMessageService {
 
+    private static final int MAX_PINNED_MESSAGES = 3;
     @Inject
     private PinnedMessageRepository pinnedMessageRepository;
-
     @Inject
     private MessageRepository messageRepository;
-
     @Inject
     private ConversationRepository conversationRepository;
-
     @Inject
     private ConversationParticipantRepository participantRepository;
-
     @Inject
     private UserRepository userRepository;
-
-    private static final int MAX_PINNED_MESSAGES = 3;
 
     @Transactional
     public PinnedMessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
@@ -76,7 +65,7 @@ public class PinnedMessageService {
                 .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
 
         Integer maxOrder = pinnedMessageRepository.getMaxPinOrder(conversationId);
-        
+
         PinnedMessage pinnedMessage = new PinnedMessage();
         pinnedMessage.setConversation(conversation);
         pinnedMessage.setMessage(message);

@@ -1,10 +1,7 @@
 package com.chattrix.api.services.call;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.*;
-// Removed old exception import
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.CallHistoryMapper;
 import com.chattrix.api.repositories.CallHistoryRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -127,14 +124,14 @@ public class CallHistoryService {
      * Handles upsert for duplicate entries (same user_id and call_id).
      * Validates: Requirements 5.4
      *
-     * @param userId           the ID of the user
-     * @param callId           the ID of the call
-     * @param remoteUserId     the ID of the remote user
-     * @param callType         the type of call (AUDIO or VIDEO)
-     * @param status           the status of the call
-     * @param direction        the direction of the call (INCOMING or OUTGOING)
-     * @param timestamp        the timestamp of the call
-     * @param durationSeconds  the duration of the call in seconds (nullable)
+     * @param userId          the ID of the user
+     * @param callId          the ID of the call
+     * @param remoteUserId    the ID of the remote user
+     * @param callType        the type of call (AUDIO or VIDEO)
+     * @param status          the status of the call
+     * @param direction       the direction of the call (INCOMING or OUTGOING)
+     * @param timestamp       the timestamp of the call
+     * @param durationSeconds the duration of the call in seconds (nullable)
      * @return the created call history entry
      */
     @Transactional

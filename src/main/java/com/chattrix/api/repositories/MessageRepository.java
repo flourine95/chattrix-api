@@ -2,11 +2,7 @@ package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Message;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.persistence.EntityGraph;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.NoResultException;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.TypedQuery;
+import jakarta.persistence.*;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -256,10 +252,10 @@ public class MessageRepository {
     public Optional<Message> findLatestByConversationId(Long conversationId) {
         try {
             Message message = em.createQuery(
-                    "SELECT m FROM Message m " +
-                    "WHERE m.conversation.id = :conversationId " +
-                    "ORDER BY m.sentAt DESC",
-                    Message.class)
+                            "SELECT m FROM Message m " +
+                                    "WHERE m.conversation.id = :conversationId " +
+                                    "ORDER BY m.sentAt DESC",
+                            Message.class)
                     .setParameter("conversationId", conversationId)
                     .setMaxResults(1)
                     .getSingleResult();
@@ -274,11 +270,11 @@ public class MessageRepository {
      */
     public List<Message> findByReplyToNoteId(Long noteId) {
         return em.createQuery(
-                "SELECT m FROM Message m " +
-                "LEFT JOIN FETCH m.sender " +
-                "WHERE m.replyToNote.id = :noteId " +
-                "ORDER BY m.sentAt DESC",
-                Message.class)
+                        "SELECT m FROM Message m " +
+                                "LEFT JOIN FETCH m.sender " +
+                                "WHERE m.replyToNote.id = :noteId " +
+                                "ORDER BY m.sentAt DESC",
+                        Message.class)
                 .setParameter("noteId", noteId)
                 .getResultList();
     }
@@ -288,8 +284,8 @@ public class MessageRepository {
      */
     public long countByReplyToNoteId(Long noteId) {
         return em.createQuery(
-                "SELECT COUNT(m) FROM Message m WHERE m.replyToNote.id = :noteId",
-                Long.class)
+                        "SELECT COUNT(m) FROM Message m WHERE m.replyToNote.id = :noteId",
+                        Long.class)
                 .setParameter("noteId", noteId)
                 .getSingleResult();
     }
@@ -299,15 +295,15 @@ public class MessageRepository {
      */
     public List<Message> findUnreadMessages(Long conversationId, Long userId) {
         return em.createQuery(
-                "SELECT m FROM Message m " +
-                "WHERE m.conversation.id = :conversationId " +
-                "AND m.sender.id <> :userId " +
-                "AND NOT EXISTS (" +
-                "  SELECT 1 FROM MessageReadReceipt r " +
-                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
-                ") " +
-                "ORDER BY m.sentAt ASC",
-                Message.class)
+                        "SELECT m FROM Message m " +
+                                "WHERE m.conversation.id = :conversationId " +
+                                "AND m.sender.id <> :userId " +
+                                "AND NOT EXISTS (" +
+                                "  SELECT 1 FROM MessageReadReceipt r " +
+                                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
+                                ") " +
+                                "ORDER BY m.sentAt ASC",
+                        Message.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId)
                 .getResultList();
@@ -324,16 +320,16 @@ public class MessageRepository {
         }
 
         return em.createQuery(
-                "SELECT m FROM Message m " +
-                "WHERE m.conversation.id = :conversationId " +
-                "AND m.sender.id <> :userId " +
-                "AND m.sentAt <= :lastSentAt " +
-                "AND NOT EXISTS (" +
-                "  SELECT 1 FROM MessageReadReceipt r " +
-                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
-                ") " +
-                "ORDER BY m.sentAt ASC",
-                Message.class)
+                        "SELECT m FROM Message m " +
+                                "WHERE m.conversation.id = :conversationId " +
+                                "AND m.sender.id <> :userId " +
+                                "AND m.sentAt <= :lastSentAt " +
+                                "AND NOT EXISTS (" +
+                                "  SELECT 1 FROM MessageReadReceipt r " +
+                                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
+                                ") " +
+                                "ORDER BY m.sentAt ASC",
+                        Message.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId)
                 .setParameter("lastSentAt", lastMessage.getSentAt())

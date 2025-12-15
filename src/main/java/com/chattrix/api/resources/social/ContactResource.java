@@ -18,8 +18,10 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class ContactResource {
 
-    @Inject private ContactService contactService;
-    @Inject private UserContext userContext;
+    @Inject
+    private ContactService contactService;
+    @Inject
+    private UserContext userContext;
 
     @GET
     public Response getContacts() {

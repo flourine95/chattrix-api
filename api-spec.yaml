@@ -379,6 +379,10 @@ components:
         success:
           type: boolean
           example: false
+        message:
+          type: string
+          description: "Only present for validation errors (e.g., 'Validation failed'). Single business errors don't have this field."
+          example: "Validation failed"
         error:
           type: object
           required:
@@ -387,37 +391,25 @@ components:
           properties:
             code:
               type: string
+              description: "Error code (e.g., VALIDATION_ERROR, UNAUTHORIZED, USER_NOT_FOUND)"
               example: "RESOURCE_NOT_FOUND"
             message:
               type: string
+              description: "Human-readable error message"
               example: "The requested resource was not found"
             details:
-              type: array
-              description: "Array of detailed error information (present for validation errors)"
-              items:
-                $ref: '#/components/schemas/ErrorDetail'
+              type: object
+              description: "Map of field names to error messages (only for validation errors with multiple field errors)"
+              additionalProperties:
+                type: string
+              example:
+                email: "Email already exists"
+                username: "Username must be 4-20 characters"
         requestId:
           type: string
+          description: "Unique request ID for tracking"
           example: "req-12345-abcde"
 
-    ErrorDetail:
-      type: object
-      required:
-        - field
-        - message
-      properties:
-        field:
-          type: string
-          description: "The field name that failed validation"
-          example: "email"
-        code:
-          type: string
-          description: "Error code for internationalization (e.g., UNIQUE_EMAIL, NOT_BLANK)"
-          example: "UNIQUE_EMAIL"
-        message:
-          type: string
-          description: "Human-readable error message"
-          example: "Email already exists"
 
     ApiResponse_AuthResponse:
       type: object
@@ -1231,100 +1223,90 @@ paths:
                   summary: "Username already exists"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "username"
-                          code: "UNIQUE_USERNAME"
-                          message: "Username already exists"
+                        username: "Username already exists"
                     requestId: "req-reg001"
                 email_taken:
                   summary: "Email already registered"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "email"
-                          code: "UNIQUE_EMAIL"
-                          message: "Email already exists"
+                        email: "Email already exists"
                     requestId: "req-reg002"
                 multiple_validation_errors:
                   summary: "Multiple validation errors"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "email"
-                          code: "UNIQUE_EMAIL"
-                          message: "Email already exists"
-                        - field: "username"
-                          code: "UNIQUE_USERNAME"
-                          message: "Username already exists"
+                        email: "Email already exists"
+                        username: "Username already exists"
                     requestId: "req-reg003"
                 invalid_username:
                   summary: "Invalid username format"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "username"
-                          code: "PATTERN"
-                          message: "Username must contain at least one letter, and cannot start or end with '.' or '_'"
+                        username: "Username must contain at least one letter, and cannot start or end with '.' or '_'"
                     requestId: "req-reg004"
                 username_too_short:
                   summary: "Username too short"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "username"
-                          code: "SIZE"
-                          message: "Username must be between 4 and 20 characters"
+                        username: "Username must be between 4 and 20 characters"
                     requestId: "req-reg005"
                 invalid_email:
                   summary: "Invalid email format"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "email"
-                          code: "EMAIL"
-                          message: "Email must be valid"
+                        email: "Email must be valid"
                     requestId: "req-reg006"
                 password_too_short:
                   summary: "Password too short"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "password"
-                          code: "SIZE"
-                          message: "Password must be at least 6 characters"
+                        password: "Password must be at least 6 characters"
                     requestId: "req-reg007"
                 missing_fullname:
                   summary: "Full name missing"
                   value:
                     success: false
+                    message: "Validation failed"
                     error:
                       code: "VALIDATION_ERROR"
-                      message: "Validation failed"
+                      message: "Please check input fields"
                       details:
-                        - field: "fullName"
-                          code: "NOT_BLANK"
-                          message: "Full name cannot be blank"
+                        fullName: "Full name cannot be blank"
                     requestId: "req-reg008"
         '429':
           description: "Too Many Requests - Rate limit exceeded"

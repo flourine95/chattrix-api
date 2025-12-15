@@ -1,8 +1,7 @@
 package com.chattrix.api.security;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.filters.AuthenticationFilter;
 import com.chattrix.api.filters.UserPrincipal;
 import jakarta.enterprise.context.RequestScoped;

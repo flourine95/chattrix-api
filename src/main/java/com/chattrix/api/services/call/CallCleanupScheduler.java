@@ -3,8 +3,8 @@ package com.chattrix.api.services.call;
 import com.chattrix.api.entities.Call;
 import com.chattrix.api.entities.CallStatus;
 import com.chattrix.api.repositories.CallRepository;
-import com.chattrix.api.services.user.UserStatusService;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
+import com.chattrix.api.services.user.UserStatusService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -39,7 +39,7 @@ public class CallCleanupScheduler {
     private static final int MAX_RINGING_MINUTES = 2; // Safety net for stuck RINGING
 
     private final ScheduledExecutorService scheduler =
-        Executors.newSingleThreadScheduledExecutor();
+            Executors.newSingleThreadScheduledExecutor();
 
     private final CallRepository callRepository;
     private final UserStatusService userStatusService;
@@ -50,10 +50,10 @@ public class CallCleanupScheduler {
         log.info("Starting CallCleanupScheduler - runs every {} minutes", CLEANUP_INTERVAL_MINUTES);
 
         scheduler.scheduleAtFixedRate(
-            this::cleanupOrphanedCalls,
-            CLEANUP_INTERVAL_MINUTES,
-            CLEANUP_INTERVAL_MINUTES,
-            TimeUnit.MINUTES
+                this::cleanupOrphanedCalls,
+                CLEANUP_INTERVAL_MINUTES,
+                CLEANUP_INTERVAL_MINUTES,
+                TimeUnit.MINUTES
         );
     }
 
@@ -83,7 +83,7 @@ public class CallCleanupScheduler {
 
         for (Call call : longCalls) {
             log.warn("Force ending long-running call: {} (started at: {})",
-                call.getId(), call.getStartTime());
+                    call.getId(), call.getStartTime());
 
             call.setStatus(CallStatus.ENDED);
             call.setEndTime(Instant.now());
@@ -114,7 +114,7 @@ public class CallCleanupScheduler {
 
         for (Call call : stuckCalls) {
             log.warn("Force ending stuck RINGING call: {} (created at: {})",
-                call.getId(), call.getCreatedAt());
+                    call.getId(), call.getCreatedAt());
 
             call.setStatus(CallStatus.MISSED);
             call.setEndTime(Instant.now());
@@ -136,10 +136,10 @@ public class CallCleanupScheduler {
     private void notifyBothParticipants(Call call, String reason) {
         try {
             webSocketService.sendCallEnded(
-                call.getCallerId().toString(),
-                call.getId(),
-                "system",
-                call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
+                    call.getCallerId().toString(),
+                    call.getId(),
+                    "system",
+                    call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
             );
         } catch (Exception e) {
             log.debug("Could not notify caller {}", call.getCallerId());
@@ -147,10 +147,10 @@ public class CallCleanupScheduler {
 
         try {
             webSocketService.sendCallEnded(
-                call.getCalleeId().toString(),
-                call.getId(),
-                "system",
-                call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
+                    call.getCalleeId().toString(),
+                    call.getId(),
+                    "system",
+                    call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
             );
         } catch (Exception e) {
             log.debug("Could not notify callee {}", call.getCalleeId());

@@ -16,6 +16,13 @@ public class AppConfig {
 
     private Properties properties;
 
+    public static String maskSensitive(String value) {
+        if (value == null || value.length() <= 8) {
+            return "****";
+        }
+        return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+    }
+
     @PostConstruct
     public void init() {
         properties = new Properties();
@@ -110,12 +117,5 @@ public class AppConfig {
             log.warn("Invalid long value for '{}': {}. Using default: {}", key, value, defaultValue);
             return defaultValue;
         }
-    }
-
-    public static String maskSensitive(String value) {
-        if (value == null || value.length() <= 8) {
-            return "****";
-        }
-        return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
     }
 }

@@ -17,8 +17,10 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class FriendRequestResource {
 
-    @Inject private FriendRequestService friendRequestService;
-    @Inject private UserContext userContext;
+    @Inject
+    private FriendRequestService friendRequestService;
+    @Inject
+    private UserContext userContext;
 
     @POST
     public Response sendFriendRequest(@Valid SendFriendRequestRequest request) {

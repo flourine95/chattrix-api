@@ -1,9 +1,7 @@
 package com.chattrix.api.services.user;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.UpdateUserProfileRequest;
 import jakarta.enterprise.context.ApplicationScoped;

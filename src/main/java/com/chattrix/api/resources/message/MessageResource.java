@@ -22,11 +22,16 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class MessageResource {
 
-    @Inject private MessageService messageService;
-    @Inject private MessageEditService messageEditService;
-    @Inject private MessageForwardService messageForwardService;
-    @Inject private PinnedMessageService pinnedMessageService;
-    @Inject private UserContext userContext;
+    @Inject
+    private MessageService messageService;
+    @Inject
+    private MessageEditService messageEditService;
+    @Inject
+    private MessageForwardService messageForwardService;
+    @Inject
+    private PinnedMessageService pinnedMessageService;
+    @Inject
+    private UserContext userContext;
 
     @GET
     public Response getMessages(

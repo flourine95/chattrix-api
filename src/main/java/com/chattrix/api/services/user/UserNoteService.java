@@ -1,9 +1,7 @@
 package com.chattrix.api.services.user;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.*;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UserNoteRequest;
@@ -14,7 +12,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped

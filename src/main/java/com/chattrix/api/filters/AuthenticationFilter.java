@@ -1,8 +1,7 @@
 package com.chattrix.api.filters;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.User;
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.auth.TokenService;
 import jakarta.annotation.Priority;
@@ -23,9 +22,8 @@ import java.security.Principal;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthenticationFilter implements ContainerRequestFilter {
 
-    private static final String AUTHENTICATION_SCHEME = "Bearer";
     public static final String SECURITY_CONTEXT_ATTRIBUTE = "CUSTOM_SECURITY_CONTEXT";
-
+    private static final String AUTHENTICATION_SCHEME = "Bearer";
     @Inject
     private TokenService tokenService;
 
@@ -38,7 +36,7 @@ public class AuthenticationFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
-        
+
         if (!isTokenBasedAuthentication(authorizationHeader)) {
             throw BusinessException.unauthorized("Missing or invalid Authorization header");
         }

@@ -56,12 +56,12 @@ public class ChatSessionService {
             }
         }
     }
-    
+
     /**
      * Send message directly without WebSocketMessage wrapper.
      * This avoids the nested structure issue.
-     * 
-     * @param userId The user ID to send to
+     *
+     * @param userId  The user ID to send to
      * @param message Any message object (will be serialized directly)
      */
     public void sendDirectMessage(Long userId, Object message) {

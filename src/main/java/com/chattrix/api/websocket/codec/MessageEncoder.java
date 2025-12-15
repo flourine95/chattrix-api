@@ -11,7 +11,7 @@ import jakarta.websocket.Encoder;
 public class MessageEncoder implements Encoder.Text<WebSocketMessage<?>> {
 
     private static final ObjectMapper objectMapper;
-    
+
     static {
         objectMapper = new ObjectMapper();
         // Register JavaTimeModule for Java 8 date/time support (Instant, LocalDateTime, etc.)

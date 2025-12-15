@@ -18,8 +18,10 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class ConversationMemberResource {
 
-    @Inject private ConversationService conversationService;
-    @Inject private UserContext userContext;
+    @Inject
+    private ConversationService conversationService;
+    @Inject
+    private UserContext userContext;
 
     @GET
     public Response getConversationMembers(@PathParam("conversationId") Long conversationId) {

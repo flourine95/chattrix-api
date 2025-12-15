@@ -9,17 +9,17 @@ public enum CallHistoryStatus {
      * Call was successfully completed
      */
     COMPLETED,
-    
+
     /**
      * Call was not answered (timed out)
      */
     MISSED,
-    
+
     /**
      * Call was rejected by the callee
      */
     REJECTED,
-    
+
     /**
      * Call failed due to an error
      */

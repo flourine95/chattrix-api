@@ -4,19 +4,11 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
-// Removed old exception import
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
-import com.chattrix.api.repositories.ConversationParticipantRepository;
-import com.chattrix.api.repositories.ConversationRepository;
-import com.chattrix.api.repositories.MessageEditHistoryRepository;
-import com.chattrix.api.repositories.MessageReadReceiptRepository;
-import com.chattrix.api.repositories.MessageRepository;
-import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UpdateMessageRequest;
 import com.chattrix.api.responses.MediaResponse;
@@ -254,7 +246,7 @@ public class MessageService {
 
         Conversation conversation = message.getConversation();
         boolean wasLastMessage = conversation.getLastMessage() != null &&
-                                 Objects.equals(conversation.getLastMessage().getId(), message.getId());
+                Objects.equals(conversation.getLastMessage().getId(), message.getId());
 
         // If this is the last message, clear the reference BEFORE deleting
         if (wasLastMessage) {

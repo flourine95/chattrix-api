@@ -1,11 +1,9 @@
 package com.chattrix.api.services.conversation;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.ConversationSettingsRepository;
@@ -71,13 +69,13 @@ public class ConversationSettingsService {
     @Transactional
     public ConversationSettings pinConversation(Long userId, Long conversationId) {
         ConversationSettings settings = getOrCreateSettings(userId, conversationId);
-        
+
         if (settings.isPinned()) {
             throw BusinessException.badRequest("Conversation is already pinned", "BAD_REQUEST");
         }
 
         Integer maxPinOrder = settingsRepository.getMaxPinOrder(userId);
-        
+
         settings.setPinned(true);
         settings.setPinOrder(maxPinOrder + 1);
         settings.setPinnedAt(Instant.now());

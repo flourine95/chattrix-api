@@ -14,7 +14,6 @@ import com.chattrix.api.websocket.dto.*;
 import com.chattrix.api.websocket.handlers.MessageHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.websocket.Session;
 

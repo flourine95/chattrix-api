@@ -16,27 +16,27 @@ import java.util.logging.Logger;
  */
 @ApplicationScoped
 public class HeartbeatHandler implements MessageHandler {
-    
+
     private static final Logger LOGGER = Logger.getLogger(HeartbeatHandler.class.getName());
-    
+
     @Override
     public void handle(Session session, Long userId, Object payload) {
         try {
             // Send acknowledgment
-            WebSocketMessage<Map<String, Object>> ackMessage = 
-                new WebSocketMessage<>("heartbeat.ack", Map.of(
-                    "userId", userId.toString(),
-                    "timestamp", Instant.now().toString()
-                ));
-            
+            WebSocketMessage<Map<String, Object>> ackMessage =
+                    new WebSocketMessage<>("heartbeat.ack", Map.of(
+                            "userId", userId.toString(),
+                            "timestamp", Instant.now().toString()
+                    ));
+
             session.getBasicRemote().sendObject(ackMessage);
-            
+
             LOGGER.log(Level.FINE, "Heartbeat acknowledgment sent to user: {0}", userId);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error sending heartbeat acknowledgment to user: " + userId, e);
         }
     }
-    
+
     @Override
     public String getMessageType() {
         return "heartbeat";

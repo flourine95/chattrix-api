@@ -34,11 +34,11 @@ public class CallRepository {
     public Optional<Call> findActiveCallByUserId(Long userId) {
         try {
             Call call = em.createQuery(
-                    "SELECT c FROM Call c " +
-                    "WHERE (c.callerId = :userId OR c.calleeId = :userId) " +
-                    "AND c.status IN :activeStatuses " +
-                    "ORDER BY c.createdAt DESC",
-                    Call.class)
+                            "SELECT c FROM Call c " +
+                                    "WHERE (c.callerId = :userId OR c.calleeId = :userId) " +
+                                    "AND c.status IN :activeStatuses " +
+                                    "ORDER BY c.createdAt DESC",
+                            Call.class)
                     .setParameter("userId", userId)
                     .setParameter("activeStatuses", List.of(
                             CallStatus.INITIATING,
@@ -56,8 +56,8 @@ public class CallRepository {
 
     public List<Call> findByChannelId(String channelId) {
         return em.createQuery(
-                "SELECT c FROM Call c WHERE c.channelId = :channelId ORDER BY c.createdAt DESC",
-                Call.class)
+                        "SELECT c FROM Call c WHERE c.channelId = :channelId ORDER BY c.createdAt DESC",
+                        Call.class)
                 .setParameter("channelId", channelId)
                 .getResultList();
     }
@@ -75,11 +75,11 @@ public class CallRepository {
      */
     public List<Call> findLongRunningCalls(java.time.Instant cutoffTime) {
         return em.createQuery(
-                "SELECT c FROM Call c " +
-                "WHERE c.status IN :activeStatuses " +
-                "AND c.startTime < :cutoff " +
-                "ORDER BY c.startTime ASC",
-                Call.class)
+                        "SELECT c FROM Call c " +
+                                "WHERE c.status IN :activeStatuses " +
+                                "AND c.startTime < :cutoff " +
+                                "ORDER BY c.startTime ASC",
+                        Call.class)
                 .setParameter("activeStatuses", List.of(
                         CallStatus.CONNECTING,
                         CallStatus.CONNECTED
@@ -93,11 +93,11 @@ public class CallRepository {
      */
     public List<Call> findStuckRingingCalls(java.time.Instant cutoffTime) {
         return em.createQuery(
-                "SELECT c FROM Call c " +
-                "WHERE c.status IN :ringingStatuses " +
-                "AND c.createdAt < :cutoff " +
-                "ORDER BY c.createdAt ASC",
-                Call.class)
+                        "SELECT c FROM Call c " +
+                                "WHERE c.status IN :ringingStatuses " +
+                                "AND c.createdAt < :cutoff " +
+                                "ORDER BY c.createdAt ASC",
+                        Call.class)
                 .setParameter("ringingStatuses", List.of(
                         CallStatus.INITIATING,
                         CallStatus.RINGING

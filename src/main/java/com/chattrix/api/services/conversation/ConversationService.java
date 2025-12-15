@@ -1,19 +1,13 @@
 package com.chattrix.api.services.conversation;
-import com.chattrix.api.exceptions.BusinessException;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
-// Removed old exception import
-// Removed old exception import
+import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.ConversationMapper;
 import com.chattrix.api.mappers.UserMapper;
-import com.chattrix.api.repositories.ConversationParticipantRepository;
-import com.chattrix.api.repositories.ConversationRepository;
-import com.chattrix.api.repositories.ConversationSettingsRepository;
-import com.chattrix.api.repositories.MessageReadReceiptRepository;
-import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.*;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -52,12 +46,14 @@ public class ConversationService {
 
         if ("DIRECT".equals(request.getType())) {
             long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
-            if (count != 1) throw BusinessException.badRequest("DIRECT conversation must have exactly 1 other participant.", "BAD_REQUEST");
+            if (count != 1)
+                throw BusinessException.badRequest("DIRECT conversation must have exactly 1 other participant.", "BAD_REQUEST");
         }
 
         if ("GROUP".equals(request.getType())) {
             long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
-            if (count < 1) throw BusinessException.badRequest("GROUP conversation must have at least 1 other participant", "BAD_REQUEST");
+            if (count < 1)
+                throw BusinessException.badRequest("GROUP conversation must have at least 1 other participant", "BAD_REQUEST");
         }
 
         User currentUser = userRepository.findById(currentUserId)
@@ -449,7 +445,8 @@ public class ConversationService {
     private void validateParticipant(Conversation conversation, Long userId) {
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
-        if (!isParticipant) throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
+        if (!isParticipant)
+            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
     }
 
     private void validateGroupAdmin(Long conversationId, Long userId) {

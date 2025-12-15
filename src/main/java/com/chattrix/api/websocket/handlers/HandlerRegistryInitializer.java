@@ -23,12 +23,12 @@ import java.util.logging.Logger;
 @Startup
 @Singleton
 public class HandlerRegistryInitializer {
-    
+
     private static final Logger LOGGER = Logger.getLogger(HandlerRegistryInitializer.class.getName());
-    
+
     @Inject
     private MessageHandlerRegistry registry;
-    
+
     @PostConstruct
     public void initialize() {
         LOGGER.info("Triggering MessageHandlerRegistry initialization...");

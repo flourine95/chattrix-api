@@ -15,8 +15,10 @@ import jakarta.ws.rs.core.Response;
 @Secured
 public class TypingIndicatorResource {
 
-    @Inject private TypingIndicatorService typingIndicatorService;
-    @Inject private UserContext userContext;
+    @Inject
+    private TypingIndicatorService typingIndicatorService;
+    @Inject
+    private UserContext userContext;
 
     @POST
     @Path("/start")

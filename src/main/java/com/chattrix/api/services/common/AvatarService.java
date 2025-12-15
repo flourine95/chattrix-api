@@ -38,7 +38,7 @@ public class AvatarService {
     /**
      * Tạo avatar từ tên người dùng và upload lên Cloudinary
      *
-     * @param userId ID người dùng (dùng làm public_id)
+     * @param userId   ID người dùng (dùng làm public_id)
      * @param fullName Tên đầy đủ (dùng để tạo chữ cái)
      * @return URL của avatar trên Cloudinary
      */
@@ -91,7 +91,7 @@ public class AvatarService {
     /**
      * Upload avatar từ file/URL khác
      *
-     * @param userId ID người dùng
+     * @param userId      ID người dùng
      * @param imageSource File path hoặc URL của ảnh
      * @return URL của avatar trên Cloudinary
      */
