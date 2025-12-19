@@ -200,4 +200,42 @@ public class UserRepository {
         return em.createQuery("SELECT u FROM User u", User.class)
                 .getResultList();
     }
+
+    /**
+     * Find all users who should receive status updates for a given user
+     * (users who have this user as a contact OR share a conversation with them)
+     */
+    public List<Long> findUserIdsWhoShouldReceiveStatusUpdates(Long userId) {
+        // Get users who have this user as a contact (bidirectional)
+        List<Long> contactUserIds = em.createQuery(
+                        "SELECT DISTINCT c.user.id FROM Contact c " +
+                                "WHERE c.contactUser.id = :userId AND c.status = 'ACCEPTED'", Long.class)
+                .setParameter("userId", userId)
+                .getResultList();
+
+        // Get users who are contacts of this user
+        List<Long> contactedByUserIds = em.createQuery(
+                        "SELECT DISTINCT c.contactUser.id FROM Contact c " +
+                                "WHERE c.user.id = :userId AND c.status = 'ACCEPTED'", Long.class)
+                .setParameter("userId", userId)
+                .getResultList();
+
+        // Get users in same conversations
+        List<Long> conversationMemberIds = em.createQuery(
+                        "SELECT DISTINCT cp.user.id FROM ConversationParticipant cp " +
+                                "WHERE cp.conversation.id IN (" +
+                                "  SELECT cp2.conversation.id FROM ConversationParticipant cp2 " +
+                                "  WHERE cp2.user.id = :userId" +
+                                ") AND cp.user.id != :userId", Long.class)
+                .setParameter("userId", userId)
+                .getResultList();
+
+        // Merge all results and remove duplicates using Set
+        Set<Long> allUserIds = new java.util.HashSet<>();
+        allUserIds.addAll(contactUserIds);
+        allUserIds.addAll(contactedByUserIds);
+        allUserIds.addAll(conversationMemberIds);
+
+        return new java.util.ArrayList<>(allUserIds);
+    }
 }

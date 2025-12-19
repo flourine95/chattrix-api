@@ -29,7 +29,11 @@ public class ConversationResponse {
     public static class ParticipantResponse {
         private Long userId;
         private String username;
+        private String fullName;
+        private String avatarUrl;
         private String role;
+        private Boolean online;
+        private Instant lastSeen;
     }
 
     @Data
@@ -38,6 +42,8 @@ public class ConversationResponse {
         private String content;
         private Long senderId;
         private String senderUsername;
+        private String senderFullName;
+        private String senderAvatarUrl;
         private Instant sentAt;
         private String type;
         private Long readCount;

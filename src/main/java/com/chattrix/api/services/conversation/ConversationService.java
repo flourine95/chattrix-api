@@ -305,6 +305,8 @@ public class ConversationService {
         return ConversationResponse.ParticipantResponse.builder()
                 .userId(participant.getUser().getId())
                 .username(participant.getUser().getUsername())
+                .fullName(participant.getUser().getFullName())
+                .avatarUrl(participant.getUser().getAvatarUrl())
                 .role(participant.getRole().name())
                 .build();
     }

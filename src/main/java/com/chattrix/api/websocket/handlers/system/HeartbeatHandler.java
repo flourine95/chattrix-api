@@ -1,8 +1,10 @@
 package com.chattrix.api.websocket.handlers.system;
 
+import com.chattrix.api.services.user.HeartbeatMonitorService;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import com.chattrix.api.websocket.handlers.MessageHandler;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.websocket.Session;
 
 import java.time.Instant;
@@ -13,15 +15,22 @@ import java.util.logging.Logger;
 /**
  * Handler for heartbeat messages.
  * Responds with an acknowledgment to keep the WebSocket connection alive.
+ * Also records heartbeat for monitoring purposes.
  */
 @ApplicationScoped
 public class HeartbeatHandler implements MessageHandler {
 
     private static final Logger LOGGER = Logger.getLogger(HeartbeatHandler.class.getName());
 
+    @Inject
+    private HeartbeatMonitorService heartbeatMonitorService;
+
     @Override
     public void handle(Session session, Long userId, Object payload) {
         try {
+            // Record heartbeat for monitoring
+            heartbeatMonitorService.recordHeartbeat(userId);
+
             // Send acknowledgment
             WebSocketMessage<Map<String, Object>> ackMessage =
                     new WebSocketMessage<>("heartbeat.ack", Map.of(

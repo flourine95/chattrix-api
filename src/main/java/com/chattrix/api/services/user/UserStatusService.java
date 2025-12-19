@@ -82,8 +82,8 @@ public class UserStatusService {
     // Method to clean up stale online statuses (can be called periodically)
     @Transactional
     public void cleanupStaleOnlineStatuses() {
-        // Mark users as offline if they haven't been seen in the last 5 minutes
-        Instant threshold = Instant.now().minusSeconds(300); // 5 minutes
+        // Mark users as offline if they haven't been seen in the last 2 minutes
+        Instant threshold = Instant.now().minusSeconds(120); // 2 minutes
         List<User> staleUsers = userRepository.findStaleOnlineUsers(threshold);
 
         for (User user : staleUsers) {

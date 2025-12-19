@@ -38,7 +38,7 @@ public class RefreshTokenRepository {
     public Optional<RefreshToken> findValidToken(String token) {
         try {
             RefreshToken refreshToken = entityManager
-                    .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.token = :token AND rt.isRevoked = false AND rt.expiresAt > :now", RefreshToken.class)
+                    .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.token = :token AND rt.revoked = false AND rt.expiresAt > :now", RefreshToken.class)
                     .setParameter("token", token)
                     .setParameter("now", Instant.now())
                     .getSingleResult();
@@ -51,7 +51,7 @@ public class RefreshTokenRepository {
     public Optional<RefreshToken> findByAccessTokenId(String accessTokenId) {
         try {
             RefreshToken refreshToken = entityManager
-                    .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.accessTokenId = :accessTokenId AND rt.isRevoked = false", RefreshToken.class)
+                    .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.accessTokenId = :accessTokenId AND rt.revoked = false", RefreshToken.class)
                     .setParameter("accessTokenId", accessTokenId)
                     .getSingleResult();
             return Optional.of(refreshToken);
@@ -68,7 +68,7 @@ public class RefreshTokenRepository {
     @Transactional
     public void revokeAllByUser(User user) {
         entityManager
-                .createQuery("UPDATE RefreshToken rt SET rt.isRevoked = true, rt.revokedAt = :now WHERE rt.user = :user AND rt.isRevoked = false")
+                .createQuery("UPDATE RefreshToken rt SET rt.revoked = true, rt.revokedAt = :now WHERE rt.user = :user AND rt.revoked = false")
                 .setParameter("user", user)
                 .setParameter("now", Instant.now())
                 .executeUpdate();
@@ -76,7 +76,7 @@ public class RefreshTokenRepository {
 
     public List<RefreshToken> findActiveTokensByUser(User user) {
         return entityManager
-                .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.user = :user AND rt.isRevoked = false AND rt.expiresAt > :now", RefreshToken.class)
+                .createQuery("SELECT rt FROM RefreshToken rt WHERE rt.user = :user AND rt.revoked = false AND rt.expiresAt > :now", RefreshToken.class)
                 .setParameter("user", user)
                 .setParameter("now", Instant.now())
                 .getResultList();
