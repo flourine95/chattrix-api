@@ -238,4 +238,45 @@ public class UserRepository {
 
         return new java.util.ArrayList<>(allUserIds);
     }
+
+    /**
+     * Find users whose birthday is today (same month and day, regardless of year)
+     */
+    public List<User> findUsersWithBirthdayToday() {
+        return em.createQuery(
+                        "SELECT u FROM User u " +
+                                "WHERE u.dateOfBirth IS NOT NULL " +
+                                "AND EXTRACT(MONTH FROM u.dateOfBirth) = EXTRACT(MONTH FROM CURRENT_DATE) " +
+                                "AND EXTRACT(DAY FROM u.dateOfBirth) = EXTRACT(DAY FROM CURRENT_DATE) " +
+                                "ORDER BY u.fullName", User.class)
+                .getResultList();
+    }
+
+    /**
+     * Find users whose birthday is within the next N days
+     */
+    public List<User> findUsersWithUpcomingBirthdays(int daysAhead) {
+        return em.createQuery(
+                        "SELECT u FROM User u " +
+                                "WHERE u.dateOfBirth IS NOT NULL " +
+                                "ORDER BY u.fullName", User.class)
+                .getResultList();
+        // Note: Complex date logic will be handled in service layer
+        // because JPQL doesn't handle year-wrap-around birthdays well
+    }
+
+    /**
+     * Find users with birthdays in a specific month and day range
+     */
+    public List<User> findUsersByBirthdayMonthAndDay(int month, int day) {
+        return em.createQuery(
+                        "SELECT u FROM User u " +
+                                "WHERE u.dateOfBirth IS NOT NULL " +
+                                "AND EXTRACT(MONTH FROM u.dateOfBirth) = :month " +
+                                "AND EXTRACT(DAY FROM u.dateOfBirth) = :day " +
+                                "ORDER BY u.fullName", User.class)
+                .setParameter("month", month)
+                .setParameter("day", day)
+                .getResultList();
+    }
 }

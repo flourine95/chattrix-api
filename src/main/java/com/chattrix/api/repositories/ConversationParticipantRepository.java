@@ -125,5 +125,14 @@ public class ConversationParticipantRepository {
                 .getSingleResult();
         return total != null ? total : 0L;
     }
+
+    public java.util.List<ConversationParticipant> findByConversationId(Long conversationId) {
+        return em.createQuery(
+                        "SELECT cp FROM ConversationParticipant cp " +
+                                "WHERE cp.conversation.id = :conversationId",
+                        ConversationParticipant.class)
+                .setParameter("conversationId", conversationId)
+                .getResultList();
+    }
 }
 

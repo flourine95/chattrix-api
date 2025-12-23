@@ -35,6 +35,10 @@ public class MessageResponse {
     private Long replyToMessageId;
     private ReplyMessageResponse replyToMessage;
 
+    // Poll reference (for POLL message type)
+    private Long pollId;
+    private PollResponse poll;
+
     // Reactions: {"👍": [1, 2, 3], "❤️": [4, 5]}
     private Map<String, List<Long>> reactions;
 
@@ -61,4 +65,10 @@ public class MessageResponse {
 
     @JsonProperty("readBy")
     private List<ReadReceiptResponse> readBy;
+
+    // Scheduled message fields
+    private Boolean scheduled;
+    private Instant scheduledTime;
+    private String scheduledStatus;
+    private String failedReason;
 }

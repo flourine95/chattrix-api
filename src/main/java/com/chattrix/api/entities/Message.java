@@ -99,6 +99,11 @@ public class Message {
     @JoinColumn(name = "reply_to_note_id")
     private UserNote replyToNote;
 
+    // Poll reference (for POLL message type)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "poll_id")
+    private Poll poll;
+
     // Reactions stored as JSONB: {"👍": [1, 2, 3], "❤️": [4, 5]}
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "reactions", columnDefinition = "jsonb")
@@ -147,9 +152,26 @@ public class Message {
     @Column(name = "forward_count")
     private Integer forwardCount = 0;
 
+    // Scheduled message fields
+    @Column(name = "scheduled", nullable = false)
+    private boolean scheduled = false;
+
+    @Column(name = "scheduled_time")
+    private Instant scheduledTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scheduled_status", length = 20)
+    private ScheduledStatus scheduledStatus;
+
+    @Column(name = "failed_reason", columnDefinition = "TEXT")
+    private String failedReason;
+
     @PrePersist
     protected void onPrePersist() {
-        this.sentAt = Instant.now();
+        // Only set sentAt for non-scheduled messages
+        if (!scheduled) {
+            this.sentAt = Instant.now();
+        }
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
@@ -167,6 +189,16 @@ public class Message {
         AUDIO,
         DOCUMENT,
         LOCATION,
-        SYSTEM
+        STICKER,
+        EMOJI,
+        SYSTEM,
+        POLL
+    }
+
+    public enum ScheduledStatus {
+        PENDING,    // Chờ gửi
+        SENT,       // Đã gửi thành công
+        FAILED,     // Gửi thất bại
+        CANCELLED   // Đã hủy
     }
 }

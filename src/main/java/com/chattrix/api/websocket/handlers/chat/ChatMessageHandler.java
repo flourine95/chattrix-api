@@ -95,7 +95,7 @@ public class ChatMessageHandler implements MessageHandler {
         // Validate reply to message if provided
         Message replyToMessage = null;
         if (chatMessageDto.getReplyToMessageId() != null) {
-            replyToMessage = messageRepository.findByIdSimple(chatMessageDto.getReplyToMessageId())
+            replyToMessage = messageRepository.findById(chatMessageDto.getReplyToMessageId())
                     .orElseThrow(() -> new IllegalArgumentException("Reply to message not found"));
 
             if (!replyToMessage.getConversation().getId().equals(chatMessageDto.getConversationId())) {

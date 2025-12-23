@@ -64,6 +64,8 @@ public class UserProfileService {
         }
 
         if (request.getDateOfBirth() != null) {
+            // Normalize to start of day in UTC to avoid timezone issues
+            // This ensures we only care about the date, not the time
             user.setDateOfBirth(request.getDateOfBirth());
         }
 

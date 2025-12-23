@@ -27,9 +27,12 @@ public interface MessageMapper {
     @Mapping(target = "senderFullName", source = "sender.fullName")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "originalMessageId", source = "originalMessage.id")
+    @Mapping(target = "pollId", source = "poll.id")
+    @Mapping(target = "poll", ignore = true)
     @Mapping(target = "mentionedUsers", ignore = true)
     @Mapping(target = "readCount", ignore = true)
     @Mapping(target = "readBy", ignore = true)
+    @Mapping(target = "scheduledStatus", expression = "java(message.getScheduledStatus() != null ? message.getScheduledStatus().name() : null)")
     MessageResponse toResponse(Message message);
 
     @Mapping(target = "senderId", source = "sender.id")

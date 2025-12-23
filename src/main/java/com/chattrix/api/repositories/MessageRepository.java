@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.*;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,10 +31,12 @@ public class MessageRepository {
                 "SELECT m FROM Message m " +
                         "LEFT JOIN FETCH m.sender " +
                         "WHERE m.conversation.id = :conversationId " +
-                        "ORDER BY m.sentAt DESC",
+                        "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) " +
+                        "ORDER BY COALESCE(m.sentAt, m.scheduledTime, m.createdAt) DESC",
                 Message.class
         );
         query.setParameter("conversationId", conversationId);
+        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
         query.setFirstResult(page * size);
         query.setMaxResults(size);
 
@@ -42,10 +45,13 @@ public class MessageRepository {
 
     public long countByConversationId(Long conversationId) {
         TypedQuery<Long> query = em.createQuery(
-                "SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId",
+                "SELECT COUNT(m) FROM Message m " +
+                        "WHERE m.conversation.id = :conversationId " +
+                        "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus))",
                 Long.class
         );
         query.setParameter("conversationId", conversationId);
+        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
         return query.getSingleResult();
     }
 
@@ -73,10 +79,12 @@ public class MessageRepository {
                         "SELECT m FROM Message m " +
                                 "LEFT JOIN FETCH m.sender " +
                                 "WHERE m.conversation.id = :conversationId " +
-                                "ORDER BY m.sentAt ASC",
+                                "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) " +
+                                "ORDER BY COALESCE(m.sentAt, m.scheduledTime, m.createdAt) ASC",
                         Message.class
                 )
                 .setParameter("conversationId", conversationId)
+                .setParameter("sentStatus", Message.ScheduledStatus.SENT)
                 .getResultList();
     }
 
@@ -86,14 +94,20 @@ public class MessageRepository {
         // Use EntityGraph to fetch nested relationships without alias
         EntityGraph<?> entityGraph = em.getEntityGraph("Message.withSenderAndReply");
 
+        // Only return messages that have been sent:
+        // 1. Regular messages (sentAt is not null)
+        // 2. Scheduled messages that have been sent (scheduled=true AND scheduledStatus=SENT)
+        // Exclude: PENDING, CANCELLED, FAILED scheduled messages
         TypedQuery<Message> query = em.createQuery(
                 "SELECT m FROM Message m " +
                         "WHERE m.conversation.id = :conversationId " +
-                        "ORDER BY m.sentAt " + orderClause,
+                        "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) " +
+                        "ORDER BY COALESCE(m.sentAt, m.scheduledTime, m.createdAt) " + orderClause,
                 Message.class
         );
         query.setHint("jakarta.persistence.fetchgraph", entityGraph);
         query.setParameter("conversationId", conversationId);
+        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
         query.setFirstResult(page * size);
         query.setMaxResults(size);
 
@@ -334,6 +348,191 @@ public class MessageRepository {
                 .setParameter("userId", userId)
                 .setParameter("lastSentAt", lastMessage.getSentAt())
                 .getResultList();
+    }
+
+    // ==================== SCHEDULED MESSAGES METHODS ====================
+
+    /**
+     * Find scheduled messages that are due to be sent
+     */
+    public List<Message> findScheduledMessagesDue(Instant time) {
+        return em.createQuery(
+                        "SELECT m FROM Message m " +
+                                "LEFT JOIN FETCH m.conversation " +
+                                "LEFT JOIN FETCH m.sender " +
+                                "WHERE m.scheduled = true " +
+                                "AND m.scheduledStatus = :status " +
+                                "AND m.scheduledTime <= :time " +
+                                "ORDER BY m.scheduledTime ASC",
+                        Message.class)
+                .setParameter("status", Message.ScheduledStatus.PENDING)
+                .setParameter("time", time)
+                .getResultList();
+    }
+
+    /**
+     * Find scheduled messages by sender and status
+     */
+    public List<Message> findScheduledMessagesBySenderAndStatus(Long senderId, Message.ScheduledStatus status, int page, int size) {
+        TypedQuery<Message> query = em.createQuery(
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.conversation " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.sender.id = :senderId " +
+                        "AND m.scheduled = true " +
+                        "AND m.scheduledStatus = :status " +
+                        "ORDER BY m.scheduledTime ASC",
+                Message.class
+        );
+        query.setParameter("senderId", senderId);
+        query.setParameter("status", status);
+        query.setFirstResult(page * size);
+        query.setMaxResults(size);
+        return query.getResultList();
+    }
+
+    /**
+     * Find all scheduled messages by sender
+     */
+    public List<Message> findScheduledMessagesBySender(Long senderId, int page, int size) {
+        TypedQuery<Message> query = em.createQuery(
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.conversation " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.sender.id = :senderId " +
+                        "AND m.scheduled = true " +
+                        "ORDER BY m.scheduledTime ASC",
+                Message.class
+        );
+        query.setParameter("senderId", senderId);
+        query.setFirstResult(page * size);
+        query.setMaxResults(size);
+        return query.getResultList();
+    }
+
+    /**
+     * Find scheduled messages by sender, conversation and status
+     */
+    public List<Message> findScheduledMessagesBySenderConversationAndStatus(
+            Long senderId, Long conversationId, Message.ScheduledStatus status, int page, int size) {
+        TypedQuery<Message> query = em.createQuery(
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.conversation " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.sender.id = :senderId " +
+                        "AND m.conversation.id = :conversationId " +
+                        "AND m.scheduled = true " +
+                        "AND m.scheduledStatus = :status " +
+                        "ORDER BY m.scheduledTime ASC",
+                Message.class
+        );
+        query.setParameter("senderId", senderId);
+        query.setParameter("conversationId", conversationId);
+        query.setParameter("status", status);
+        query.setFirstResult(page * size);
+        query.setMaxResults(size);
+        return query.getResultList();
+    }
+
+    /**
+     * Find scheduled messages by sender and conversation
+     */
+    public List<Message> findScheduledMessagesBySenderAndConversation(
+            Long senderId, Long conversationId, int page, int size) {
+        TypedQuery<Message> query = em.createQuery(
+                "SELECT m FROM Message m " +
+                        "LEFT JOIN FETCH m.conversation " +
+                        "LEFT JOIN FETCH m.sender " +
+                        "WHERE m.sender.id = :senderId " +
+                        "AND m.conversation.id = :conversationId " +
+                        "AND m.scheduled = true " +
+                        "ORDER BY m.scheduledTime ASC",
+                Message.class
+        );
+        query.setParameter("senderId", senderId);
+        query.setParameter("conversationId", conversationId);
+        query.setFirstResult(page * size);
+        query.setMaxResults(size);
+        return query.getResultList();
+    }
+
+    /**
+     * Count scheduled messages by sender and status
+     */
+    public long countScheduledMessagesBySenderAndStatus(Long senderId, Message.ScheduledStatus status) {
+        return em.createQuery(
+                        "SELECT COUNT(m) FROM Message m " +
+                                "WHERE m.sender.id = :senderId " +
+                                "AND m.scheduled = true " +
+                                "AND m.scheduledStatus = :status",
+                        Long.class)
+                .setParameter("senderId", senderId)
+                .setParameter("status", status)
+                .getSingleResult();
+    }
+
+    /**
+     * Count all scheduled messages by sender
+     */
+    public long countScheduledMessagesBySender(Long senderId) {
+        return em.createQuery(
+                        "SELECT COUNT(m) FROM Message m " +
+                                "WHERE m.sender.id = :senderId " +
+                                "AND m.scheduled = true",
+                        Long.class)
+                .setParameter("senderId", senderId)
+                .getSingleResult();
+    }
+
+    /**
+     * Count scheduled messages by sender, conversation and status
+     */
+    public long countScheduledMessagesBySenderConversationAndStatus(
+            Long senderId, Long conversationId, Message.ScheduledStatus status) {
+        return em.createQuery(
+                        "SELECT COUNT(m) FROM Message m " +
+                                "WHERE m.sender.id = :senderId " +
+                                "AND m.conversation.id = :conversationId " +
+                                "AND m.scheduled = true " +
+                                "AND m.scheduledStatus = :status",
+                        Long.class)
+                .setParameter("senderId", senderId)
+                .setParameter("conversationId", conversationId)
+                .setParameter("status", status)
+                .getSingleResult();
+    }
+
+    /**
+     * Count scheduled messages by sender and conversation
+     */
+    public long countScheduledMessagesBySenderAndConversation(Long senderId, Long conversationId) {
+        return em.createQuery(
+                        "SELECT COUNT(m) FROM Message m " +
+                                "WHERE m.sender.id = :senderId " +
+                                "AND m.conversation.id = :conversationId " +
+                                "AND m.scheduled = true",
+                        Long.class)
+                .setParameter("senderId", senderId)
+                .setParameter("conversationId", conversationId)
+                .getSingleResult();
+    }
+
+    /**
+     * Cancel all scheduled messages for a user in a conversation
+     */
+    @Transactional
+    public int cancelScheduledMessagesByUserAndConversation(Long senderId, Long conversationId) {
+        return em.createQuery(
+                        "UPDATE Message m SET m.scheduledStatus = :cancelledStatus " +
+                                "WHERE m.sender.id = :senderId " +
+                                "AND m.conversation.id = :conversationId " +
+                                "AND m.scheduled = true " +
+                                "AND m.scheduledStatus = :pendingStatus")
+                .setParameter("cancelledStatus", Message.ScheduledStatus.CANCELLED)
+                .setParameter("pendingStatus", Message.ScheduledStatus.PENDING)
+                .setParameter("senderId", senderId)
+                .setParameter("conversationId", conversationId)
+                .executeUpdate();
     }
 }
 

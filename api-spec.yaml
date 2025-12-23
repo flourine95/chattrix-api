@@ -1309,6 +1309,76 @@ components:
           items:
             $ref: '#/components/schemas/UserNoteResponse'
 
+    # --- Birthday Schemas ---
+    BirthdayUserResponse:
+      type: object
+      description: "Response DTO cho user có sinh nhật."
+      required:
+        - userId
+        - username
+        - fullName
+        - birthdayMessage
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: "User ID"
+          example: 123
+        username:
+          type: string
+          description: "Username"
+          example: "john_doe"
+        fullName:
+          type: string
+          description: "Full name"
+          example: "John Doe"
+        avatarUrl:
+          type: string
+          nullable: true
+          description: "Avatar URL"
+          example: "https://res.cloudinary.com/..."
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Date of birth"
+          example: "1995-12-21T00:00:00Z"
+        age:
+          type: integer
+          nullable: true
+          description: "Tuổi hiện tại (tính từ dateOfBirth)"
+          example: 28
+        birthdayMessage:
+          type: string
+          description: "Message hiển thị (Hôm nay, Ngày mai, Còn X ngày)"
+          example: "Hôm nay"
+
+    SendBirthdayWishesRequest:
+      type: object
+      description: "Request DTO để gửi lời chúc sinh nhật."
+      required:
+        - userId
+        - conversationIds
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: "ID của user sinh nhật"
+          example: 123
+        conversationIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: "Danh sách conversation IDs để gửi lời chúc"
+          minItems: 1
+          example: [1, 2, 3]
+        customMessage:
+          type: string
+          nullable: true
+          description: "Custom message (optional). Nếu null sẽ dùng template mặc định."
+          example: "Chúc mừng sinh nhật! 🎉🎈"
+
 security:
   - bearerAuth: []
 
@@ -1325,6 +1395,8 @@ tags:
     description: "Các API để quản lý typing indicators trong cuộc trò chuyện."
   - name: Notes
     description: "Các API để quản lý Messenger Notes (status 24h trên avatar)."
+  - name: Birthdays
+    description: "Các API để quản lý sinh nhật và gửi lời chúc sinh nhật."
   - name: Contacts
     description: "Các API để quản lý danh bạ và bạn bè."
   - name: Social
@@ -2528,6 +2600,243 @@ paths:
                 message: "Invalid or expired token"
                 code: "UNAUTHORIZED"
                 requestId: "req-statusupd002"
+
+  # --- Birthday Paths ---
+  /v1/birthdays/today:
+    get:
+      summary: "Get users with birthday today"
+      description: |
+        Lấy danh sách users có sinh nhật hôm nay.
+        
+        **Features:**
+        - Tự động tính tuổi
+        - Hiển thị message "Hôm nay"
+        - Chỉ return users có dateOfBirth không null
+      tags: [Birthdays]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "Birthday users retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BirthdayUserResponse'
+              example:
+                - userId: 123
+                  username: "john_doe"
+                  fullName: "John Doe"
+                  avatarUrl: "https://res.cloudinary.com/..."
+                  dateOfBirth: "1995-12-21T00:00:00Z"
+                  age: 28
+                  birthdayMessage: "Hôm nay"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "Invalid or expired token"
+                code: "UNAUTHORIZED"
+                requestId: "req-birthday001"
+
+  /v1/birthdays/upcoming:
+    get:
+      summary: "Get users with upcoming birthdays"
+      description: |
+        Lấy danh sách users có sinh nhật trong N ngày tới.
+        
+        **Features:**
+        - Default: 7 ngày tới
+        - Max: 365 ngày
+        - Tự động tính số ngày còn lại
+        - Sort theo ngày gần nhất
+      tags: [Birthdays]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          description: "Số ngày tới (1-365)"
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+          example: 7
+      responses:
+        '200':
+          description: "Upcoming birthday users retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BirthdayUserResponse'
+              example:
+                - userId: 124
+                  username: "jane_smith"
+                  fullName: "Jane Smith"
+                  avatarUrl: "https://res.cloudinary.com/..."
+                  dateOfBirth: "1992-12-23T00:00:00Z"
+                  age: 31
+                  birthdayMessage: "Còn 2 ngày"
+                - userId: 125
+                  username: "bob_wilson"
+                  fullName: "Bob Wilson"
+                  avatarUrl: "https://res.cloudinary.com/..."
+                  dateOfBirth: "1988-12-28T00:00:00Z"
+                  age: 35
+                  birthdayMessage: "Còn 7 ngày"
+        '400':
+          description: "Bad Request - Invalid days parameter."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "Days must be between 1 and 365"
+                code: "BAD_REQUEST"
+                requestId: "req-birthday002"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "Invalid or expired token"
+                code: "UNAUTHORIZED"
+                requestId: "req-birthday003"
+
+  /v1/birthdays/send-wishes:
+    post:
+      summary: "Send birthday wishes"
+      description: |
+        Gửi lời chúc sinh nhật đến user trong các conversations.
+        
+        **Features:**
+        - Tự động mention user sinh nhật
+        - Support custom message hoặc dùng template
+        - Gửi đến multiple conversations cùng lúc
+        - Verify sender là member của conversation
+        
+        **Default Message Format:**
+        `🎂 Chúc mừng sinh nhật @username (28 tuổi)! 🎉`
+      tags: [Birthdays]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendBirthdayWishesRequest'
+            example:
+              userId: 123
+              conversationIds: [1, 2, 3]
+              customMessage: "Chúc mừng sinh nhật! 🎉🎈"
+      responses:
+        '200':
+          description: "Birthday wishes sent successfully."
+          content:
+            application/json:
+              schema:
+                type: string
+              example: "Birthday wishes sent successfully"
+        '400':
+          description: "Bad Request - Validation failed."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  details:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "Validation failed"
+                code: "VALIDATION_ERROR"
+                details:
+                  userId: "User ID is required"
+                  conversationIds: "At least one conversation is required"
+                requestId: "req-birthday004"
+        '401':
+          description: "Unauthorized - Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "Invalid or expired token"
+                code: "UNAUTHORIZED"
+                requestId: "req-birthday005"
+        '403':
+          description: "Forbidden - Not a member of conversation."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "You are not a member of conversation: 123"
+                code: "FORBIDDEN"
+                requestId: "req-birthday006"
+        '404':
+          description: "Not Found - User or conversation not found."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  code: { type: string }
+                  requestId: { type: string }
+              example:
+                success: false
+                message: "User not found"
+                code: "USER_NOT_FOUND"
+                requestId: "req-birthday007"
 
   /v1/profile/me:
     get:

@@ -13,6 +13,7 @@ import java.util.List;
 @Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface ConversationMapper {
 
+    @Mapping(target = "unreadCount", ignore = true)
     ConversationResponse toResponse(Conversation conversation);
 
     List<ConversationResponse> toResponseList(List<Conversation> conversations);

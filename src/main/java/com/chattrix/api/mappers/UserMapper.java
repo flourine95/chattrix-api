@@ -15,6 +15,8 @@ public interface UserMapper {
 
     List<UserResponse> toResponseList(List<User> users);
 
+    @org.mapstruct.Mapping(source = "id", target = "id")
+    @org.mapstruct.Mapping(source = "id", target = "userId")
     MentionedUserResponse toMentionedUserResponse(User user);
 
     List<MentionedUserResponse> toMentionedUserResponseList(List<User> users);

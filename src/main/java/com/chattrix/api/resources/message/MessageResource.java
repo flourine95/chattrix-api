@@ -4,12 +4,14 @@ import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.EditMessageRequest;
 import com.chattrix.api.requests.ForwardMessageRequest;
+import com.chattrix.api.requests.ScheduleMessageRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.message.MessageEditService;
 import com.chattrix.api.services.message.MessageForwardService;
 import com.chattrix.api.services.message.MessageService;
 import com.chattrix.api.services.message.PinnedMessageService;
+import com.chattrix.api.services.message.ScheduledMessageService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -30,6 +32,8 @@ public class MessageResource {
     private MessageForwardService messageForwardService;
     @Inject
     private PinnedMessageService pinnedMessageService;
+    @Inject
+    private ScheduledMessageService scheduledMessageService;
     @Inject
     private UserContext userContext;
 
@@ -128,5 +132,16 @@ public class MessageResource {
             @PathParam("messageId") Long messageId) {
         pinnedMessageService.unpinMessage(userContext.getCurrentUserId(), conversationId, messageId);
         return Response.ok(ApiResponse.success(null, "Message unpinned successfully")).build();
+    }
+
+    @POST
+    @Path("/schedule")
+    public Response scheduleMessage(
+            @PathParam("conversationId") Long conversationId,
+            @Valid ScheduleMessageRequest request) {
+        var response = scheduledMessageService.scheduleMessage(
+                userContext.getCurrentUserId(), conversationId, request);
+        return Response.status(Response.Status.CREATED)
+                .entity(ApiResponse.success(response, "Scheduled message created successfully")).build();
     }
 }
