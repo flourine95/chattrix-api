@@ -27,19 +27,22 @@ public interface PollMapper {
     default PollResponse toResponseWithDetails(Poll poll, Long currentUserId, UserMapper userMapper) {
         PollResponse response = toResponse(poll);
         
-        // Calculate total voters
-        Long totalVoters = poll.getVotes().stream()
+        // Calculate total unique people who participated
+        Long totalUniqueVoters = poll.getVotes().stream()
             .map(v -> v.getUser().getId())
             .distinct()
             .count();
-        response.setTotalVoters(totalVoters.intValue());
+        response.setTotalVoters(totalUniqueVoters.intValue());
         
         // Map options with vote details
         List<PollOptionResponse> optionResponses = poll.getOptions().stream()
             .map(option -> {
                 List<PollVote> optionVotes = option.getVotes();
                 int voteCount = optionVotes.size();
-                double percentage = totalVoters > 0 ? (voteCount * 100.0 / totalVoters) : 0.0;
+                
+                // Percentage based on total unique voters (Voter-based)
+                // This shows: "What % of participants chose this option?"
+                double percentage = totalUniqueVoters > 0 ? (voteCount * 100.0 / totalUniqueVoters) : 0.0;
                 
                 List<UserResponse> voters = optionVotes.stream()
                     .map(vote -> userMapper.toResponse(vote.getUser()))

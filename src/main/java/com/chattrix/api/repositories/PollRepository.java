@@ -60,6 +60,14 @@ public class PollRepository {
     }
 
     /**
+     * Force refresh poll from database
+     */
+    public void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    /**
      * Find polls with cursor-based pagination
      */
     public List<Poll> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {

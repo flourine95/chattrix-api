@@ -157,6 +157,7 @@ public class PollService {
         }
 
         // Refresh poll to get updated votes
+        pollRepository.flushAndClear(); // Ensure votes are deleted/inserted before reloading
         poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
 
@@ -187,6 +188,7 @@ public class PollService {
         pollVoteRepository.deleteByPollIdAndUserId(pollId, userId);
 
         // Refresh poll
+        pollRepository.flushAndClear();
         poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
 

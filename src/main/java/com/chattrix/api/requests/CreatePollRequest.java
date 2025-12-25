@@ -3,7 +3,7 @@ package com.chattrix.api.requests;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Getter
@@ -23,5 +23,5 @@ public class CreatePollRequest {
     @NotNull(message = "allowMultipleVotes is required")
     private Boolean allowMultipleVotes;
 
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
 }

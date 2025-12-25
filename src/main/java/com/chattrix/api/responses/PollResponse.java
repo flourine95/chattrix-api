@@ -2,7 +2,7 @@ package com.chattrix.api.responses;
 
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Getter
@@ -16,11 +16,11 @@ public class PollResponse {
     private Long conversationId;
     private UserResponse creator;
     private Boolean allowMultipleVotes;
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
     private Boolean closed;
     private Boolean expired;
     private Boolean active;
-    private LocalDateTime createdAt;
+    private Instant createdAt;
     private Integer totalVoters;
     private List<PollOptionResponse> options;
     private List<Long> currentUserVotedOptionIds;

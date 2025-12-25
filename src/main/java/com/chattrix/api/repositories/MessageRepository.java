@@ -23,6 +23,7 @@ public class MessageRepository {
 
     @Transactional
     public void delete(Message message) {
+        // Hibernate @SQLDelete will handle this as an UPDATE
         em.remove(em.contains(message) ? message : em.merge(message));
     }
 
@@ -265,22 +266,26 @@ public class MessageRepository {
     }
 
     /**
-     * Delete messages that reference a specific poll
+     * Soft delete messages that reference a specific poll
      */
     @Transactional
     public int deleteByPollId(Long pollId) {
-        return em.createQuery("DELETE FROM Message m WHERE m.poll.id = :pollId")
+        // Using UPDATE instead of DELETE for soft delete
+        return em.createQuery("UPDATE Message m SET m.deleted = true, m.deletedAt = :now WHERE m.poll.id = :pollId AND m.deleted = false")
                 .setParameter("pollId", pollId)
+                .setParameter("now", Instant.now())
                 .executeUpdate();
     }
 
     /**
-     * Delete messages that reference a specific event
+     * Soft delete messages that reference a specific event
      */
     @Transactional
     public int deleteByEventId(Long eventId) {
-        return em.createQuery("DELETE FROM Message m WHERE m.event.id = :eventId")
+        // Using UPDATE instead of DELETE for soft delete
+        return em.createQuery("UPDATE Message m SET m.deleted = true, m.deletedAt = :now WHERE m.event.id = :eventId AND m.deleted = false")
                 .setParameter("eventId", eventId)
+                .setParameter("now", Instant.now())
                 .executeUpdate();
     }
 

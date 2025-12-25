@@ -15,7 +15,9 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Path("/v1/conversations/{conversationId}/invite-links")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -59,7 +61,7 @@ public class ConversationInviteLinkResource {
             @QueryParam("cursor") Long cursor,
             @QueryParam("limit") @DefaultValue("20") int limit,
             @QueryParam("includeRevoked") @DefaultValue("false") boolean includeRevoked) {
-        
+
         Long userId = userContext.getCurrentUserId();
         CursorPaginatedResponse<InviteLinkResponse> result = inviteLinkService.getInviteLinks(
                 userId, conversationId, cursor, limit, includeRevoked);
@@ -120,15 +122,18 @@ public class ConversationInviteLinkResource {
 
             // Determine API URL: query param > env variable > default localhost
             String baseUrl = apiUrl;
+            System.out.println("baseUrl:" + appConfig.get("app.base.url"));
             if (baseUrl == null || baseUrl.isEmpty()) {
-                baseUrl = appConfig.get("api.base.url");
+                baseUrl = appConfig.get("app.base.url");
                 if (baseUrl == null || baseUrl.isEmpty()) {
                     baseUrl = "http://localhost:8080";
                 }
             }
+            System.out.println("baseUrl2:" + baseUrl);
+
 
             // Generate QR code
-            String inviteUrl = baseUrl + "/v1/invite-links/" + inviteLink.getToken();
+            String inviteUrl = baseUrl + "/join/" + inviteLink.getToken();
             byte[] qrCode = qrCodeService.generateQRCode(inviteUrl, size, size);
 
             return Response.ok(qrCode)

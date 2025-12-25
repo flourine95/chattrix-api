@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "poll_votes", uniqueConstraints = {
@@ -36,10 +36,10 @@ public class PollVote {
     private User user;
 
     @Column(name = "voted_at", nullable = false)
-    private LocalDateTime votedAt;
+    private Instant votedAt;
 
     @PrePersist
     protected void onCreate() {
-        votedAt = LocalDateTime.now();
+        votedAt = Instant.now();
     }
 }
