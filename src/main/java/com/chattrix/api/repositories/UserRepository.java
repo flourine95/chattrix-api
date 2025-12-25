@@ -164,6 +164,47 @@ public class UserRepository {
                 .getResultList();
     }
 
+    /**
+     * Search users with cursor-based pagination.
+     * Uses user ID as cursor for efficient pagination.
+     */
+    public List<User> searchUsersWithCursor(String query, Long excludeUserId, Long cursor, int limit) {
+        String searchPattern = "%" + query.toLowerCase() + "%";
+        
+        StringBuilder jpql = new StringBuilder(
+                "SELECT u FROM User u " +
+                "WHERE u.id != :excludeUserId " +
+                "AND (LOWER(u.username) LIKE :query " +
+                "OR LOWER(u.fullName) LIKE :query " +
+                "OR LOWER(u.email) LIKE :query) ");
+        
+        if (cursor != null) {
+            jpql.append("AND u.id < :cursor ");
+        }
+        
+        jpql.append("ORDER BY " +
+                "CASE " +
+                "  WHEN LOWER(u.username) = :exactQuery THEN 1 " +
+                "  WHEN LOWER(u.fullName) = :exactQuery THEN 2 " +
+                "  WHEN LOWER(u.username) LIKE :startQuery THEN 3 " +
+                "  WHEN LOWER(u.fullName) LIKE :startQuery THEN 4 " +
+                "  ELSE 5 " +
+                "END, " +
+                "u.id DESC");
+        
+        var query_obj = em.createQuery(jpql.toString(), User.class)
+                .setParameter("excludeUserId", excludeUserId)
+                .setParameter("query", searchPattern)
+                .setParameter("exactQuery", query.toLowerCase())
+                .setParameter("startQuery", query.toLowerCase() + "%");
+        
+        if (cursor != null) {
+            query_obj.setParameter("cursor", cursor);
+        }
+        
+        return query_obj.setMaxResults(limit + 1).getResultList();
+    }
+
     public long countSearchUsers(String query, Long excludeUserId) {
         String searchPattern = "%" + query.toLowerCase() + "%";
         return em.createQuery(

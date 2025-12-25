@@ -33,18 +33,18 @@ public class Poll {
     @JsonIgnore
     private User creator;
 
-    @Column(nullable = false)
+    @Column(name = "allow_multiple_votes", nullable = false)
     @Builder.Default
     private Boolean allowMultipleVotes = false;
 
-    @Column
+    @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
-    @Column(nullable = false)
+    @Column(name = "closed", nullable = false)
     @Builder.Default
-    private Boolean isClosed = false;
+    private Boolean closed = false;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -66,6 +66,6 @@ public class Poll {
     }
 
     public boolean isActive() {
-        return !isClosed && !isExpired();
+        return !closed && !isExpired();
     }
 }

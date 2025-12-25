@@ -12,4 +12,12 @@ public class MessageDetailResponse {
     private String content;
     private String type;
     private Instant sentAt;
+    
+    // Poll reference
+    private Long pollId;
+    private PollResponse poll;
+
+    // Event reference
+    private Long eventId;
+    private EventResponse event;
 }

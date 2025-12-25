@@ -11,10 +11,14 @@ import java.time.Instant;
 @AllArgsConstructor
 public class ConversationSettingsResponse {
     private Long conversationId;
-    private Boolean isMuted;
+    private Boolean muted;
     private Instant mutedUntil;
-    private Boolean isBlocked;
+    private Boolean blocked;
     private Boolean notificationsEnabled;
     private String customNickname;
     private String theme;
+    private Boolean pinned;
+    private Integer pinOrder;
+    private Boolean archived;
+    private Boolean hidden;
 }

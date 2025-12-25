@@ -12,6 +12,6 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MuteConversationResponse {
-    private Boolean isMuted;
+    private Boolean muted;
     private Instant mutedUntil;
 }

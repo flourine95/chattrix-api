@@ -57,6 +57,47 @@ public class CallHistoryRepository {
         return query.getResultList();
     }
 
+    /**
+     * Find call history by user ID with cursor-based pagination.
+     * Uses timestamp as cursor for efficient pagination.
+     */
+    public List<CallHistory> findByUserIdWithCursor(String userId, String cursor, int limit, CallType callType, CallHistoryStatus status) {
+        StringBuilder jpql = new StringBuilder("SELECT ch FROM CallHistory ch WHERE ch.userId = :userId");
+
+        if (cursor != null) {
+            jpql.append(" AND ch.timestamp < (SELECT ch2.timestamp FROM CallHistory ch2 WHERE ch2.id = :cursor)");
+        }
+
+        if (callType != null) {
+            jpql.append(" AND ch.callType = :callType");
+        }
+
+        if (status != null) {
+            jpql.append(" AND ch.status = :status");
+        }
+
+        jpql.append(" ORDER BY ch.timestamp DESC, ch.id DESC");
+
+        TypedQuery<CallHistory> query = em.createQuery(jpql.toString(), CallHistory.class);
+        query.setParameter("userId", userId);
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        if (callType != null) {
+            query.setParameter("callType", callType);
+        }
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+
+        query.setMaxResults(limit + 1);
+
+        return query.getResultList();
+    }
+
     public long countByUserId(String userId, CallType callType, CallHistoryStatus status) {
         StringBuilder jpql = new StringBuilder("SELECT COUNT(ch) FROM CallHistory ch WHERE ch.userId = :userId");
 

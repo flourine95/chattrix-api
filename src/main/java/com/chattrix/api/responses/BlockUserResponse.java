@@ -12,6 +12,6 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BlockUserResponse {
-    private Boolean isBlocked;
+    private Boolean blocked;
     private Instant blockedAt;
 }

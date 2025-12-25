@@ -14,7 +14,6 @@ import jakarta.ws.rs.core.Response;
 
 @Path("/v1/conversations/{conversationId}/members")
 @Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 @Secured
 public class ConversationMemberResource {
 
@@ -24,12 +23,17 @@ public class ConversationMemberResource {
     private UserContext userContext;
 
     @GET
-    public Response getConversationMembers(@PathParam("conversationId") Long conversationId) {
-        var members = conversationService.getConversationMembers(userContext.getCurrentUserId(), conversationId);
-        return Response.ok(ApiResponse.success(members, "Members retrieved successfully")).build();
+    public Response getConversationMembers(
+            @PathParam("conversationId") Long conversationId,
+            @QueryParam("cursor") Long cursor,
+            @QueryParam("limit") @DefaultValue("20") int limit) {
+        var result = conversationService.getConversationMembersWithCursor(
+                userContext.getCurrentUserId(), conversationId, cursor, limit);
+        return Response.ok(ApiResponse.success(result, "Members retrieved successfully")).build();
     }
 
     @POST
+    @Consumes(MediaType.APPLICATION_JSON)
     public Response addMembers(
             @PathParam("conversationId") Long conversationId,
             @Valid AddMembersRequest request) {
@@ -55,6 +59,7 @@ public class ConversationMemberResource {
 
     @PUT
     @Path("/{userId}/role")
+    @Consumes(MediaType.APPLICATION_JSON)
     public Response updateMemberRole(
             @PathParam("conversationId") Long conversationId,
             @PathParam("userId") Long userId,
@@ -64,4 +69,7 @@ public class ConversationMemberResource {
         );
         return Response.ok(ApiResponse.success(participant, "Member role updated successfully")).build();
     }
+
+    // Block/Unblock moved to ConversationSettingsResource
+    // Use /v1/conversations/{conversationId}/settings/block instead
 }

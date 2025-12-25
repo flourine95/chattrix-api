@@ -8,5 +8,6 @@ import lombok.Setter;
 public class UpdateConversationRequest {
     private String name;
     private String avatarUrl;
+    private String description;
 }
 

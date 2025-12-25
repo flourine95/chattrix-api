@@ -44,10 +44,42 @@ public class ConversationParticipant {
 
     @Column(name = "last_read_at")
     private Instant lastReadAt;
+    
+    // Mute fields
+    @Builder.Default
+    @Column(name = "muted", nullable = false)
+    private boolean muted = false;
+    
+    @Column(name = "muted_until")
+    private Instant mutedUntil;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "muted_by")
+    private User mutedBy;
+    
+    @Column(name = "muted_at")
+    private Instant mutedAt;
 
     @PrePersist
     protected void onPrePersist() {
         this.joinedAt = Instant.now();
+    }
+    
+    /**
+     * Check if member is currently muted
+     */
+    public boolean isCurrentlyMuted() {
+        if (!muted) {
+            return false;
+        }
+        
+        // If mutedUntil is null, it's permanent mute
+        if (mutedUntil == null) {
+            return true;
+        }
+        
+        // Check if mute has expired
+        return Instant.now().isBefore(mutedUntil);
     }
 
     public enum Role {

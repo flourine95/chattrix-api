@@ -8,6 +8,7 @@ import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.ScheduleMessageRequest;
 import com.chattrix.api.requests.UpdateScheduledMessageRequest;
 import com.chattrix.api.responses.BulkCancelResponse;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
@@ -117,47 +118,37 @@ public class ScheduledMessageService {
         return messageMapper.toResponse(message);
     }
 
-    public Map<String, Object> getScheduledMessages(Long userId, Long conversationId, String status, int page, int size) {
-        List<Message> messages;
-        long totalElements;
+    public CursorPaginatedResponse<MessageResponse> getScheduledMessages(Long userId, Long conversationId, String status, Long cursor, int limit) {
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
 
-        if (conversationId != null && status != null) {
-            Message.ScheduledStatus scheduledStatus = parseStatus(status);
-            messages = messageRepository.findScheduledMessagesBySenderConversationAndStatus(userId, conversationId, scheduledStatus, page, size);
-            totalElements = messageRepository.countScheduledMessagesBySenderConversationAndStatus(userId, conversationId, scheduledStatus);
-        } else if (conversationId != null) {
-            messages = messageRepository.findScheduledMessagesBySenderAndConversation(userId, conversationId, page, size);
-            totalElements = messageRepository.countScheduledMessagesBySenderAndConversation(userId, conversationId);
-        } else if (status != null) {
-            Message.ScheduledStatus scheduledStatus = parseStatus(status);
-            messages = messageRepository.findScheduledMessagesBySenderAndStatus(userId, scheduledStatus, page, size);
-            totalElements = messageRepository.countScheduledMessagesBySenderAndStatus(userId, scheduledStatus);
-        } else {
-            messages = messageRepository.findScheduledMessagesBySender(userId, page, size);
-            totalElements = messageRepository.countScheduledMessagesBySender(userId);
+        Message.ScheduledStatus scheduledStatus = status != null ? parseStatus(status) : null;
+
+        List<Message> messages = messageRepository.findScheduledMessagesByCursor(
+                userId, conversationId, scheduledStatus, cursor, limit);
+
+        boolean hasMore = messages.size() > limit;
+        if (hasMore) {
+            messages = messages.subList(0, limit);
         }
 
         List<MessageResponse> responses = messages.stream()
                 .map(messageMapper::toResponse)
                 .toList();
 
-        long totalPages = (totalElements + size - 1) / size;
-        boolean hasNextPage = page < totalPages - 1;
-        boolean hasPrevPage = page > 0;
+        Long nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("data", responses);
-        result.put("page", page);
-        result.put("size", size);
-        result.put("total", totalElements);
-        result.put("totalPages", totalPages);
-        result.put("hasNextPage", hasNextPage);
-        result.put("hasPrevPage", hasPrevPage);
-
-        return result;
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
-    public MessageResponse getScheduledMessage(Long userId, Long messageId) {
+    public MessageResponse getScheduledMessage(Long userId, Long conversationId, Long messageId) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND"));
 
@@ -167,13 +158,17 @@ public class ScheduledMessageService {
 
         if (!message.getSender().getId().equals(userId)) {
             throw BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND");
+        }
+
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Scheduled message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
         return messageMapper.toResponse(message);
     }
 
     @Transactional
-    public MessageResponse updateScheduledMessage(Long userId, Long messageId, UpdateScheduledMessageRequest request) {
+    public MessageResponse updateScheduledMessage(Long userId, Long conversationId, Long messageId, UpdateScheduledMessageRequest request) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND"));
 
@@ -185,8 +180,12 @@ public class ScheduledMessageService {
             throw BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND");
         }
 
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Scheduled message not found in this conversation", "RESOURCE_NOT_FOUND");
+        }
+
         if (message.getScheduledStatus() != Message.ScheduledStatus.PENDING) {
-            throw BusinessException.badRequest("Cannot edit scheduled message: Message has already been " + 
+            throw BusinessException.badRequest("Cannot edit scheduled message: Message has already been " +
                     message.getScheduledStatus().name().toLowerCase(), "BAD_REQUEST");
         }
 
@@ -221,7 +220,7 @@ public class ScheduledMessageService {
     }
 
     @Transactional
-    public void cancelScheduledMessage(Long userId, Long messageId) {
+    public void cancelScheduledMessage(Long userId, Long conversationId, Long messageId) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND"));
 
@@ -233,6 +232,10 @@ public class ScheduledMessageService {
             throw BusinessException.notFound("Scheduled message not found", "RESOURCE_NOT_FOUND");
         }
 
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Scheduled message not found in this conversation", "RESOURCE_NOT_FOUND");
+        }
+
         if (message.getScheduledStatus() == Message.ScheduledStatus.SENT) {
             throw BusinessException.badRequest("Cannot cancel scheduled message: Message has already been sent", "BAD_REQUEST");
         }
@@ -242,7 +245,7 @@ public class ScheduledMessageService {
     }
 
     @Transactional
-    public BulkCancelResponse bulkCancelScheduledMessages(Long userId, List<Long> messageIds) {
+    public BulkCancelResponse bulkCancelScheduledMessages(Long userId, Long conversationId, List<Long> messageIds) {
         int cancelledCount = 0;
         List<Long> failedIds = new ArrayList<>();
 
@@ -263,6 +266,11 @@ public class ScheduledMessageService {
                 }
 
                 if (!message.getSender().getId().equals(userId)) {
+                    failedIds.add(messageId);
+                    continue;
+                }
+
+                if (!message.getConversation().getId().equals(conversationId)) {
                     failedIds.add(messageId);
                     continue;
                 }

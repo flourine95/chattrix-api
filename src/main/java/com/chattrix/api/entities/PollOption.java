@@ -24,10 +24,10 @@ public class PollOption {
     @JsonIgnore
     private Poll poll;
 
-    @Column(nullable = false, length = 200)
+    @Column(name = "option_text", nullable = false, length = 200)
     private String optionText;
 
-    @Column(nullable = false)
+    @Column(name = "option_order", nullable = false)
     private Integer optionOrder;
 
     @OneToMany(mappedBy = "pollOption", cascade = CascadeType.ALL, orphanRemoval = true)

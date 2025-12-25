@@ -6,14 +6,11 @@ import com.chattrix.api.requests.UpdateConversationRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.conversation.ConversationService;
-import com.chattrix.api.services.message.MessageService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
-import java.util.Map;
 
 @Path("/v1/conversations")
 @Produces(MediaType.APPLICATION_JSON)
@@ -23,8 +20,6 @@ public class ConversationResource {
 
     @Inject
     private ConversationService conversationService;
-    @Inject
-    private MessageService messageService;
     @Inject
     private UserContext userContext;
 
@@ -38,9 +33,9 @@ public class ConversationResource {
     @GET
     public Response getConversations(
             @QueryParam("filter") @DefaultValue("all") String filter,
-            @QueryParam("page") @DefaultValue("0") int page,
-            @QueryParam("size") @DefaultValue("20") int size) {
-        var result = conversationService.getConversations(userContext.getCurrentUserId(), filter, page, size);
+            @QueryParam("cursor") Long cursor,
+            @QueryParam("limit") @DefaultValue("20") int limit) {
+        var result = conversationService.getConversationsWithCursor(userContext.getCurrentUserId(), filter, cursor, limit);
         return Response.ok(ApiResponse.success(result, "Conversations retrieved successfully")).build();
     }
 
@@ -65,36 +60,5 @@ public class ConversationResource {
     public Response deleteConversation(@PathParam("conversationId") Long conversationId) {
         conversationService.deleteConversation(userContext.getCurrentUserId(), conversationId);
         return Response.ok(ApiResponse.success(null, "Conversation deleted successfully")).build();
-    }
-
-    @GET
-    @Path("/{conversationId}/messages/search")
-    public Response searchMessages(
-            @PathParam("conversationId") Long conversationId,
-            @QueryParam("query") String query,
-            @QueryParam("type") String type,
-            @QueryParam("senderId") Long senderId,
-            @QueryParam("page") @DefaultValue("0") int page,
-            @QueryParam("size") @DefaultValue("20") int size,
-            @QueryParam("sort") @DefaultValue("DESC") String sort) {
-
-        Map<String, Object> result = messageService.searchMessages(
-                userContext.getCurrentUserId(), conversationId, query, type, senderId, page, size, sort
-        );
-        return Response.ok(ApiResponse.success(result, "Messages searched successfully")).build();
-    }
-
-    @GET
-    @Path("/{conversationId}/media")
-    public Response getMediaFiles(
-            @PathParam("conversationId") Long conversationId,
-            @QueryParam("type") String type,
-            @QueryParam("page") @DefaultValue("0") int page,
-            @QueryParam("size") @DefaultValue("20") int size) {
-
-        Map<String, Object> result = messageService.getMediaFiles(
-                userContext.getCurrentUserId(), conversationId, type, page, size
-        );
-        return Response.ok(ApiResponse.success(result, "Media files retrieved successfully")).build();
     }
 }

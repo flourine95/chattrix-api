@@ -6,6 +6,7 @@ import com.chattrix.api.mappers.CallHistoryMapper;
 import com.chattrix.api.repositories.CallHistoryRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.CallHistoryResponse;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.PaginatedResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -95,6 +96,70 @@ public class CallHistoryService {
 
         // Return paginated response with metadata
         return new PaginatedResponse<>(responses, page, size, total);
+    }
+
+    /**
+     * Retrieves call history for a user with cursor-based pagination and optional filtering.
+     * Uses timestamp-based cursor for efficient pagination.
+     * Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5
+     *
+     * @param userId   the ID of the user requesting history
+     * @param cursor   the cursor (call history ID) for pagination (null for first page)
+     * @param limit    the number of items per page (max 100)
+     * @param callType optional filter by call type (AUDIO, VIDEO, or null for all)
+     * @param status   optional filter by status (COMPLETED, MISSED, REJECTED, FAILED, or null for all)
+     * @return cursor-based paginated response with call history entries
+     * @throws BadRequestException if pagination parameters are invalid
+     */
+    public CursorPaginatedResponse<CallHistoryResponse> getCallHistoryWithCursor(
+            String userId,
+            String cursor,
+            int limit,
+            CallType callType,
+            CallHistoryStatus status) {
+
+        LOGGER.log(Level.INFO, "Retrieving call history for user {0}, cursor {1}, limit {2}, type {3}, status {4}",
+                new Object[]{userId, cursor, limit, callType, status});
+
+        // Validate limit
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+
+        if (limit > MAX_PAGE_SIZE) {
+            limit = MAX_PAGE_SIZE;
+        }
+
+        // Query call history with cursor and filters
+        List<CallHistory> historyEntries = callHistoryRepository.findByUserIdWithCursor(
+                userId,
+                cursor,
+                limit,
+                callType,
+                status
+        );
+
+        // Check if there are more items
+        boolean hasMore = historyEntries.size() > limit;
+        if (hasMore) {
+            historyEntries = historyEntries.subList(0, limit);
+        }
+
+        // Map to response DTOs
+        List<CallHistoryResponse> responses = historyEntries.stream()
+                .map(callHistoryMapper::toResponse)
+                .collect(Collectors.toList());
+
+        // Calculate next cursor
+        String nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
+
+        LOGGER.log(Level.INFO, "Retrieved {0} call history entries, hasMore: {1}",
+                new Object[]{responses.size(), hasMore});
+
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
     /**

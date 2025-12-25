@@ -104,6 +104,11 @@ public class Message {
     @JoinColumn(name = "poll_id")
     private Poll poll;
 
+    // Event reference (for EVENT message type)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
+
     // Reactions stored as JSONB: {"👍": [1, 2, 3], "❤️": [4, 5]}
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "reactions", columnDefinition = "jsonb")
@@ -152,6 +157,17 @@ public class Message {
     @Column(name = "forward_count")
     private Integer forwardCount = 0;
 
+    // Pinned message fields
+    @Column(name = "pinned", nullable = false)
+    private boolean pinned = false;
+
+    @Column(name = "pinned_at")
+    private Instant pinnedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pinned_by")
+    private User pinnedBy;
+
     // Scheduled message fields
     @Column(name = "scheduled", nullable = false)
     private boolean scheduled = false;
@@ -184,6 +200,7 @@ public class Message {
     public enum MessageType {
         TEXT,
         IMAGE,
+        LINK,
         VIDEO,
         VOICE,
         AUDIO,
@@ -192,7 +209,9 @@ public class Message {
         STICKER,
         EMOJI,
         SYSTEM,
-        POLL
+        POLL,
+        EVENT,
+        ANNOUNCEMENT  // Admin-only important messages
     }
 
     public enum ScheduledStatus {

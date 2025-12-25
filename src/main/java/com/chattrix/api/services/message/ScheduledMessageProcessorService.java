@@ -22,7 +22,6 @@ public class ScheduledMessageProcessorService {
     @Schedule(second = "*/30", minute = "*", hour = "*", persistent = false)
     public void processScheduledMessages() {
         try {
-            LOGGER.info("Processing scheduled messages...");
             scheduledMessageService.processScheduledMessages();
             LOGGER.info("Scheduled messages processed successfully");
         } catch (Exception e) {

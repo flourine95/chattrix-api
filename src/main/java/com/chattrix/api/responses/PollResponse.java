@@ -17,9 +17,9 @@ public class PollResponse {
     private UserResponse creator;
     private Boolean allowMultipleVotes;
     private LocalDateTime expiresAt;
-    private Boolean isClosed;
-    private Boolean isExpired;
-    private Boolean isActive;
+    private Boolean closed;
+    private Boolean expired;
+    private Boolean active;
     private LocalDateTime createdAt;
     private Integer totalVoters;
     private List<PollOptionResponse> options;

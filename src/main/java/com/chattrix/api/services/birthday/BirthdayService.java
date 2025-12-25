@@ -36,45 +36,103 @@ public class BirthdayService {
     MessageService messageService;
 
     /**
-     * Get users whose birthday is today
+     * Get users whose birthday is today (filtered by current user's contacts and conversations)
      */
-    public List<BirthdayUserResponse> getUsersWithBirthdayToday() {
-        List<User> users = userRepository.findUsersWithBirthdayToday();
-        return users.stream()
+    @Transactional
+    public List<BirthdayUserResponse> getUsersWithBirthdayToday(Long currentUserId) {
+        List<User> allUsers = userRepository.findUsersWithBirthdayToday();
+        List<User> relevantUsers = filterRelevantUsers(allUsers, currentUserId);
+
+        return relevantUsers.stream()
                 .map(user -> toBirthdayUserResponse(user, 0))
                 .collect(Collectors.toList());
     }
 
     /**
-     * Get users whose birthday is within the next N days
+     * Get users whose birthday is within the next N days (filtered by current user's contacts and conversations)
      */
-    public List<BirthdayUserResponse> getUsersWithUpcomingBirthdays(int daysAhead) {
+    @Transactional
+    public List<BirthdayUserResponse> getUsersWithUpcomingBirthdays(int daysAhead, Long currentUserId) {
         List<User> allUsers = userRepository.findUsersWithUpcomingBirthdays(daysAhead);
+        List<User> relevantUsers = filterRelevantUsers(allUsers, currentUserId);
         LocalDate today = LocalDate.now();
-        
+
         List<BirthdayUserResponse> upcomingBirthdays = new ArrayList<>();
-        
-        for (User user : allUsers) {
+
+        for (User user : relevantUsers) {
             if (user.getDateOfBirth() == null) continue;
-            
+
             LocalDate birthDate = user.getDateOfBirth().atZone(ZoneId.systemDefault()).toLocalDate();
             LocalDate nextBirthday = getNextBirthday(birthDate, today);
-            
+
             long daysUntil = ChronoUnit.DAYS.between(today, nextBirthday);
-            
+
             if (daysUntil >= 0 && daysUntil <= daysAhead) {
                 upcomingBirthdays.add(toBirthdayUserResponse(user, (int) daysUntil));
             }
         }
-        
-        // Sort by days until birthday
+
         upcomingBirthdays.sort((a, b) -> {
             int daysA = getDaysUntilBirthday(a.getBirthdayMessage());
             int daysB = getDaysUntilBirthday(b.getBirthdayMessage());
             return Integer.compare(daysA, daysB);
         });
-        
+
         return upcomingBirthdays;
+    }
+
+    /**
+     * Get birthdays in a specific conversation
+     */
+    @Transactional
+    public List<BirthdayUserResponse> getBirthdaysInConversation(Long conversationId, int daysAhead) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
+
+        List<User> members = conversation.getParticipants().stream()
+                .map(ConversationParticipant::getUser)
+                .filter(user -> user.getDateOfBirth() != null)
+                .collect(Collectors.toList());
+
+        LocalDate today = LocalDate.now();
+        List<BirthdayUserResponse> birthdays = new ArrayList<>();
+
+        for (User user : members) {
+            LocalDate birthDate = user.getDateOfBirth().atZone(ZoneId.systemDefault()).toLocalDate();
+            LocalDate nextBirthday = getNextBirthday(birthDate, today);
+            long daysUntil = ChronoUnit.DAYS.between(today, nextBirthday);
+
+            if (daysUntil >= 0 && daysUntil <= daysAhead) {
+                birthdays.add(toBirthdayUserResponse(user, (int) daysUntil));
+            }
+        }
+
+        birthdays.sort((a, b) -> {
+            int daysA = getDaysUntilBirthday(a.getBirthdayMessage());
+            int daysB = getDaysUntilBirthday(b.getBirthdayMessage());
+            return Integer.compare(daysA, daysB);
+        });
+
+        return birthdays;
+    }
+
+    /**
+     * Filter users to only include those relevant to current user (contacts + conversation members)
+     */
+    private List<User> filterRelevantUsers(List<User> users, Long currentUserId) {
+        // Get all conversations current user is in
+        List<Conversation> userConversations = conversationRepository.findByUserId(currentUserId);
+
+        // Get all user IDs from those conversations
+        java.util.Set<Long> relevantUserIds = userConversations.stream()
+                .flatMap(conv -> conv.getParticipants().stream())
+                .map(p -> p.getUser().getId())
+                .collect(Collectors.toSet());
+
+        // Filter users
+        return users.stream()
+                .filter(user -> relevantUserIds.contains(user.getId()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -214,11 +272,21 @@ public class BirthdayService {
 
     private Integer calculateAge(Instant dateOfBirth) {
         if (dateOfBirth == null) return null;
-        
+
         LocalDate birthDate = dateOfBirth.atZone(ZoneId.systemDefault()).toLocalDate();
         LocalDate today = LocalDate.now();
-        
-        return Period.between(birthDate, today).getYears();
+
+        // Calculate age
+        int age = Period.between(birthDate, today).getYears();
+
+        // If birth date is in the future or today (age would be 0 or negative),
+        // this likely means only month/day are significant (test data scenario)
+        // Return 0 to indicate current year birth or invalid data
+        if (age < 0) {
+            return 0;
+        }
+
+        return age;
     }
 
     private String getBirthdayMessage(int daysUntil) {

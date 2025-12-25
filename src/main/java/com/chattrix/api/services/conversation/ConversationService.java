@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @ApplicationScoped
@@ -37,6 +38,12 @@ public class ConversationService {
     private ConversationSettingsRepository settingsRepository;
     @Inject
     private MessageReadReceiptRepository readReceiptRepository;
+    @Inject
+    private com.chattrix.api.services.message.SystemMessageService systemMessageService;
+    @Inject
+    private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
+    @Inject
+    private ConversationSettingsService conversationSettingsService;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -168,6 +175,66 @@ public class ConversationService {
         return result;
     }
 
+    /**
+     * Get conversations with cursor-based pagination and filtering.
+     */
+    public CursorPaginatedResponse<ConversationResponse> getConversationsWithCursor(Long userId, String filter, Long cursor, int limit) {
+        // Validate limit
+        if (limit < 1) {
+            limit = 1;
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+
+        // Fetch conversations with cursor and filter
+        List<Conversation> conversations = conversationRepository.findByUserIdWithCursorAndFilter(userId, cursor, limit, filter);
+
+        // Check if there are more items
+        boolean hasMore = conversations.size() > limit;
+        if (hasMore) {
+            conversations = conversations.subList(0, limit);
+        }
+
+        // Map to response and populate unreadCount for current user
+        List<ConversationResponse> responses = conversationMapper.toResponseList(conversations);
+        for (int i = 0; i < conversations.size(); i++) {
+            Conversation conv = conversations.get(i);
+            ConversationResponse response = responses.get(i);
+
+            // Find current user's participant to get unreadCount
+            conv.getParticipants().stream()
+                    .filter(p -> p.getUser().getId().equals(userId))
+                    .findFirst()
+                    .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
+
+            // Populate readBy for lastMessage if exists
+            if (response.getLastMessage() != null && conv.getLastMessage() != null) {
+                var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
+                response.getLastMessage().setReadCount((long) receipts.size());
+
+                List<ConversationResponse.ReadReceiptInfo> readByList = receipts.stream()
+                        .map(receipt -> ConversationResponse.ReadReceiptInfo.builder()
+                                .userId(receipt.getUser().getId())
+                                .username(receipt.getUser().getUsername())
+                                .fullName(receipt.getUser().getFullName())
+                                .avatarUrl(receipt.getUser().getAvatarUrl())
+                                .readAt(receipt.getReadAt())
+                                .build())
+                        .toList();
+                response.getLastMessage().setReadBy(readByList);
+            }
+        }
+
+        // Calculate next cursor
+        Long nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
+
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+    }
+
     public ConversationResponse getConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
@@ -186,6 +253,34 @@ public class ConversationService {
         return userMapper.toConversationMemberResponseList(users);
     }
 
+    public CursorPaginatedResponse<ConversationMemberResponse> getConversationMembersWithCursor(Long userId, Long conversationId, Long cursor, int limit) {
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw BusinessException.forbidden("You are not a participant of this conversation");
+        }
+
+        if (limit < 1) limit = 1;
+        if (limit > 100) limit = 100;
+
+        List<ConversationParticipant> participants = participantRepository.findByConversationIdWithCursor(conversationId, cursor, limit);
+
+        boolean hasMore = participants.size() > limit;
+        if (hasMore) {
+            participants = participants.subList(0, limit);
+        }
+
+        List<User> users = participants.stream()
+                .map(ConversationParticipant::getUser)
+                .toList();
+        List<ConversationMemberResponse> responses = userMapper.toConversationMemberResponseList(users);
+
+        Long nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
+
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+    }
+
 
     @Transactional
     public ConversationResponse updateConversation(Long userId, Long conversationId, UpdateConversationRequest request) {
@@ -193,11 +288,42 @@ public class ConversationService {
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
+        
+        // Check permission
+        if (!groupPermissionsService.hasPermission(conversationId, userId, "edit_group_info")) {
+            throw BusinessException.forbidden("You don't have permission to edit group info");
+        }
 
-        if (request.getName() != null) conversation.setName(request.getName());
-        if (request.getAvatarUrl() != null) conversation.setAvatarUrl(request.getAvatarUrl());
+        String oldName = conversation.getName();
+        boolean nameChanged = false;
+        boolean avatarChanged = false;
+        boolean descriptionChanged = false;
+
+        if (request.getName() != null && !request.getName().equals(oldName)) {
+            conversation.setName(request.getName());
+            nameChanged = true;
+        }
+
+        if (request.getAvatarUrl() != null) {
+            conversation.setAvatarUrl(request.getAvatarUrl());
+            avatarChanged = true;
+        }
+
+        if (request.getDescription() != null) {
+            conversation.setDescription(request.getDescription());
+            descriptionChanged = true;
+        }
 
         conversationRepository.save(conversation);
+        
+        // Create system messages for changes
+        if (nameChanged) {
+            systemMessageService.createGroupNameChangedMessage(conversationId, userId, oldName, request.getName());
+        }
+        if (avatarChanged) {
+            systemMessageService.createGroupAvatarChangedMessage(conversationId, userId);
+        }
+        
         return conversationMapper.toResponse(conversation);
     }
 
@@ -230,7 +356,56 @@ public class ConversationService {
                 .findByConversationIdAndUserId(conversationId, userId)
                 .orElseThrow(() -> BusinessException.badRequest("You are not a member of this conversation", "BAD_REQUEST"));
 
-        participantRepository.delete(participant);
+        // Check total members
+        long totalMembers = participantRepository.countByConversationId(conversationId);
+
+        // If this is the last member, delete the conversation
+        if (totalMembers == 1) {
+            conversationRepository.delete(conversation);
+            return;
+        }
+
+        // Check if user is admin
+        boolean isAdmin = participant.getRole() == ConversationParticipant.Role.ADMIN;
+
+        if (isAdmin) {
+            // Count total admins
+            long totalAdmins = participantRepository.countAdminsByConversationId(conversationId);
+
+            // If this is the last admin, must transfer admin rights first
+            if (totalAdmins == 1) {
+                // Find oldest member to promote
+                Optional<ConversationParticipant> oldestMember = participantRepository.findOldestMemberByConversationId(conversationId);
+
+                if (oldestMember.isEmpty()) {
+                    throw BusinessException.badRequest(
+                            "You are the last admin. Please promote another member to admin before leaving.",
+                            "LAST_ADMIN"
+                    );
+                }
+
+                // Auto-promote oldest member
+                ConversationParticipant newAdmin = oldestMember.get();
+                newAdmin.setRole(ConversationParticipant.Role.ADMIN);
+                participantRepository.save(newAdmin);
+
+                // Create system message for auto-promotion
+                systemMessageService.createUserPromotedMessage(conversationId, newAdmin.getUser().getId(), userId);
+            }
+        }
+
+        // Now safe to leave
+        System.out.println("DEBUG: Deleting participant - userId: " + userId + ", conversationId: " + conversationId);
+
+        // Remove from conversation collection (for orphanRemoval)
+        conversation.getParticipants().remove(participant);
+        conversationRepository.save(conversation);
+
+        System.out.println("DEBUG: Participant deleted successfully");
+
+        // Create system message
+        systemMessageService.createUserLeftMessage(conversationId, userId);
+        System.out.println("DEBUG: System message created");
     }
 
     @Transactional
@@ -239,6 +414,11 @@ public class ConversationService {
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         validateGroupAdmin(conversationId, userId);
+        
+        // Check permission
+        if (!groupPermissionsService.hasPermission(conversationId, userId, "add_members")) {
+            throw BusinessException.forbidden("You don't have permission to add members");
+        }
 
         List<AddMembersResponse.AddedMember> addedMembers = new ArrayList<>();
 
@@ -262,6 +442,9 @@ public class ConversationService {
                     .role("MEMBER")
                     .joinedAt(newParticipant.getJoinedAt())
                     .build());
+            
+            // Create system message for each added member
+            systemMessageService.createUserAddedMessage(conversationId, newUserId, userId);
         }
 
         return AddMembersResponse.builder()
@@ -285,7 +468,24 @@ public class ConversationService {
                 .findByConversationIdAndUserId(conversationId, memberUserId)
                 .orElseThrow(() -> BusinessException.notFound("Member not found", "RESOURCE_NOT_FOUND"));
 
-        participantRepository.delete(participant);
+        System.out.println("DEBUG removeMember: Deleting participant - memberUserId: " + memberUserId + ", conversationId: " + conversationId);
+
+        // Remove from conversation collection (for orphanRemoval)
+        conversation.getParticipants().remove(participant);
+        conversationRepository.save(conversation);
+
+        System.out.println("DEBUG removeMember: Participant deleted successfully");
+
+        // Create system message for kicked member
+        try {
+            System.out.println("DEBUG removeMember: Creating system message...");
+            systemMessageService.createUserKickedMessage(conversationId, memberUserId, userId);
+            System.out.println("DEBUG removeMember: System message created successfully");
+        } catch (Exception e) {
+            System.out.println("DEBUG removeMember: ERROR creating system message: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @Transactional
@@ -299,8 +499,18 @@ public class ConversationService {
                 .findByConversationIdAndUserId(conversationId, memberUserId)
                 .orElseThrow(() -> BusinessException.notFound("Member not found", "RESOURCE_NOT_FOUND"));
 
-        participant.setRole(ConversationParticipant.Role.valueOf(request.getRole()));
+        ConversationParticipant.Role oldRole = participant.getRole();
+        ConversationParticipant.Role newRole = ConversationParticipant.Role.valueOf(request.getRole());
+        
+        participant.setRole(newRole);
         participantRepository.save(participant);
+        
+        // Create system message for role change
+        if (oldRole == ConversationParticipant.Role.MEMBER && newRole == ConversationParticipant.Role.ADMIN) {
+            systemMessageService.createUserPromotedMessage(conversationId, memberUserId, userId);
+        } else if (oldRole == ConversationParticipant.Role.ADMIN && newRole == ConversationParticipant.Role.MEMBER) {
+            systemMessageService.createUserDemotedMessage(conversationId, memberUserId, userId);
+        }
 
         return ConversationResponse.ParticipantResponse.builder()
                 .userId(participant.getUser().getId())
@@ -323,9 +533,9 @@ public class ConversationService {
 
         return ConversationSettingsResponse.builder()
                 .conversationId(conversationId)
-                .isMuted(settings.isMuted())
+                .muted(settings.isMuted())
                 .mutedUntil(settings.getMutedUntil())
-                .isBlocked(settings.isBlocked())
+                .blocked(settings.isBlocked())
                 .notificationsEnabled(settings.isNotificationsEnabled())
                 .customNickname(settings.getCustomNickname())
                 .theme(settings.getTheme())
@@ -351,16 +561,21 @@ public class ConversationService {
 
         return ConversationSettingsResponse.builder()
                 .conversationId(conversationId)
-                .isMuted(settings.isMuted())
+                .muted(settings.isMuted())
                 .mutedUntil(settings.getMutedUntil())
-                .isBlocked(settings.isBlocked())
+                .blocked(settings.isBlocked())
                 .notificationsEnabled(settings.isNotificationsEnabled())
                 .customNickname(settings.getCustomNickname())
                 .theme(settings.getTheme())
                 .build();
     }
 
+    /**
+     * @deprecated Use ConversationSettingsService.muteConversation() instead
+     * This method is kept for backward compatibility with duration support
+     */
     @Transactional
+    @Deprecated
     public MuteConversationResponse muteConversation(Long userId, Long conversationId, MuteConversationRequest request) {
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
@@ -384,49 +599,33 @@ public class ConversationService {
         settingsRepository.save(settings);
 
         return MuteConversationResponse.builder()
-                .isMuted(settings.isMuted())
+                .muted(settings.isMuted())
                 .mutedUntil(settings.getMutedUntil())
                 .build();
     }
 
+    /**
+     * @deprecated Use ConversationSettingsService.blockUser() instead
+     */
     @Transactional
+    @Deprecated
     public BlockUserResponse blockUser(Long userId, Long conversationId) {
-        validateDirectConversation(conversationId);
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
-        }
-
-        ConversationSettings settings = settingsRepository
-                .findByUserIdAndConversationId(userId, conversationId)
-                .orElseGet(() -> createDefaultSettings(userId, conversationId));
-
-        settings.setBlocked(true);
-        settings.setBlockedAt(Instant.now());
-        settingsRepository.save(settings);
-
+        ConversationSettingsResponse response = conversationSettingsService.blockUser(userId, conversationId);
         return BlockUserResponse.builder()
-                .isBlocked(true)
-                .blockedAt(settings.getBlockedAt())
+                .blocked(response.getBlocked())
+                .blockedAt(Instant.now())
                 .build();
     }
 
+    /**
+     * @deprecated Use ConversationSettingsService.unblockUser() instead
+     */
     @Transactional
+    @Deprecated
     public BlockUserResponse unblockUser(Long userId, Long conversationId) {
-        validateDirectConversation(conversationId);
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
-        }
-
-        ConversationSettings settings = settingsRepository
-                .findByUserIdAndConversationId(userId, conversationId)
-                .orElseGet(() -> createDefaultSettings(userId, conversationId));
-
-        settings.setBlocked(false);
-        settings.setBlockedAt(null);
-        settingsRepository.save(settings);
-
+        ConversationSettingsResponse response = conversationSettingsService.unblockUser(userId, conversationId);
         return BlockUserResponse.builder()
-                .isBlocked(false)
+                .blocked(response.getBlocked())
                 .blockedAt(null)
                 .build();
     }
@@ -464,14 +663,18 @@ public class ConversationService {
         }
     }
 
-    private void validateDirectConversation(Long conversationId) {
-        Conversation c = conversationRepository.findById(conversationId).orElseThrow();
-        if (c.getType() != Conversation.ConversationType.DIRECT) {
-            throw BusinessException.badRequest("Action only available for direct conversations", "BAD_REQUEST");
-        }
+    /**
+     * Get mutual groups between current user and another user
+     */
+    public List<ConversationResponse> getMutualGroups(Long currentUserId, Long otherUserId) {
+        // Validate that other user exists
+        userRepository.findById(otherUserId)
+                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
+
+        List<Conversation> mutualGroups = conversationRepository.findMutualGroups(currentUserId, otherUserId);
+
+        return mutualGroups.stream()
+                .map(conversationMapper::toResponse)
+                .toList();
     }
 }
-
-
-
-

@@ -1,11 +1,15 @@
 package com.chattrix.api.resources.conversation;
 
 import com.chattrix.api.filters.Secured;
+import com.chattrix.api.requests.MuteMemberRequest;
 import com.chattrix.api.requests.UpdateConversationSettingsRequest;
+import com.chattrix.api.requests.UpdateGroupPermissionsRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.conversation.ConversationService;
 import com.chattrix.api.services.conversation.ConversationSettingsService;
+import com.chattrix.api.services.conversation.GroupPermissionsService;
+import com.chattrix.api.services.conversation.MemberMuteService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -21,7 +25,11 @@ public class ConversationSettingsResource {
     @Inject
     private ConversationSettingsService settingsService;
     @Inject
-    private ConversationService conversationService; // Inject thêm để xử lý Block/Unblock
+    private ConversationService conversationService;
+    @Inject
+    private MemberMuteService memberMuteService;
+    @Inject
+    private GroupPermissionsService permissionsService;
     @Inject
     private UserContext userContext;
 
@@ -102,14 +110,59 @@ public class ConversationSettingsResource {
     @POST
     @Path("/block")
     public Response blockUser(@PathParam("conversationId") Long conversationId) {
-        var response = conversationService.blockUser(userContext.getCurrentUserId(), conversationId);
-        return Response.ok(ApiResponse.success(response, "User blocked successfully")).build();
+        var settings = settingsService.blockUser(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(settings, "User blocked")).build();
     }
 
     @POST
     @Path("/unblock")
     public Response unblockUser(@PathParam("conversationId") Long conversationId) {
-        var response = conversationService.unblockUser(userContext.getCurrentUserId(), conversationId);
-        return Response.ok(ApiResponse.success(response, "User unblocked successfully")).build();
+        var settings = settingsService.unblockUser(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(settings, "User unblocked")).build();
+    }
+
+    @POST
+    @Path("/members/{userId}/mute")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response muteMember(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("userId") Long userId,
+            MuteMemberRequest request) {
+        var response = memberMuteService.muteMember(
+                userContext.getCurrentUserId(), conversationId, userId, request
+        );
+        return Response.ok(ApiResponse.success(response, "Member muted successfully")).build();
+    }
+
+    @POST
+    @Path("/members/{userId}/unmute")
+    public Response unmuteMember(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("userId") Long userId) {
+        var response = memberMuteService.unmuteMember(
+                userContext.getCurrentUserId(), conversationId, userId
+        );
+        return Response.ok(ApiResponse.success(response, "Member unmuted successfully")).build();
+    }
+
+    @GET
+    @Path("/permissions")
+    public Response getGroupPermissions(@PathParam("conversationId") Long conversationId) {
+        var permissions = permissionsService.getGroupPermissions(
+                userContext.getCurrentUserId(), conversationId
+        );
+        return Response.ok(ApiResponse.success(permissions, "Permissions retrieved successfully")).build();
+    }
+
+    @PUT
+    @Path("/permissions")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response updateGroupPermissions(
+            @PathParam("conversationId") Long conversationId,
+            UpdateGroupPermissionsRequest request) {
+        var permissions = permissionsService.updateGroupPermissions(
+                userContext.getCurrentUserId(), conversationId, request
+        );
+        return Response.ok(ApiResponse.success(permissions, "Permissions updated successfully")).build();
     }
 }

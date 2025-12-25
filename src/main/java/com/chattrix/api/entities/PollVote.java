@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "poll_votes", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"poll_id", "user_id", "poll_option_id"})
+        @UniqueConstraint(columnNames = {"poll_id", "user_id", "poll_option_id"})
 })
 @Getter
 @Setter
@@ -35,7 +35,7 @@ public class PollVote {
     @JsonIgnore
     private User user;
 
-    @Column(nullable = false)
+    @Column(name = "voted_at", nullable = false)
     private LocalDateTime votedAt;
 
     @PrePersist

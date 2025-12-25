@@ -74,8 +74,8 @@ public class ContactService {
         if (request.nickname != null) {
             contact.setNickname(request.nickname);
         }
-        if (request.isFavorite != null) {
-            contact.setFavorite(request.isFavorite);
+        if (request.favorite != null) {
+            contact.setFavorite(request.favorite);
         }
 
         contactRepository.save(contact);
@@ -95,9 +95,3 @@ public class ContactService {
         contactRepository.delete(contact);
     }
 }
-
-
-
-
-
-

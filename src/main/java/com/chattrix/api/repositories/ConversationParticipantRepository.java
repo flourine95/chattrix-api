@@ -46,6 +46,7 @@ public class ConversationParticipantRepository {
             participant = em.merge(participant);
         }
         em.remove(participant);
+        em.flush();
     }
 
     public long countByConversationId(Long conversationId) {
@@ -133,6 +134,53 @@ public class ConversationParticipantRepository {
                         ConversationParticipant.class)
                 .setParameter("conversationId", conversationId)
                 .getResultList();
+    }
+
+    public java.util.List<ConversationParticipant> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
+                "SELECT cp FROM ConversationParticipant cp " +
+                "LEFT JOIN FETCH cp.user " +
+                "WHERE cp.conversation.id = :conversationId ");
+
+        if (cursor != null) {
+            jpql.append("AND cp.user.id < :cursor ");
+        }
+
+        jpql.append("ORDER BY cp.user.id DESC");
+
+        var query = em.createQuery(jpql.toString(), ConversationParticipant.class)
+                .setParameter("conversationId", conversationId);
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        return query.setMaxResults(limit + 1).getResultList();
+    }
+
+    public long countAdminsByConversationId(Long conversationId) {
+        return em.createQuery(
+                        "SELECT COUNT(cp) FROM ConversationParticipant cp " +
+                                "WHERE cp.conversation.id = :conversationId AND cp.role = 'ADMIN'",
+                        Long.class)
+                .setParameter("conversationId", conversationId)
+                .getSingleResult();
+    }
+
+    public Optional<ConversationParticipant> findOldestMemberByConversationId(Long conversationId) {
+        try {
+            ConversationParticipant participant = em.createQuery(
+                            "SELECT cp FROM ConversationParticipant cp " +
+                                    "WHERE cp.conversation.id = :conversationId AND cp.role = 'MEMBER' " +
+                                    "ORDER BY cp.joinedAt ASC",
+                            ConversationParticipant.class)
+                    .setParameter("conversationId", conversationId)
+                    .setMaxResults(1)
+                    .getSingleResult();
+            return Optional.of(participant);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
     }
 }
 

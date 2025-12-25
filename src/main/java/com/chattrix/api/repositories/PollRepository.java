@@ -36,27 +36,54 @@ public class PollRepository {
             .orElse(null);
         
         if (poll != null) {
-            // Force initialization of votes and related entities within transaction
-            poll.getVotes().size();
-            poll.getVotes().forEach(vote -> {
-                vote.getUser().getId();
-                vote.getPollOption().getId();
-            });
+            initializePoll(poll);
         }
         
         return Optional.ofNullable(poll);
     }
 
-    public List<Poll> findByConversationId(Long conversationId, int page, int size) {
-        // First query to get poll IDs with pagination
-        List<Long> pollIds = entityManager.createQuery(
+    public void initializePoll(Poll poll) {
+        // Force initialization of votes and related entities within transaction
+        poll.getVotes().size();
+        poll.getVotes().forEach(vote -> {
+            vote.getUser().getId();
+            vote.getPollOption().getId();
+        });
+        
+        // Also initialize votes for each option to avoid LazyInitializationException in mapper
+        poll.getOptions().forEach(option -> {
+            option.getVotes().size();
+            option.getVotes().forEach(vote -> {
+                vote.getUser().getId();
+            });
+        });
+    }
+
+    /**
+     * Find polls with cursor-based pagination
+     */
+    public List<Poll> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {
+        // First query to get poll IDs with cursor pagination
+        StringBuilder jpql = new StringBuilder(
                 "SELECT p.id FROM Poll p " +
-                "WHERE p.conversation.id = :conversationId " +
-                "ORDER BY p.createdAt DESC",
-                Long.class)
-            .setParameter("conversationId", conversationId)
-            .setFirstResult(page * size)
-            .setMaxResults(size)
+                "WHERE p.conversation.id = :conversationId "
+        );
+        
+        if (cursor != null) {
+            jpql.append("AND p.id < :cursor ");
+        }
+        
+        jpql.append("ORDER BY p.id DESC");
+        
+        var query = entityManager.createQuery(jpql.toString(), Long.class)
+            .setParameter("conversationId", conversationId);
+        
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+        
+        List<Long> pollIds = query
+            .setMaxResults(limit + 1)
             .getResultList();
 
         if (pollIds.isEmpty()) {
@@ -70,28 +97,13 @@ public class PollRepository {
                 "LEFT JOIN FETCH p.conversation " +
                 "LEFT JOIN FETCH p.options " +
                 "WHERE p.id IN :pollIds " +
-                "ORDER BY p.createdAt DESC",
+                "ORDER BY p.id DESC",
                 Poll.class)
             .setParameter("pollIds", pollIds)
             .getResultList()
             .stream()
-            .peek(poll -> {
-                // Force initialization of votes and related entities
-                poll.getVotes().size();
-                poll.getVotes().forEach(vote -> {
-                    vote.getUser().getId();
-                    vote.getPollOption().getId();
-                });
-            })
+            .peek(this::initializePoll)
             .toList();
-    }
-
-    public Long countByConversationId(Long conversationId) {
-        return entityManager.createQuery(
-                "SELECT COUNT(p) FROM Poll p WHERE p.conversation.id = :conversationId",
-                Long.class)
-            .setParameter("conversationId", conversationId)
-            .getSingleResult();
     }
 
     public void delete(Poll poll) {

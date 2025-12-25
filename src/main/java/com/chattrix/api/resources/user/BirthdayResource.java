@@ -2,6 +2,7 @@ package com.chattrix.api.resources.user;
 
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.SendBirthdayWishesRequest;
+import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.BirthdayUserResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.birthday.BirthdayService;
@@ -12,6 +13,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.util.List;
+import java.util.Map;
 
 @Path("/v1/birthdays")
 @Produces(MediaType.APPLICATION_JSON)
@@ -25,19 +27,20 @@ public class BirthdayResource {
     UserContext userContext;
 
     /**
-     * Get users whose birthday is today
+     * Get users whose birthday is today (from contacts and conversations)
      * GET /v1/birthdays/today
      */
     @GET
     @Path("/today")
     @Secured
     public Response getUsersWithBirthdayToday() {
-        List<BirthdayUserResponse> users = birthdayService.getUsersWithBirthdayToday();
-        return Response.ok(users).build();
+        Long currentUserId = userContext.getCurrentUserId();
+        List<BirthdayUserResponse> users = birthdayService.getUsersWithBirthdayToday(currentUserId);
+        return Response.ok(ApiResponse.success(users, "Users with birthday today retrieved successfully")).build();
     }
 
     /**
-     * Get users whose birthday is within the next N days (default 7 days)
+     * Get users whose birthday is within the next N days (from contacts and conversations)
      * GET /v1/birthdays/upcoming?days=7
      */
     @GET
@@ -45,15 +48,37 @@ public class BirthdayResource {
     @Secured
     public Response getUsersWithUpcomingBirthdays(
             @QueryParam("days") @DefaultValue("7") int days) {
-        
+
         if (days < 1 || days > 365) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Days must be between 1 and 365")
+                    .entity(ApiResponse.error("BAD_REQUEST", "Days must be between 1 and 365", null))
                     .build();
         }
 
-        List<BirthdayUserResponse> users = birthdayService.getUsersWithUpcomingBirthdays(days);
-        return Response.ok(users).build();
+        Long currentUserId = userContext.getCurrentUserId();
+        List<BirthdayUserResponse> users = birthdayService.getUsersWithUpcomingBirthdays(days, currentUserId);
+        return Response.ok(ApiResponse.success(users, "Upcoming birthdays retrieved successfully")).build();
+    }
+
+    /**
+     * Get birthdays in a specific conversation
+     * GET /v1/birthdays/conversation/{conversationId}?days=30
+     */
+    @GET
+    @Path("/conversation/{conversationId}")
+    @Secured
+    public Response getBirthdaysInConversation(
+            @PathParam("conversationId") Long conversationId,
+            @QueryParam("days") @DefaultValue("30") int days) {
+
+        if (days < 1 || days > 365) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ApiResponse.error("BAD_REQUEST", "Days must be between 1 and 365", null))
+                    .build();
+        }
+
+        List<BirthdayUserResponse> users = birthdayService.getBirthdaysInConversation(conversationId, days);
+        return Response.ok(ApiResponse.success(users, "Birthdays in conversation retrieved successfully")).build();
     }
 
     /**
@@ -75,9 +100,12 @@ public class BirthdayResource {
         
         birthdayService.sendBirthdayWishes(request, senderId);
         
-        return Response.ok()
-                .entity("Birthday wishes sent successfully")
-                .build();
+        Map<String, Object> result = Map.of(
+            "userId", request.getUserId(),
+            "conversationCount", request.getConversationIds().size()
+        );
+        
+        return Response.ok(ApiResponse.success(result, "Birthday wishes sent successfully")).build();
     }
 
     /**
@@ -92,12 +120,11 @@ public class BirthdayResource {
     public Response triggerBirthdayCheck() {
         try {
             birthdayService.checkAndSendBirthdayWishes();
-            return Response.ok()
-                    .entity("Birthday check triggered successfully")
-                    .build();
+            Map<String, String> result = Map.of("status", "triggered");
+            return Response.ok(ApiResponse.success(result, "Birthday check triggered successfully")).build();
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error: " + e.getMessage())
+                    .entity(ApiResponse.error("INTERNAL_ERROR", "Error: " + e.getMessage(), null))
                     .build();
         }
     }
@@ -110,6 +137,7 @@ public class BirthdayResource {
     @Path("/debug/{userId}")
     @Secured
     public Response debugUserBirthday(@PathParam("userId") Long userId) {
-        return Response.ok(birthdayService.debugUserBirthday(userId)).build();
+        Map<String, Object> debugInfo = birthdayService.debugUserBirthday(userId);
+        return Response.ok(ApiResponse.success(debugInfo, "Debug information retrieved successfully")).build();
     }
 }

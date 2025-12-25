@@ -28,6 +28,9 @@ public class Conversation {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ConversationType type;

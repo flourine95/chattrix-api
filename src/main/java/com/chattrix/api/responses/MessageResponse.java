@@ -39,6 +39,10 @@ public class MessageResponse {
     private Long pollId;
     private PollResponse poll;
 
+    // Event reference (for EVENT message type)
+    private Long eventId;
+    private EventResponse event;
+
     // Reactions: {"👍": [1, 2, 3], "❤️": [4, 5]}
     private Map<String, List<Long>> reactions;
 
@@ -58,6 +62,13 @@ public class MessageResponse {
     private boolean forwarded;
     private Long originalMessageId;
     private Integer forwardCount;
+
+    // Pinned message fields
+    private Boolean pinned;
+    private Instant pinnedAt;
+    private Long pinnedBy;
+    private String pinnedByUsername;
+    private String pinnedByFullName;
 
     // Read receipts
     @JsonProperty("readCount")

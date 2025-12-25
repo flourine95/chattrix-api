@@ -6,7 +6,7 @@ import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.CallHistoryResponse;
-import com.chattrix.api.responses.PaginatedResponse;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.call.CallHistoryService;
 import jakarta.inject.Inject;
@@ -27,20 +27,18 @@ public class CallHistoryResource {
     private UserContext userContext;
 
     @GET
-    public Response getCallHistory(@QueryParam("page") @DefaultValue("0") int page,
-                                   @QueryParam("size") @DefaultValue("20") int size,
+    public Response getCallHistory(@QueryParam("cursor") String cursor,
+                                   @QueryParam("limit") @DefaultValue("20") int limit,
                                    @QueryParam("callType") String callTypeStr,
                                    @QueryParam("status") String statusStr) {
 
-        // Lấy ID cực gọn
         String userId = String.valueOf(userContext.getCurrentUserId());
 
-        // Parse params (Nên tách ra helper method hoặc để Service lo nếu muốn Resource sạch hơn)
         CallType callType = parseEnum(CallType.class, callTypeStr, "callType");
         CallHistoryStatus status = parseEnum(CallHistoryStatus.class, statusStr, "status");
 
-        PaginatedResponse<CallHistoryResponse> response = callHistoryService.getCallHistory(
-                userId, page, size, callType, status
+        CursorPaginatedResponse<CallHistoryResponse> response = callHistoryService.getCallHistoryWithCursor(
+                userId, cursor, limit, callType, status
         );
 
         return Response.ok(ApiResponse.success(response, "Call history retrieved successfully")).build();

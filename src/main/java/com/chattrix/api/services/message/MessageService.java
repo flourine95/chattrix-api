@@ -1,20 +1,27 @@
 package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
+import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
+import com.chattrix.api.mappers.EventMapper;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.PollMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.UpdateMessageRequest;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.responses.PaginatedResponse;
 import com.chattrix.api.responses.ReadReceiptResponse;
+import com.chattrix.api.services.event.EventService;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.services.poll.PollService;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;
 import com.chattrix.api.websocket.dto.OutgoingMessageDto;
@@ -24,7 +31,6 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,7 +68,27 @@ public class MessageService {
     @Inject
     private MessageEditHistoryRepository messageEditHistoryRepository;
 
-    public List<MessageResponse> getMessages(Long userId, Long conversationId, int page, int size, String sort) {
+    @Inject
+    private PollMapper pollMapper;
+
+    @Inject
+    private EventMapper eventMapper;
+
+    @Inject
+    private PollRepository pollRepository;
+
+    @Inject
+    private EventRepository eventRepository;
+
+    @Transactional
+    public CursorPaginatedResponse<MessageResponse> getMessages(Long userId, Long conversationId, Long cursor, int limit, String sort) {
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
@@ -73,12 +99,26 @@ public class MessageService {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
-        List<Message> messages = messageRepository.findByConversationIdWithSort(conversationId, page, size, sort);
-        return messages.stream()
-                .map(this::mapMessageToResponse)
+        List<Message> messages = messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
+
+        boolean hasMore = messages.size() > limit;
+        if (hasMore) {
+            messages = messages.subList(0, limit);
+        }
+
+        List<MessageResponse> responses = messages.stream()
+                .map(m -> mapMessageToResponse(m, userId))
                 .toList();
+
+        Long nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
+
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
+    @Transactional
     public MessageResponse getMessage(Long userId, Long conversationId, Long messageId) {
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -100,7 +140,7 @@ public class MessageService {
             throw BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND");
         }
 
-        return mapMessageToResponse(message);
+        return mapMessageToResponse(message, userId);
     }
 
     @Transactional
@@ -114,6 +154,18 @@ public class MessageService {
 
         if (!isParticipant) {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
+        }
+        
+        // Check if user is muted (for group conversations)
+        if (conversation.getType() == Conversation.ConversationType.GROUP) {
+            ConversationParticipant participant = conversation.getParticipants().stream()
+                    .filter(p -> p.getUser().getId().equals(userId))
+                    .findFirst()
+                    .orElse(null);
+            
+            if (participant != null && participant.isCurrentlyMuted()) {
+                throw BusinessException.forbidden("You are muted in this conversation");
+            }
         }
 
         // Get sender
@@ -193,7 +245,7 @@ public class MessageService {
         // Broadcast conversation update
         broadcastConversationUpdate(conversation);
 
-        return mapMessageToResponse(message);
+        return mapMessageToResponse(message, userId);
     }
 
     @Transactional
@@ -228,7 +280,7 @@ public class MessageService {
             chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
         });
 
-        return mapMessageToResponse(message);
+        return mapMessageToResponse(message, userId);
     }
 
     @Transactional
@@ -346,7 +398,7 @@ public class MessageService {
         });
     }
 
-    private MessageResponse mapMessageToResponse(Message message) {
+    private MessageResponse mapMessageToResponse(Message message, Long userId) {
         MessageResponse response = messageMapper.toResponse(message);
 
         // Map mentioned users if mentions exist
@@ -376,61 +428,121 @@ public class MessageService {
             response.setReadBy(readByList);
         }
 
+        // Populate Poll details if it's a POLL message
+        if (message.getType() == Message.MessageType.POLL && message.getPoll() != null) {
+            pollRepository.initializePoll(message.getPoll());
+            response.setPoll(pollMapper.toResponseWithDetails(message.getPoll(), userId, userMapper));
+        }
+
+        // Populate Event details if it's an EVENT message
+        if (message.getType() == Message.MessageType.EVENT && message.getEvent() != null) {
+            response.setEvent(enrichEventResponse(message.getEvent(), userId));
+        }
+
+        return response;
+    }
+
+    /**
+     * Helper method to enrich event response (copied from EventService to avoid circular dependency or complex refactoring)
+     */
+    private com.chattrix.api.responses.EventResponse enrichEventResponse(com.chattrix.api.entities.Event event, Long userId) {
+        com.chattrix.api.responses.EventResponse response = eventMapper.toResponse(event);
+
+        // Calculate RSVP counts
+        long goingCount = event.getRsvps().stream()
+                .filter(r -> r.getStatus() == com.chattrix.api.entities.EventRsvp.RsvpStatus.GOING)
+                .count();
+        long maybeCount = event.getRsvps().stream()
+                .filter(r -> r.getStatus() == com.chattrix.api.entities.EventRsvp.RsvpStatus.MAYBE)
+                .count();
+        long notGoingCount = event.getRsvps().stream()
+                .filter(r -> r.getStatus() == com.chattrix.api.entities.EventRsvp.RsvpStatus.NOT_GOING)
+                .count();
+
+        response.setGoingCount((int) goingCount);
+        response.setMaybeCount((int) maybeCount);
+        response.setNotGoingCount((int) notGoingCount);
+
+        // Set current user's RSVP status
+        event.getRsvps().stream()
+                .filter(r -> r.getUser().getId().equals(userId))
+                .findFirst()
+                .ifPresent(r -> response.setCurrentUserRsvpStatus(r.getStatus().name()));
+
+        // Map RSVPs
+        List<com.chattrix.api.responses.EventRsvpResponse> rsvpResponses = event.getRsvps().stream()
+                .map(eventMapper::toRsvpResponse)
+                .collect(java.util.stream.Collectors.toList());
+        response.setRsvps(rsvpResponses);
+
         return response;
     }
 
     // ==================== CHAT INFO METHODS ====================
 
-    public Map<String, Object> searchMessages(Long userId, Long conversationId, String query, String type, Long senderId, int page, int size, String sort) {
+    @Transactional
+    public CursorPaginatedResponse<MessageResponse> searchMessages(Long userId, Long conversationId, String query, String type, Long senderId, Long cursor, int limit, String sort) {
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+
         // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
-        List<Message> messages = messageRepository.searchMessages(conversationId, query, type, senderId, page, size, sort);
-        long totalElements = messageRepository.countSearchMessages(conversationId, query, type, senderId);
-        long totalPages = (totalElements + size - 1) / size;
+        List<Message> messages = messageRepository.searchMessagesByCursor(conversationId, query, type, senderId, cursor, limit, sort);
+
+        boolean hasMore = messages.size() > limit;
+        if (hasMore) {
+            messages = messages.subList(0, limit);
+        }
 
         List<MessageResponse> messageResponses = messages.stream()
-                .map(this::mapMessageToResponse)
+                .map(m -> mapMessageToResponse(m, userId))
                 .toList();
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("data", messageResponses);
-        result.put("pagination", Map.of(
-                "page", page,
-                "size", size,
-                "totalElements", totalElements,
-                "totalPages", totalPages
-        ));
+        Long nextCursor = null;
+        if (hasMore && !messageResponses.isEmpty()) {
+            nextCursor = messageResponses.get(messageResponses.size() - 1).getId();
+        }
 
-        return result;
+        return new CursorPaginatedResponse<>(messageResponses, nextCursor, limit);
     }
 
-    public Map<String, Object> getMediaFiles(Long userId, Long conversationId, String type, int page, int size) {
+    public CursorPaginatedResponse<MediaResponse> getMediaFiles(Long userId, Long conversationId, String type, Long cursor, int limit) {
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+
         // Check if user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
-        List<Message> messages = messageRepository.findMediaByConversationId(conversationId, type, page, size);
-        long totalElements = messageRepository.countMediaByConversationId(conversationId, type);
-        long totalPages = (totalElements + size - 1) / size;
+        List<Message> messages = messageRepository.findMediaByCursor(conversationId, type, cursor, limit);
+
+        boolean hasMore = messages.size() > limit;
+        if (hasMore) {
+            messages = messages.subList(0, limit);
+        }
 
         List<MediaResponse> mediaResponses = messages.stream()
                 .map(this::mapMessageToMediaResponse)
                 .toList();
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("data", mediaResponses);
-        result.put("pagination", Map.of(
-                "page", page,
-                "size", size,
-                "totalElements", totalElements,
-                "totalPages", totalPages
-        ));
+        Long nextCursor = null;
+        if (hasMore && !mediaResponses.isEmpty()) {
+            nextCursor = mediaResponses.get(mediaResponses.size() - 1).getId();
+        }
 
-        return result;
+        return new CursorPaginatedResponse<>(mediaResponses, nextCursor, limit);
     }
 
     private MediaResponse mapMessageToMediaResponse(Message message) {
@@ -448,7 +560,3 @@ public class MessageService {
         return response;
     }
 }
-
-
-
-

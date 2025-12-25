@@ -19,28 +19,17 @@ public class SeedUser {
             "FFB74D", "AED581", "E0E0E0", "78909C", "5C6BC0"
     };
 
-    // Danh sách Bio đa dạng, có Emoji
     private static final String[] RANDOM_BIOS = {
-            "Always coding, never sleeping. 💻",
-            "Music is my escape. 🎧",
-            "Coffee lover & tech enthusiast. ☕",
-            "Just a dreamer chasing stars. ✨",
-            "Available for freelance work. 📩",
-            "Life is short, make it sweet.",
-            "Exploring the world, one city at a time. 🌍",
-            "Gamer at heart. 🎮",
-            "Silence is the best answer.",
-            "Working hard in silence. 🚀",
-            "Here for a good time, not a long time.",
-            "Photography is my passion. 📸",
-            "Foodie & Travel addict. 🍜",
-            "Simplicity is the ultimate sophistication.",
-            "Do what you love, love what you do. ❤️",
-            "Catch flights, not feelings. ✈️",
-            "Just another day in paradise. 🌴",
-            "Trying to be a rainbow in someone's cloud. 🌈",
-            "Less talk, more action. 💪",
-            "Stay hungry, stay foolish."
+            "Always coding, never sleeping. 💻", "Music is my escape. 🎧",
+            "Coffee lover & tech enthusiast. ☕", "Just a dreamer chasing stars. ✨",
+            "Available for freelance work. 📩", "Life is short, make it sweet.",
+            "Exploring the world, one city at a time. 🌍", "Gamer at heart. 🎮",
+            "Silence is the best answer.", "Working hard in silence. 🚀",
+            "Here for a good time, not a long time.", "Photography is my passion. 📸",
+            "Foodie & Travel addict. 🍜", "Simplicity is the ultimate sophistication.",
+            "Do what you love, love what you do. ❤️", "Catch flights, not feelings. ✈️",
+            "Just another day in paradise. 🌴", "Trying to be a rainbow in someone's cloud. 🌈",
+            "Less talk, more action. 💪", "Stay hungry, stay foolish."
     };
 
     static class UserData {
@@ -50,9 +39,9 @@ public class SeedUser {
 
         public UserData(String fullName, int index) {
             this.fullName = fullName;
-            String slug = removeAccents(fullName).toLowerCase().replace(" ", "");
-            this.username = slug + index;
-            this.email = slug + index + "@example.com";
+            // Thay đổi logic tại đây: username = user + index
+            this.username = "user" + index;
+            this.email = "user" + index + "@example.com";
         }
     }
 
@@ -79,20 +68,18 @@ public class SeedUser {
             users.add(new UserData(names[i], i + 1));
         }
 
-        // Header SQL
         String sqlHeader = "INSERT INTO users (full_name, username, email, password, avatar_url, phone, bio, gender, online, email_verified, profile_visibility, created_at, updated_at, last_seen) VALUES ";
 
         Random rand = new Random();
         StringBuilder sqlBuilder = new StringBuilder();
 
-        System.out.println("⏳ Đang xử lý upload ảnh và tạo SQL... Vui lòng đợi!");
+        System.out.println("⏳ Đang xử lý upload ảnh cho user1-20... Vui lòng đợi!");
 
         for (int i = 0; i < users.size(); i++) {
             UserData user = users.get(i);
             int index = i + 1;
 
             try {
-                // 1. Upload Avatar
                 int colorIndex = (index - 1) % THEME_COLORS.length;
                 String color = THEME_COLORS[colorIndex];
 
@@ -107,35 +94,30 @@ public class SeedUser {
                         "&name=" + URLEncoder.encode(user.fullName, StandardCharsets.UTF_8);
 
                 var params = ObjectUtils.asMap(
-                        "public_id", "avatars/user_v2_" + index,
+                        "public_id", "avatars/" + user.username, // Public ID theo username mới
                         "overwrite", true,
                         "resource_type", "image"
                 );
                 var uploadResult = cloudinary.uploader().upload(avatarSourceUrl, params);
                 String avatarUrl = (String) uploadResult.get("secure_url");
 
-                // 2. Random Data
                 String gender = rand.nextBoolean() ? "MALE" : "FEMALE";
                 String phone = "09" + (10000000 + rand.nextInt(90000000));
-
-                // Chọn Bio ngẫu nhiên
                 String rawBio = RANDOM_BIOS[rand.nextInt(RANDOM_BIOS.length)];
-                // QUAN TRỌNG: Escape dấu nháy đơn trong SQL (ví dụ: I'm -> I''m)
                 String sqlBio = rawBio.replace("'", "''");
 
-                // 3. Format SQL Row
                 String valueRow = String.format(
                         "('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %b, %b, '%s', NOW(), NOW(), NOW())",
                         user.fullName,
-                        user.username,
-                        user.email,
+                        user.username, // user1, user2...
+                        user.email,    // user1@example.com...
                         hashedPassword,
                         avatarUrl,
                         phone,
-                        sqlBio, // Đã xử lý escape
+                        sqlBio,
                         gender,
-                        false, // online
-                        true,  // email_verified
+                        false,
+                        true,
                         "PUBLIC"
                 );
 
@@ -149,27 +131,14 @@ public class SeedUser {
                 System.out.println("-- ✅ Done: " + user.username);
 
             } catch (Exception e) {
-                System.err.println("-- ❌ Error generating user " + user.username + ": " + e.getMessage());
+                System.err.println("-- ❌ Error generating " + user.username + ": " + e.getMessage());
             }
         }
 
-        System.out.println("\n\n-- 👇👇👇 COPY ĐOẠN DƯỚI ĐÂY 👇👇👇");
+        System.out.println("\n\n-- 👇👇👇 SQL SCRIPT CHO USER1-20 👇👇👇");
         System.out.println("----------------------------------------------------------------");
         System.out.println(sqlHeader);
         System.out.println(sqlBuilder);
         System.out.println("----------------------------------------------------------------");
-    }
-
-    public static String removeAccents(String text) {
-        String[] accents = new String[]{
-                "aàáạảãâầấậẩẫăằắặẳẵ", "eèéẹẻẽêềếệểễ", "iìíịỉĩ",
-                "oòóọỏõôồốộổỗơờớợởỡ", "uùúụủũưừứựửữ", "yỳýỵỷỹ", "dđ"
-        };
-        for (String str : accents) {
-            for (int i = 1; i < str.length(); i++) {
-                text = text.replace(str.charAt(i), str.charAt(0));
-            }
-        }
-        return text;
     }
 }

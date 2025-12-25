@@ -17,8 +17,8 @@ public interface PollMapper {
     
     @Mapping(target = "conversationId", source = "poll.conversation.id")
     @Mapping(target = "creator", source = "poll.creator")
-    @Mapping(target = "isExpired", expression = "java(poll.isExpired())")
-    @Mapping(target = "isActive", expression = "java(poll.isActive())")
+    @Mapping(target = "expired", expression = "java(poll.isExpired())")
+    @Mapping(target = "active", expression = "java(poll.isActive())")
     @Mapping(target = "totalVoters", ignore = true)
     @Mapping(target = "options", ignore = true)
     @Mapping(target = "currentUserVotedOptionIds", ignore = true)

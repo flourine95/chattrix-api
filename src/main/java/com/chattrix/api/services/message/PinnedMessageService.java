@@ -1,131 +1,193 @@
 package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
+import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
-import com.chattrix.api.entities.PinnedMessage;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
-import com.chattrix.api.repositories.*;
-import com.chattrix.api.responses.PinnedMessageResponse;
+import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.repositories.ConversationParticipantRepository;
+import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.MessageRepository;
+import com.chattrix.api.repositories.UserRepository;
+import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 @ApplicationScoped
 public class PinnedMessageService {
-
+    
     private static final int MAX_PINNED_MESSAGES = 3;
-    @Inject
-    private PinnedMessageRepository pinnedMessageRepository;
+    
     @Inject
     private MessageRepository messageRepository;
+    
     @Inject
     private ConversationRepository conversationRepository;
+    
     @Inject
     private ConversationParticipantRepository participantRepository;
+    
     @Inject
     private UserRepository userRepository;
-
+    
+    @Inject
+    private MessageMapper messageMapper;
+    
+    @Inject
+    private ChatSessionService chatSessionService;
+    
+    @Inject
+    private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
+    
     @Transactional
-    public PinnedMessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
+    public MessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
+        // Validate conversation exists
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
-
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
+        
+        // Validate user is participant
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.forbidden("You are not a participant of this conversation"));
+        
+        // Check permission
+        if (!groupPermissionsService.hasPermission(conversationId, userId, "pin_messages")) {
+            throw BusinessException.forbidden("You don't have permission to pin messages");
+        }
+        
+        // Get message
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
-
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "MESSAGE_NOT_FOUND"));
+        
+        // Validate message belongs to conversation
         if (!message.getConversation().getId().equals(conversationId)) {
-            throw BusinessException.badRequest("Message does not belong to this conversation", "BAD_REQUEST");
+            throw BusinessException.badRequest("Message does not belong to this conversation", "INVALID_MESSAGE");
         }
-
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
+        
+        // Check if already pinned
+        if (message.isPinned()) {
+            throw BusinessException.badRequest("Message is already pinned", "ALREADY_PINNED");
         }
-
-        if (conversation.getType() == Conversation.ConversationType.GROUP) {
-            if (!participantRepository.isUserAdmin(conversationId, userId)) {
-                throw BusinessException.badRequest("Only admins can pin messages in groups", "BAD_REQUEST");
-            }
-        }
-
-        Optional<PinnedMessage> existing = pinnedMessageRepository.findByConversationIdAndMessageId(conversationId, messageId);
-        if (existing.isPresent()) {
-            throw BusinessException.badRequest("Message is already pinned", "BAD_REQUEST");
-        }
-
-        long pinnedCount = pinnedMessageRepository.countByConversationId(conversationId);
+        
+        // Check pinned message limit
+        long pinnedCount = messageRepository.countPinnedMessages(conversationId);
         if (pinnedCount >= MAX_PINNED_MESSAGES) {
-            throw BusinessException.badRequest("Maximum " + MAX_PINNED_MESSAGES + " messages can be pinned", "BAD_REQUEST");
+            throw BusinessException.badRequest(
+                "Maximum " + MAX_PINNED_MESSAGES + " messages can be pinned", 
+                "MAX_PINNED_REACHED"
+            );
         }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
-
-        Integer maxOrder = pinnedMessageRepository.getMaxPinOrder(conversationId);
-
-        PinnedMessage pinnedMessage = new PinnedMessage();
-        pinnedMessage.setConversation(conversation);
-        pinnedMessage.setMessage(message);
-        pinnedMessage.setPinnedBy(user);
-        pinnedMessage.setPinOrder(maxOrder + 1);
-        pinnedMessageRepository.save(pinnedMessage);
-
-        return mapToPinnedMessageResponse(pinnedMessage);
-    }
-
-    @Transactional
-    public void unpinMessage(Long userId, Long conversationId, Long messageId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
-
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
-        }
-
-        if (conversation.getType() == Conversation.ConversationType.GROUP) {
-            if (!participantRepository.isUserAdmin(conversationId, userId)) {
-                throw BusinessException.badRequest("Only admins can unpin messages in groups", "BAD_REQUEST");
-            }
-        }
-
-        PinnedMessage pinnedMessage = pinnedMessageRepository.findByConversationIdAndMessageId(conversationId, messageId)
-                .orElseThrow(() -> BusinessException.notFound("Pinned message not found", "RESOURCE_NOT_FOUND"));
-
-        pinnedMessageRepository.delete(pinnedMessage);
-    }
-
-    public List<PinnedMessageResponse> getPinnedMessages(Long userId, Long conversationId) {
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST");
-        }
-
-        List<PinnedMessage> pinnedMessages = pinnedMessageRepository.findByConversationId(conversationId);
-        return pinnedMessages.stream()
-                .map(this::mapToPinnedMessageResponse)
-                .toList();
-    }
-
-    private PinnedMessageResponse mapToPinnedMessageResponse(PinnedMessage pinnedMessage) {
-        PinnedMessageResponse response = new PinnedMessageResponse();
-        response.setId(pinnedMessage.getId());
-        response.setMessageId(pinnedMessage.getMessage().getId());
-        response.setContent(pinnedMessage.getMessage().getContent());
-        response.setSenderId(pinnedMessage.getMessage().getSender().getId());
-        response.setSenderUsername(pinnedMessage.getMessage().getSender().getUsername());
-        response.setPinnedBy(pinnedMessage.getPinnedBy().getId());
-        response.setPinnedByUsername(pinnedMessage.getPinnedBy().getUsername());
-        response.setPinOrder(pinnedMessage.getPinOrder());
-        response.setPinnedAt(pinnedMessage.getPinnedAt());
-        response.setSentAt(pinnedMessage.getMessage().getSentAt());
+        
+        // Get user who is pinning
+        User pinningUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found", "USER_NOT_FOUND"));
+        
+        // Pin the message
+        message.setPinned(true);
+        message.setPinnedAt(Instant.now());
+        message.setPinnedBy(pinningUser);
+        messageRepository.save(message);
+        
+        // Send WebSocket notification
+        MessageResponse response = messageMapper.toResponse(message);
+        sendPinNotification(conversationId, "MESSAGE_PINNED", response);
+        
         return response;
     }
+    
+    @Transactional
+    public MessageResponse unpinMessage(Long userId, Long conversationId, Long messageId) {
+        // Validate conversation exists
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
+        
+        // Validate user is participant
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.forbidden("You are not a participant of this conversation"));
+        
+        // Check permission
+        if (!groupPermissionsService.hasPermission(conversationId, userId, "pin_messages")) {
+            throw BusinessException.forbidden("You don't have permission to unpin messages");
+        }
+        
+        // Get message
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> BusinessException.notFound("Message not found", "MESSAGE_NOT_FOUND"));
+        
+        // Validate message belongs to conversation
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.badRequest("Message does not belong to this conversation", "INVALID_MESSAGE");
+        }
+        
+        // Check if message is pinned
+        if (!message.isPinned()) {
+            throw BusinessException.badRequest("Message is not pinned", "NOT_PINNED");
+        }
+        
+        // Unpin the message
+        message.setPinned(false);
+        message.setPinnedAt(null);
+        message.setPinnedBy(null);
+        messageRepository.save(message);
+        
+        // Send WebSocket notification
+        MessageResponse response = messageMapper.toResponse(message);
+        sendPinNotification(conversationId, "MESSAGE_UNPINNED", response);
+        
+        return response;
+    }
+    
+    public List<MessageResponse> getPinnedMessages(Long userId, Long conversationId) {
+        // Validate conversation exists
+        conversationRepository.findById(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
+        
+        // Validate user is participant
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw BusinessException.forbidden("You are not a participant of this conversation");
+        }
+        
+        // Get pinned messages
+        List<Message> pinnedMessages = messageRepository.findPinnedMessages(conversationId);
+        
+        return pinnedMessages.stream()
+                .map(messageMapper::toResponse)
+                .toList();
+    }
+    
+    private void sendPinNotification(Long conversationId, String eventType, MessageResponse messageResponse) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("type", eventType);
+            data.put("message", messageResponse);
+            
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("message.pin", data);
+            
+            List<Long> participantIds = participantRepository
+                    .findByConversationId(conversationId)
+                    .stream()
+                    .map(cp -> cp.getUser().getId())
+                    .toList();
+            
+            for (Long participantId : participantIds) {
+                try {
+                    chatSessionService.sendDirectMessage(participantId, message);
+                } catch (Exception e) {
+                    System.err.println("Failed to send pin notification to user " + participantId + ": " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send pin notification: " + e.getMessage());
+        }
+    }
 }
-
-
-
-
-
-

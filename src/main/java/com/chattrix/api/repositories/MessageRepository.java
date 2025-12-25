@@ -88,28 +88,42 @@ public class MessageRepository {
                 .getResultList();
     }
 
-    public List<Message> findByConversationIdWithSort(Long conversationId, int page, int size, String sortDirection) {
+    /**
+     * Find messages by conversation with cursor-based pagination
+     * @param cursor The ID of the last message from previous page (null for first page)
+     * @param limit Number of items to fetch (will fetch limit + 1 to determine hasNextPage)
+     * @param sortDirection ASC or DESC
+     */
+    public List<Message> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit, String sortDirection) {
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
+        String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
 
-        // Use EntityGraph to fetch nested relationships without alias
         EntityGraph<?> entityGraph = em.getEntityGraph("Message.withSenderAndReply");
 
-        // Only return messages that have been sent:
-        // 1. Regular messages (sentAt is not null)
-        // 2. Scheduled messages that have been sent (scheduled=true AND scheduledStatus=SENT)
-        // Exclude: PENDING, CANCELLED, FAILED scheduled messages
-        TypedQuery<Message> query = em.createQuery(
+        StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
-                        "WHERE m.conversation.id = :conversationId " +
-                        "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) " +
-                        "ORDER BY COALESCE(m.sentAt, m.scheduledTime, m.createdAt) " + orderClause,
-                Message.class
+                "LEFT JOIN FETCH m.poll " +
+                "LEFT JOIN FETCH m.event " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) "
         );
+
+        if (cursor != null) {
+            jpql.append("AND ").append(cursorCondition).append(" ");
+        }
+
+        jpql.append("ORDER BY m.id ").append(orderClause);
+
+        TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
         query.setHint("jakarta.persistence.fetchgraph", entityGraph);
         query.setParameter("conversationId", conversationId);
         query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
-        query.setFirstResult(page * size);
-        query.setMaxResults(size);
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        query.setMaxResults(limit + 1);
 
         return query.getResultList();
     }
@@ -125,52 +139,14 @@ public class MessageRepository {
 
     // ==================== CHAT INFO METHODS ====================
 
-    public List<Message> searchMessages(Long conversationId, String query, String type, Long senderId, int page, int size, String sortDirection) {
-        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.conversation.id = :conversationId");
-
-        if (query != null && !query.trim().isEmpty()) {
-            jpql.append(" AND LOWER(m.content) LIKE :query");
-        }
-
-        if (type != null && !type.trim().isEmpty()) {
-            jpql.append(" AND m.type = :type");
-        }
-
-        if (senderId != null) {
-            jpql.append(" AND m.sender.id = :senderId");
-        }
-
+    /**
+     * Search messages with cursor-based pagination
+     */
+    public List<Message> searchMessagesByCursor(Long conversationId, String query, String type, Long senderId, Long cursor, int limit, String sortDirection) {
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
-        jpql.append(" ORDER BY m.sentAt ").append(orderClause);
+        String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
 
-        TypedQuery<Message> typedQuery = em.createQuery(jpql.toString(), Message.class);
-        typedQuery.setParameter("conversationId", conversationId);
-
-        if (query != null && !query.trim().isEmpty()) {
-            typedQuery.setParameter("query", "%" + query.toLowerCase() + "%");
-        }
-
-        if (type != null && !type.trim().isEmpty()) {
-            try {
-                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
-                typedQuery.setParameter("type", messageType);
-            } catch (IllegalArgumentException e) {
-                // Invalid type, ignore
-            }
-        }
-
-        if (senderId != null) {
-            typedQuery.setParameter("senderId", senderId);
-        }
-
-        typedQuery.setFirstResult(page * size);
-        typedQuery.setMaxResults(size);
-
-        return typedQuery.getResultList();
-    }
-
-    public long countSearchMessages(Long conversationId, String query, String type, Long senderId) {
-        StringBuilder jpql = new StringBuilder("SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId");
+        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender LEFT JOIN FETCH m.poll LEFT JOIN FETCH m.event WHERE m.conversation.id = :conversationId");
 
         if (query != null && !query.trim().isEmpty()) {
             jpql.append(" AND LOWER(m.content) LIKE :query");
@@ -184,7 +160,13 @@ public class MessageRepository {
             jpql.append(" AND m.sender.id = :senderId");
         }
 
-        TypedQuery<Long> typedQuery = em.createQuery(jpql.toString(), Long.class);
+        if (cursor != null) {
+            jpql.append(" AND ").append(cursorCondition);
+        }
+
+        jpql.append(" ORDER BY m.id ").append(orderClause);
+
+        TypedQuery<Message> typedQuery = em.createQuery(jpql.toString(), Message.class);
         typedQuery.setParameter("conversationId", conversationId);
 
         if (query != null && !query.trim().isEmpty()) {
@@ -196,51 +178,28 @@ public class MessageRepository {
                 Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
                 typedQuery.setParameter("type", messageType);
             } catch (IllegalArgumentException e) {
-                // Invalid type, return 0
-                return 0;
-            }
-        }
-
-        if (senderId != null) {
-            typedQuery.setParameter("senderId", senderId);
-        }
-
-        return typedQuery.getSingleResult();
-    }
-
-    public List<Message> findMediaByConversationId(Long conversationId, String type, int page, int size) {
-        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.conversation.id = :conversationId");
-
-        if (type != null && !type.trim().isEmpty()) {
-            jpql.append(" AND m.type = :type");
-        } else {
-            // Get all media types (IMAGE, VIDEO, AUDIO, DOCUMENT)
-            jpql.append(" AND m.type IN ('IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT')");
-        }
-
-        jpql.append(" ORDER BY m.sentAt DESC");
-
-        TypedQuery<Message> typedQuery = em.createQuery(jpql.toString(), Message.class);
-        typedQuery.setParameter("conversationId", conversationId);
-
-        if (type != null && !type.trim().isEmpty()) {
-            try {
-                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
-                typedQuery.setParameter("type", messageType);
-            } catch (IllegalArgumentException e) {
-                // Invalid type, return empty list
                 return List.of();
             }
         }
 
-        typedQuery.setFirstResult(page * size);
-        typedQuery.setMaxResults(size);
+        if (senderId != null) {
+            typedQuery.setParameter("senderId", senderId);
+        }
+
+        if (cursor != null) {
+            typedQuery.setParameter("cursor", cursor);
+        }
+
+        typedQuery.setMaxResults(limit + 1);
 
         return typedQuery.getResultList();
     }
 
-    public long countMediaByConversationId(Long conversationId, String type) {
-        StringBuilder jpql = new StringBuilder("SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId");
+    /**
+     * Find media files with cursor-based pagination
+     */
+    public List<Message> findMediaByCursor(Long conversationId, String type, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.conversation.id = :conversationId");
 
         if (type != null && !type.trim().isEmpty()) {
             jpql.append(" AND m.type = :type");
@@ -248,7 +207,13 @@ public class MessageRepository {
             jpql.append(" AND m.type IN ('IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT')");
         }
 
-        TypedQuery<Long> typedQuery = em.createQuery(jpql.toString(), Long.class);
+        if (cursor != null) {
+            jpql.append(" AND m.id < :cursor");
+        }
+
+        jpql.append(" ORDER BY m.id DESC");
+
+        TypedQuery<Message> typedQuery = em.createQuery(jpql.toString(), Message.class);
         typedQuery.setParameter("conversationId", conversationId);
 
         if (type != null && !type.trim().isEmpty()) {
@@ -256,11 +221,17 @@ public class MessageRepository {
                 Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
                 typedQuery.setParameter("type", messageType);
             } catch (IllegalArgumentException e) {
-                return 0;
+                return List.of();
             }
         }
 
-        return typedQuery.getSingleResult();
+        if (cursor != null) {
+            typedQuery.setParameter("cursor", cursor);
+        }
+
+        typedQuery.setMaxResults(limit + 1);
+
+        return typedQuery.getResultList();
     }
 
     public Optional<Message> findLatestByConversationId(Long conversationId) {
@@ -291,6 +262,26 @@ public class MessageRepository {
                         Message.class)
                 .setParameter("noteId", noteId)
                 .getResultList();
+    }
+
+    /**
+     * Delete messages that reference a specific poll
+     */
+    @Transactional
+    public int deleteByPollId(Long pollId) {
+        return em.createQuery("DELETE FROM Message m WHERE m.poll.id = :pollId")
+                .setParameter("pollId", pollId)
+                .executeUpdate();
+    }
+
+    /**
+     * Delete messages that reference a specific event
+     */
+    @Transactional
+    public int deleteByEventId(Long eventId) {
+        return em.createQuery("DELETE FROM Message m WHERE m.event.id = :eventId")
+                .setParameter("eventId", eventId)
+                .executeUpdate();
     }
 
     /**
@@ -371,150 +362,49 @@ public class MessageRepository {
     }
 
     /**
-     * Find scheduled messages by sender and status
+     * Find scheduled messages with cursor-based pagination
      */
-    public List<Message> findScheduledMessagesBySenderAndStatus(Long senderId, Message.ScheduledStatus status, int page, int size) {
-        TypedQuery<Message> query = em.createQuery(
+    public List<Message> findScheduledMessagesByCursor(Long senderId, Long conversationId, Message.ScheduledStatus status, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.conversation " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "WHERE m.sender.id = :senderId " +
-                        "AND m.scheduled = true " +
-                        "AND m.scheduledStatus = :status " +
-                        "ORDER BY m.scheduledTime ASC",
-                Message.class
+                "LEFT JOIN FETCH m.conversation " +
+                "LEFT JOIN FETCH m.sender " +
+                "WHERE m.sender.id = :senderId " +
+                "AND m.scheduled = true "
         );
+
+        if (conversationId != null) {
+            jpql.append("AND m.conversation.id = :conversationId ");
+        }
+
+        if (status != null) {
+            jpql.append("AND m.scheduledStatus = :status ");
+        }
+
+        if (cursor != null) {
+            jpql.append("AND m.id < :cursor ");
+        }
+
+        jpql.append("ORDER BY m.id DESC");
+
+        TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
         query.setParameter("senderId", senderId);
-        query.setParameter("status", status);
-        query.setFirstResult(page * size);
-        query.setMaxResults(size);
+
+        if (conversationId != null) {
+            query.setParameter("conversationId", conversationId);
+        }
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        query.setMaxResults(limit + 1);
+
         return query.getResultList();
-    }
-
-    /**
-     * Find all scheduled messages by sender
-     */
-    public List<Message> findScheduledMessagesBySender(Long senderId, int page, int size) {
-        TypedQuery<Message> query = em.createQuery(
-                "SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.conversation " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "WHERE m.sender.id = :senderId " +
-                        "AND m.scheduled = true " +
-                        "ORDER BY m.scheduledTime ASC",
-                Message.class
-        );
-        query.setParameter("senderId", senderId);
-        query.setFirstResult(page * size);
-        query.setMaxResults(size);
-        return query.getResultList();
-    }
-
-    /**
-     * Find scheduled messages by sender, conversation and status
-     */
-    public List<Message> findScheduledMessagesBySenderConversationAndStatus(
-            Long senderId, Long conversationId, Message.ScheduledStatus status, int page, int size) {
-        TypedQuery<Message> query = em.createQuery(
-                "SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.conversation " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "WHERE m.sender.id = :senderId " +
-                        "AND m.conversation.id = :conversationId " +
-                        "AND m.scheduled = true " +
-                        "AND m.scheduledStatus = :status " +
-                        "ORDER BY m.scheduledTime ASC",
-                Message.class
-        );
-        query.setParameter("senderId", senderId);
-        query.setParameter("conversationId", conversationId);
-        query.setParameter("status", status);
-        query.setFirstResult(page * size);
-        query.setMaxResults(size);
-        return query.getResultList();
-    }
-
-    /**
-     * Find scheduled messages by sender and conversation
-     */
-    public List<Message> findScheduledMessagesBySenderAndConversation(
-            Long senderId, Long conversationId, int page, int size) {
-        TypedQuery<Message> query = em.createQuery(
-                "SELECT m FROM Message m " +
-                        "LEFT JOIN FETCH m.conversation " +
-                        "LEFT JOIN FETCH m.sender " +
-                        "WHERE m.sender.id = :senderId " +
-                        "AND m.conversation.id = :conversationId " +
-                        "AND m.scheduled = true " +
-                        "ORDER BY m.scheduledTime ASC",
-                Message.class
-        );
-        query.setParameter("senderId", senderId);
-        query.setParameter("conversationId", conversationId);
-        query.setFirstResult(page * size);
-        query.setMaxResults(size);
-        return query.getResultList();
-    }
-
-    /**
-     * Count scheduled messages by sender and status
-     */
-    public long countScheduledMessagesBySenderAndStatus(Long senderId, Message.ScheduledStatus status) {
-        return em.createQuery(
-                        "SELECT COUNT(m) FROM Message m " +
-                                "WHERE m.sender.id = :senderId " +
-                                "AND m.scheduled = true " +
-                                "AND m.scheduledStatus = :status",
-                        Long.class)
-                .setParameter("senderId", senderId)
-                .setParameter("status", status)
-                .getSingleResult();
-    }
-
-    /**
-     * Count all scheduled messages by sender
-     */
-    public long countScheduledMessagesBySender(Long senderId) {
-        return em.createQuery(
-                        "SELECT COUNT(m) FROM Message m " +
-                                "WHERE m.sender.id = :senderId " +
-                                "AND m.scheduled = true",
-                        Long.class)
-                .setParameter("senderId", senderId)
-                .getSingleResult();
-    }
-
-    /**
-     * Count scheduled messages by sender, conversation and status
-     */
-    public long countScheduledMessagesBySenderConversationAndStatus(
-            Long senderId, Long conversationId, Message.ScheduledStatus status) {
-        return em.createQuery(
-                        "SELECT COUNT(m) FROM Message m " +
-                                "WHERE m.sender.id = :senderId " +
-                                "AND m.conversation.id = :conversationId " +
-                                "AND m.scheduled = true " +
-                                "AND m.scheduledStatus = :status",
-                        Long.class)
-                .setParameter("senderId", senderId)
-                .setParameter("conversationId", conversationId)
-                .setParameter("status", status)
-                .getSingleResult();
-    }
-
-    /**
-     * Count scheduled messages by sender and conversation
-     */
-    public long countScheduledMessagesBySenderAndConversation(Long senderId, Long conversationId) {
-        return em.createQuery(
-                        "SELECT COUNT(m) FROM Message m " +
-                                "WHERE m.sender.id = :senderId " +
-                                "AND m.conversation.id = :conversationId " +
-                                "AND m.scheduled = true",
-                        Long.class)
-                .setParameter("senderId", senderId)
-                .setParameter("conversationId", conversationId)
-                .getSingleResult();
     }
 
     /**
@@ -534,6 +424,142 @@ public class MessageRepository {
                 .setParameter("conversationId", conversationId)
                 .executeUpdate();
     }
+    
+    // Pinned messages methods
+    public List<Message> findPinnedMessages(Long conversationId) {
+        return em.createQuery(
+                "SELECT m FROM Message m " +
+                "LEFT JOIN FETCH m.sender " +
+                "LEFT JOIN FETCH m.pinnedBy " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.pinned = true " +
+                "ORDER BY m.pinnedAt DESC",
+                Message.class
+        )
+        .setParameter("conversationId", conversationId)
+        .getResultList();
+    }
+    
+    public long countPinnedMessages(Long conversationId) {
+        return em.createQuery(
+                "SELECT COUNT(m) FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.pinned = true",
+                Long.class
+        )
+        .setParameter("conversationId", conversationId)
+        .getSingleResult();
+    }
+    
+    /**
+     * Find announcements with cursor-based pagination
+     * @param cursor The ID of the last announcement from previous page (null for first page)
+     * @param limit Number of items to fetch (will fetch limit + 1 to determine hasNextPage)
+     */
+    public List<Message> findAnnouncementsByCursor(Long conversationId, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
+                "SELECT m FROM Message m " +
+                "LEFT JOIN FETCH m.sender " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.type = :announcementType "
+        );
+        
+        if (cursor != null) {
+            jpql.append("AND m.id < :cursor ");
+        }
+        
+        jpql.append("ORDER BY m.id DESC");
+        
+        TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
+        query.setParameter("conversationId", conversationId);
+        query.setParameter("announcementType", Message.MessageType.ANNOUNCEMENT);
+        
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+        
+        query.setMaxResults(limit + 1); // Fetch one extra to determine hasNextPage
+        
+        return query.getResultList();
+    }
+    
+    /**
+     * Global search with cursor-based pagination
+     */
+    public List<Message> globalSearchMessagesByCursor(Long userId, String query, String type, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
+            "SELECT m FROM Message m " +
+            "LEFT JOIN FETCH m.sender " +
+            "LEFT JOIN FETCH m.conversation " +
+            "WHERE EXISTS (" +
+            "  SELECT 1 FROM ConversationParticipant cp " +
+            "  WHERE cp.conversation.id = m.conversation.id " +
+            "  AND cp.user.id = :userId" +
+            ")"
+        );
+
+        if (query != null && !query.trim().isEmpty()) {
+            jpql.append(" AND LOWER(m.content) LIKE :query");
+        }
+
+        if (type != null && !type.trim().isEmpty()) {
+            jpql.append(" AND m.type = :type");
+        }
+
+        if (cursor != null) {
+            jpql.append(" AND m.id < :cursor");
+        }
+
+        jpql.append(" ORDER BY m.id DESC");
+
+        TypedQuery<Message> typedQuery = em.createQuery(jpql.toString(), Message.class);
+        typedQuery.setParameter("userId", userId);
+
+        if (query != null && !query.trim().isEmpty()) {
+            typedQuery.setParameter("query", "%" + query.toLowerCase() + "%");
+        }
+
+        if (type != null && !type.trim().isEmpty()) {
+            try {
+                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
+                typedQuery.setParameter("type", messageType);
+            } catch (IllegalArgumentException e) {
+                return List.of();
+            }
+        }
+
+        if (cursor != null) {
+            typedQuery.setParameter("cursor", cursor);
+        }
+
+        typedQuery.setMaxResults(limit + 1);
+
+        return typedQuery.getResultList();
+    }
+    
+    /**
+     * Get message context - messages around a specific message for highlighting
+     */
+    public List<Message> getMessageContext(Long messageId, Long conversationId, int contextSize) {
+        // Get the target message first to get its timestamp
+        Message targetMessage = em.find(Message.class, messageId);
+        if (targetMessage == null) {
+            return List.of();
+        }
+
+        // Get messages before and after
+        return em.createQuery(
+                "SELECT m FROM Message m " +
+                "LEFT JOIN FETCH m.sender " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.sentAt BETWEEN :startTime AND :endTime " +
+                "ORDER BY m.sentAt ASC",
+                Message.class
+        )
+        .setParameter("conversationId", conversationId)
+        .setParameter("startTime", targetMessage.getSentAt().minusSeconds(contextSize * 30)) // ~30s per message
+        .setParameter("endTime", targetMessage.getSentAt().plusSeconds(contextSize * 30))
+        .setMaxResults(contextSize * 2 + 1) // contextSize before + target + contextSize after
+        .getResultList();
+    }
 }
-
-

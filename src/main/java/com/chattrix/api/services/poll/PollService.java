@@ -7,7 +7,7 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.CreatePollRequest;
 import com.chattrix.api.requests.VotePollRequest;
-import com.chattrix.api.responses.PaginatedResponse;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.PollResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.dto.PollEventDto;
@@ -73,7 +73,7 @@ public class PollService {
                 .creator(creator)
                 .allowMultipleVotes(request.getAllowMultipleVotes())
                 .expiresAt(request.getExpiresAt())
-                .isClosed(false)
+                .closed(false)
                 .build();
 
         poll = pollRepository.save(poll);
@@ -107,10 +107,15 @@ public class PollService {
     }
 
     @Transactional
-    public PollResponse vote(Long pollId, VotePollRequest request, Long userId) {
+    public PollResponse vote(Long conversationId, Long pollId, VotePollRequest request, Long userId) {
         // Get poll
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
+
+        // Validate poll belongs to conversation
+        if (!poll.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Poll not found in this conversation", "POLL_NOT_FOUND");
+        }
 
         // Validate poll is active
         if (!poll.isActive()) {
@@ -118,7 +123,7 @@ public class PollService {
         }
 
         // Validate user is participant
-        if (!conversationParticipantRepository.isUserParticipant(poll.getConversation().getId(), userId)) {
+        if (!conversationParticipantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
 
@@ -163,13 +168,18 @@ public class PollService {
     }
 
     @Transactional
-    public PollResponse removeVote(Long pollId, Long userId) {
+    public PollResponse removeVote(Long conversationId, Long pollId, Long userId) {
         // Get poll
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
 
+        // Validate poll belongs to conversation
+        if (!poll.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Poll not found in this conversation", "POLL_NOT_FOUND");
+        }
+
         // Validate user is participant
-        if (!conversationParticipantRepository.isUserParticipant(poll.getConversation().getId(), userId)) {
+        if (!conversationParticipantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
 
@@ -188,12 +198,17 @@ public class PollService {
     }
 
     @Transactional
-    public PollResponse getPoll(Long pollId, Long userId) {
+    public PollResponse getPoll(Long conversationId, Long pollId, Long userId) {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
 
+        // Validate poll belongs to conversation
+        if (!poll.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Poll not found in this conversation", "POLL_NOT_FOUND");
+        }
+
         // Validate user is participant
-        if (!conversationParticipantRepository.isUserParticipant(poll.getConversation().getId(), userId)) {
+        if (!conversationParticipantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
 
@@ -201,7 +216,14 @@ public class PollService {
     }
 
     @Transactional
-    public PaginatedResponse<PollResponse> getConversationPolls(Long conversationId, Long userId, int page, int size) {
+    public CursorPaginatedResponse<PollResponse> getConversationPolls(Long conversationId, Long userId, Long cursor, int limit) {
+        if (limit < 1) {
+            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
+        }
+        if (limit > 100) {
+            limit = 100;
+        }
+
         // Validate conversation exists
         conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
@@ -211,35 +233,41 @@ public class PollService {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
 
-        List<Poll> polls = pollRepository.findByConversationId(conversationId, page, size);
-        Long total = pollRepository.countByConversationId(conversationId);
+        List<Poll> polls = pollRepository.findByConversationIdWithCursor(conversationId, cursor, limit);
+
+        boolean hasMore = polls.size() > limit;
+        if (hasMore) {
+            polls = polls.subList(0, limit);
+        }
 
         List<PollResponse> pollResponses = polls.stream()
                 .map(poll -> pollMapper.toResponseWithDetails(poll, userId, userMapper))
                 .collect(Collectors.toList());
 
-        return PaginatedResponse.<PollResponse>builder()
-                .data(pollResponses)
-                .page(page)
-                .size(size)
-                .total(total)
-                .totalPages((int) Math.ceil((double) total / size))
-                .hasNextPage(page < (int) Math.ceil((double) total / size) - 1)
-                .hasPrevPage(page > 0)
-                .build();
+        Long nextCursor = null;
+        if (hasMore && !pollResponses.isEmpty()) {
+            nextCursor = pollResponses.get(pollResponses.size() - 1).getId();
+        }
+
+        return new CursorPaginatedResponse<>(pollResponses, nextCursor, limit);
     }
 
     @Transactional
-    public PollResponse closePoll(Long pollId, Long userId) {
+    public PollResponse closePoll(Long conversationId, Long pollId, Long userId) {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
+
+        // Validate poll belongs to conversation
+        if (!poll.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Poll not found in this conversation", "POLL_NOT_FOUND");
+        }
 
         // Validate user is creator
         if (!poll.getCreator().getId().equals(userId)) {
             throw BusinessException.forbidden("Only the poll creator can close the poll");
         }
 
-        poll.setIsClosed(true);
+        poll.setClosed(true);
         poll = pollRepository.save(poll);
 
         // Send WebSocket notification
@@ -250,24 +278,32 @@ public class PollService {
     }
 
     @Transactional
-    public void deletePoll(Long pollId, Long userId) {
+    public void deletePoll(Long conversationId, Long pollId, Long userId) {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> BusinessException.notFound("Poll not found", "POLL_NOT_FOUND"));
+
+        // Validate poll belongs to conversation
+        if (!poll.getConversation().getId().equals(conversationId)) {
+            throw BusinessException.notFound("Poll not found in this conversation", "POLL_NOT_FOUND");
+        }
 
         // Validate user is creator
         if (!poll.getCreator().getId().equals(userId)) {
             throw BusinessException.forbidden("Only the poll creator can delete the poll");
         }
 
-        Long conversationId = poll.getConversation().getId();
-        pollRepository.delete(poll);
-
-        // Send WebSocket notification
+        // Send WebSocket notification BEFORE deleting (while poll still exists)
         PollResponse pollResponse = PollResponse.builder()
                 .id(pollId)
                 .conversationId(conversationId)
                 .build();
         sendPollNotification(conversationId, "POLL_DELETED", pollResponse);
+
+        // Delete messages that reference this poll (to avoid FK constraint violation)
+        messageRepository.deleteByPollId(pollId);
+
+        // Delete poll (cascade will delete options and votes)
+        pollRepository.delete(poll);
     }
 
     private void sendPollNotification(Long conversationId, String eventType, PollResponse pollResponse) {
