@@ -1,6 +1,7 @@
 package com.chattrix.api.services.call;
 
 import com.chattrix.api.entities.Call;
+import com.chattrix.api.entities.CallParticipant;
 import com.chattrix.api.entities.CallStatus;
 import com.chattrix.api.repositories.CallRepository;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
@@ -95,8 +96,8 @@ public class CallCleanupScheduler {
 
             callRepository.save(call);
 
-            // Try to notify both participants
-            notifyBothParticipants(call, "Call automatically ended due to timeout");
+            // Try to notify all participants
+            notifyAllParticipants(call, "Call automatically ended due to timeout");
         }
 
         if (!longCalls.isEmpty()) {
@@ -121,8 +122,8 @@ public class CallCleanupScheduler {
 
             callRepository.save(call);
 
-            // Notify both participants
-            notifyBothParticipants(call, "Call missed");
+            // Notify all participants
+            notifyAllParticipants(call, "Call missed");
         }
 
         if (!stuckCalls.isEmpty()) {
@@ -131,9 +132,10 @@ public class CallCleanupScheduler {
     }
 
     /**
-     * Try to notify both participants about call end
+     * Try to notify all participants about call end
      */
-    private void notifyBothParticipants(Call call, String reason) {
+    private void notifyAllParticipants(Call call, String reason) {
+        // Notify caller
         try {
             webSocketService.sendCallEnded(
                     call.getCallerId().toString(),
@@ -145,15 +147,18 @@ public class CallCleanupScheduler {
             log.debug("Could not notify caller {}", call.getCallerId());
         }
 
-        try {
-            webSocketService.sendCallEnded(
-                    call.getCalleeId().toString(),
-                    call.getId(),
-                    "system",
-                    call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
-            );
-        } catch (Exception e) {
-            log.debug("Could not notify callee {}", call.getCalleeId());
+        // Notify all participants
+        for (CallParticipant p : call.getParticipants()) {
+            try {
+                webSocketService.sendCallEnded(
+                        p.getUserId().toString(),
+                        call.getId(),
+                        "system",
+                        call.getDurationSeconds() != null ? call.getDurationSeconds() : 0
+                );
+            } catch (Exception e) {
+                log.debug("Could not notify participant {}", p.getUserId());
+            }
         }
     }
 
@@ -172,4 +177,3 @@ public class CallCleanupScheduler {
         log.info("CallCleanupScheduler shutdown complete");
     }
 }
-

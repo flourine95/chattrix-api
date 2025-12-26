@@ -5,19 +5,19 @@ import com.chattrix.api.entities.CallType;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 public class CallResponse {
     private String id;
     private String channelId;
+    private Long conversationId;
 
     private Long callerId;
     private String callerName;
     private String callerAvatar;
 
-    private Long calleeId;
-    private String calleeName;
-    private String calleeAvatar;
+    private List<CallParticipantResponse> participants;
 
     private CallType callType;
     private CallStatus status;

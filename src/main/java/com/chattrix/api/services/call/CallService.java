@@ -1,12 +1,11 @@
 package com.chattrix.api.services.call;
 
 import com.chattrix.api.config.AgoraConfig;
-import com.chattrix.api.entities.Call;
-import com.chattrix.api.entities.CallStatus;
-import com.chattrix.api.entities.User;
+import com.chattrix.api.entities.*;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.CallMapper;
 import com.chattrix.api.repositories.CallRepository;
+import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.EndCallRequest;
 import com.chattrix.api.requests.InitiateCallRequest;
@@ -15,6 +14,7 @@ import com.chattrix.api.responses.CallConnectionResponse;
 import com.chattrix.api.responses.CallResponse;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
 import com.chattrix.api.websocket.dto.CallInvitationDto;
+import com.chattrix.api.websocket.dto.CallParticipantUpdateDto;
 import io.agora.media.RtcTokenBuilder;
 import io.agora.media.RtcTokenBuilder.Role;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,7 +22,11 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
@@ -34,6 +38,8 @@ public class CallService {
     @Inject
     private UserRepository userRepository;
     @Inject
+    private ConversationRepository conversationRepository;
+    @Inject
     private CallMapper callMapper;
     @Inject
     private AgoraConfig agoraConfig;
@@ -43,112 +49,168 @@ public class CallService {
     private CallTimeoutScheduler timeoutScheduler;
 
     public CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
-        Long calleeId = request.getCalleeId();
-        validateUserBusy(callerId, calleeId);
+        Conversation conversation = conversationRepository.findByIdWithParticipants(request.getConversationId())
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        String channelId = "channel_%d_%d_%d".formatted(System.currentTimeMillis(), callerId, calleeId);
+        validateUserBusy(callerId);
+
+        String channelId = String.format("channel_%d_%d", System.currentTimeMillis(), request.getConversationId());
 
         Call call = Call.builder()
                 .id(UUID.randomUUID().toString())
                 .channelId(channelId)
                 .callerId(callerId)
-                .calleeId(calleeId)
+                .conversationId(request.getConversationId())
                 .callType(request.getCallType())
                 .status(CallStatus.RINGING)
+                .startTime(Instant.now())
                 .build();
 
-        call = callRepository.save(call);
+        List<CallParticipant> participants = new ArrayList<>();
+        
+        participants.add(CallParticipant.builder()
+                .call(call)
+                .userId(callerId)
+                .status(ParticipantStatus.JOINED)
+                .joinedAt(Instant.now())
+                .build());
 
-        timeoutScheduler.scheduleTimeout(call.getId(), callerId.toString(), calleeId.toString());
-
+        List<CallParticipant> invitees = conversation.getParticipants().stream()
+                .filter(p -> !p.getUser().getId().equals(callerId))
+                .map(p -> CallParticipant.builder()
+                        .call(call)
+                        .userId(p.getUser().getId())
+                        .status(ParticipantStatus.RINGING)
+                        .build())
+                .collect(Collectors.toList());
+        
+        participants.addAll(invitees);
+        call.setParticipants(participants);
+        
+        Call savedCall = callRepository.save(call);
         User caller = findUser(callerId);
-        User callee = findUser(calleeId);
+        
+        for (CallParticipant p : invitees) {
+            timeoutScheduler.scheduleTimeout(savedCall.getId(), callerId.toString(), p.getUserId().toString());
+            sendInvitation(savedCall, caller, p.getUserId());
+        }
 
-        sendInvitation(call, caller, callee);
         String token = generateAgoraToken(channelId, callerId.toString());
-
-        return callMapper.toConnectionResponse(toFullResponse(call, caller, callee), token);
+        return callMapper.toConnectionResponse(toFullResponse(savedCall), token);
     }
 
     public CallConnectionResponse acceptCall(String callId, Long userId) {
         Call call = findCall(callId);
 
-        if (!call.isCallee(userId)) {
-            throw BusinessException.unauthorized("Only callee can accept this call");
+        if (call.isFinished()) {
+            throw BusinessException.badRequest("Call already ended", "CALL_ALREADY_ENDED");
         }
 
-        try {
-            call.accept();
-        } catch (IllegalStateException e) {
-            throw BusinessException.badRequest("Call is not ringing", "INVALID_STATUS");
+        CallParticipant participant = call.getParticipants().stream()
+                .filter(p -> p.getUserId().equals(userId))
+                .findFirst()
+                .orElseGet(() -> {
+                    CallParticipant newP = CallParticipant.builder()
+                            .call(call)
+                            .userId(userId)
+                            .build();
+                    call.getParticipants().add(newP);
+                    return newP;
+                });
+
+        participant.setStatus(ParticipantStatus.JOINED);
+        participant.setJoinedAt(Instant.now());
+        
+        if (call.getStatus() == CallStatus.RINGING) {
+            call.setStatus(CallStatus.CONNECTED);
         }
 
         timeoutScheduler.cancelTimeout(callId);
-        callRepository.save(call);
+        Call savedCall = callRepository.save(call);
 
-        webSocketService.sendCallAccepted(call.getCallerId().toString(), callId, userId.toString());
-        String token = generateAgoraToken(call.getChannelId(), userId.toString());
+        notifyParticipantUpdate(savedCall, userId, ParticipantStatus.JOINED);
 
-        return callMapper.toConnectionResponse(toFullResponse(call), token);
+        String token = generateAgoraToken(savedCall.getChannelId(), userId.toString());
+        return callMapper.toConnectionResponse(toFullResponse(savedCall), token);
+    }
+
+    public CallResponse getActiveCall(Long conversationId) {
+        return callRepository.findActiveCallByConversationId(conversationId)
+                .map(this::toFullResponse)
+                .orElse(null);
     }
 
     public CallResponse rejectCall(String callId, Long userId, RejectCallRequest request) {
         Call call = findCall(callId);
 
-        if (!call.isCallee(userId)) {
-            throw BusinessException.unauthorized("Only callee can reject this call");
+        call.getParticipants().stream()
+                .filter(p -> p.getUserId().equals(userId))
+                .findFirst()
+                .ifPresent(p -> p.setStatus(ParticipantStatus.REJECTED));
+
+        boolean anyJoined = call.getParticipants().stream()
+                .anyMatch(p -> p.getStatus() == ParticipantStatus.JOINED);
+        boolean anyRinging = call.getParticipants().stream()
+                .anyMatch(p -> p.getStatus() == ParticipantStatus.RINGING);
+        
+        if (!anyJoined && !anyRinging) {
+            finalizeCall(call, CallStatus.REJECTED);
         }
-        if (call.getStatus() != CallStatus.RINGING) {
-            throw BusinessException.badRequest("Cannot reject call", "INVALID_STATUS");
-        }
 
-        finalizeCall(call, CallStatus.REJECTED);
-
-        webSocketService.sendCallRejected(
-                call.getCallerId().toString(), callId, userId.toString(), request.getReason()
-        );
-
+        notifyParticipantUpdate(call, userId, ParticipantStatus.REJECTED);
         return toFullResponse(call);
     }
 
     public CallResponse endCall(String callId, Long userId, EndCallRequest request) {
         Call call = findCall(callId);
 
-        if (!call.isParticipant(userId)) {
-            throw BusinessException.unauthorized("You are not a participant of this call");
+        call.getParticipants().stream()
+                .filter(p -> p.getUserId().equals(userId))
+                .findFirst()
+                .ifPresent(p -> {
+                    p.setStatus(ParticipantStatus.LEFT);
+                    p.setLeftAt(Instant.now());
+                });
+
+        long activeCount = call.getParticipants().stream()
+                .filter(p -> p.getStatus() == ParticipantStatus.JOINED)
+                .count();
+
+        if (activeCount == 0) {
+            finalizeCall(call, CallStatus.ENDED);
         }
-        if (call.isFinished()) {
-            throw BusinessException.badRequest("Call already ended", "CALL_ALREADY_ENDED");
-        }
 
-        finalizeCall(call, CallStatus.ENDED);
-
-        webSocketService.sendCallEnded(
-                call.getOtherUserId(userId).toString(),
-                callId,
-                userId.toString(),
-                call.getDurationSeconds()
-        );
-
+        notifyParticipantUpdate(call, userId, ParticipantStatus.LEFT);
         return toFullResponse(call);
+    }
+
+    private void notifyParticipantUpdate(Call call, Long actorId, ParticipantStatus status) {
+        User actor = userRepository.findById(actorId).orElse(null);
+        CallParticipantUpdateDto update = CallParticipantUpdateDto.builder()
+                .callId(call.getId())
+                .userId(actorId)
+                .fullName(actor != null ? actor.getFullName() : "Unknown")
+                .avatarUrl(actor != null ? actor.getAvatarUrl() : null)
+                .status(status)
+                .build();
+
+        // Notify caller
+        if (!call.getCallerId().equals(actorId)) {
+            webSocketService.sendCallParticipantUpdate(call.getCallerId(), update);
+        }
+        
+        // Notify all participants
+        for (CallParticipant p : call.getParticipants()) {
+            if (!p.getUserId().equals(actorId)) {
+                webSocketService.sendCallParticipantUpdate(p.getUserId(), update);
+            }
+        }
     }
 
     public void handleUserDisconnected(Long userId) {
         callRepository.findActiveCallByUserId(userId).ifPresent(call -> {
-            log.warn("Force ending call {} due to user {} disconnection", call.getId(), userId);
-
-            finalizeCall(call, CallStatus.ENDED);
-
-            try {
-                webSocketService.sendCallEnded(
-                        call.getOtherUserId(userId).toString(),
-                        call.getId(),
-                        userId.toString(),
-                        call.getDurationSeconds()
-                );
-            } catch (Exception e) {
-                log.error("Failed to notify partner about forced disconnection", e);
-            }
+            log.warn("User {} disconnected from call {}", userId, call.getId());
+            endCall(call.getId(), userId, new EndCallRequest());
         });
     }
 
@@ -159,20 +221,21 @@ public class CallService {
     }
 
     private CallResponse toFullResponse(Call call) {
+        CallResponse res = callMapper.toResponse(call);
         User caller = userRepository.findById(call.getCallerId()).orElse(null);
-        User callee = userRepository.findById(call.getCalleeId()).orElse(null);
-        return toFullResponse(call, caller, callee);
-    }
-
-    private CallResponse toFullResponse(Call call, User caller, User callee) {
-        CallResponse res = callMapper.toResponse(call, caller, callee);
         if (caller != null) {
             res.setCallerName(caller.getFullName());
             res.setCallerAvatar(caller.getAvatarUrl());
         }
-        if (callee != null) {
-            res.setCalleeName(callee.getFullName());
-            res.setCalleeAvatar(callee.getAvatarUrl());
+        
+        if (res.getParticipants() != null) {
+            for (var pRes : res.getParticipants()) {
+                final var currentPRes = pRes;
+                userRepository.findById(currentPRes.getUserId()).ifPresent(u -> {
+                    currentPRes.setFullName(u.getFullName());
+                    currentPRes.setAvatarUrl(u.getAvatarUrl());
+                });
+            }
         }
         return res;
     }
@@ -185,9 +248,8 @@ public class CallService {
         return userRepository.findById(id).orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
     }
 
-    private void validateUserBusy(Long callerId, Long calleeId) {
-        if (callRepository.findActiveCallByUserId(callerId).isPresent() ||
-                callRepository.findActiveCallByUserId(calleeId).isPresent()) {
+    private void validateUserBusy(Long userId) {
+        if (callRepository.findActiveCallByUserId(userId).isPresent()) {
             throw BusinessException.badRequest("User is busy in another call", "USER_BUSY");
         }
     }
@@ -205,8 +267,8 @@ public class CallService {
         }
     }
 
-    private void sendInvitation(Call call, User caller, User callee) {
-        webSocketService.sendCallInvitation(callee.getId().toString(), CallInvitationDto.builder()
+    private void sendInvitation(Call call, User caller, Long calleeId) {
+        webSocketService.sendCallInvitation(calleeId.toString(), CallInvitationDto.builder()
                 .callId(call.getId())
                 .channelId(call.getChannelId())
                 .callerId(caller.getId())
@@ -216,7 +278,3 @@ public class CallService {
                 .build());
     }
 }
-
-
-
-

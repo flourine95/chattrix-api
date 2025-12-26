@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class InitiateCallRequest {
-    @NotNull(message = "Callee ID is required")
-    private Long calleeId;
+    @NotNull(message = "Conversation ID is required")
+    private Long conversationId;
 
     @NotNull(message = "Call type is required")
     private CallType callType;

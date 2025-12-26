@@ -42,6 +42,20 @@ public class CallResource {
     }
 
     @POST
+    @Path("/{callId}/join")
+    public Response joinCall(@PathParam("callId") String callId) {
+        var response = callService.acceptCall(callId, userContext.getCurrentUserId());
+        return Response.ok(ApiResponse.success(response, "Joined call")).build();
+    }
+
+    @GET
+    @Path("/active/{conversationId}")
+    public Response getActiveCall(@PathParam("conversationId") Long conversationId) {
+        var response = callService.getActiveCall(conversationId);
+        return Response.ok(ApiResponse.success(response, "Active call retrieved")).build();
+    }
+
+    @POST
     @Path("/{callId}/reject")
     public Response rejectCall(@PathParam("callId") String callId,
                                @Valid RejectCallRequest request) {

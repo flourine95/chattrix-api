@@ -2,7 +2,6 @@ package com.chattrix.api.services.birthday;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
-import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationRepository;
@@ -45,8 +44,18 @@ public class BirthdayService {
      */
     @Transactional
     public List<BirthdayUserResponse> getUsersWithBirthdayToday(Long currentUserId) {
-        List<User> allUsers = userRepository.findUsersWithBirthdayToday();
+        LocalDate today = LocalDate.now();
+        int month = today.getMonthValue();
+        int day = today.getDayOfMonth();
+        
+        System.out.println("[Birthday] Fetching birthdays for date: " + month + "-" + day + " (Java time)");
+        
+        // Use explicit month/day to avoid DB timezone issues
+        List<User> allUsers = userRepository.findUsersByBirthdayMonthAndDay(month, day);
+        System.out.println("[Birthday] DB returned " + allUsers.size() + " users with birthday today");
+        
         List<User> relevantUsers = filterRelevantUsers(allUsers, currentUserId);
+        System.out.println("[Birthday] After filtering relevant users for " + currentUserId + ", remaining: " + relevantUsers.size());
 
         return relevantUsers.stream()
                 .map(user -> toBirthdayUserResponse(user, 0))
@@ -133,6 +142,9 @@ public class BirthdayService {
                 .flatMap(conv -> conv.getParticipants().stream())
                 .map(p -> p.getUser().getId())
                 .collect(Collectors.toSet());
+        
+        // Always include the current user themselves in the "relevant" list
+        relevantUserIds.add(currentUserId);
 
         // Filter users
         return users.stream()
@@ -260,7 +272,8 @@ public class BirthdayService {
      */
     @Transactional
     public void checkAndSendBirthdayWishes() {
-        List<User> birthdayUsers = userRepository.findUsersWithBirthdayToday();
+        LocalDate today = LocalDate.now();
+        List<User> birthdayUsers = userRepository.findUsersByBirthdayMonthAndDay(today.getMonthValue(), today.getDayOfMonth());
         System.out.println("[Birthday] Found " + birthdayUsers.size() + " users with birthday today");
         
         for (User user : birthdayUsers) {

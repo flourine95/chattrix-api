@@ -2,6 +2,7 @@ package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Call;
 import com.chattrix.api.entities.CallStatus;
+import com.chattrix.api.entities.ParticipantStatus;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
@@ -34,14 +35,43 @@ public class CallRepository {
     public Optional<Call> findActiveCallByUserId(Long userId) {
         try {
             Call call = em.createQuery(
-                            "SELECT c FROM Call c " +
-                                    "WHERE (c.callerId = :userId OR c.calleeId = :userId) " +
+                            "SELECT DISTINCT c FROM Call c " +
+                                    "LEFT JOIN c.participants p " +
+                                    "WHERE (c.callerId = :userId OR p.userId = :userId) " +
                                     "AND c.status IN :activeStatuses " +
+                                    "AND (p.status IS NULL OR p.status NOT IN :inactiveParticipantStatuses) " +
                                     "ORDER BY c.createdAt DESC",
                             Call.class)
                     .setParameter("userId", userId)
                     .setParameter("activeStatuses", List.of(
                             CallStatus.INITIATING,
+                            CallStatus.RINGING,
+                            CallStatus.CONNECTING,
+                            CallStatus.CONNECTED
+                    ))
+                    .setParameter("inactiveParticipantStatuses", List.of(
+                            ParticipantStatus.LEFT,
+                            ParticipantStatus.REJECTED,
+                            ParticipantStatus.MISSED
+                    ))
+                    .setMaxResults(1)
+                    .getSingleResult();
+            return Optional.of(call);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<Call> findActiveCallByConversationId(Long conversationId) {
+        try {
+            Call call = em.createQuery(
+                            "SELECT c FROM Call c " +
+                                    "WHERE c.conversationId = :conversationId " +
+                                    "AND c.status IN :activeStatuses " +
+                                    "ORDER BY c.createdAt DESC",
+                            Call.class)
+                    .setParameter("conversationId", conversationId)
+                    .setParameter("activeStatuses", List.of(
                             CallStatus.RINGING,
                             CallStatus.CONNECTING,
                             CallStatus.CONNECTED

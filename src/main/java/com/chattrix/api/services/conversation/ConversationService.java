@@ -650,7 +650,14 @@ public class ConversationService {
                 .build();
     }
 
-    private ConversationSettings createDefaultSettings(Long userId, Long conversationId) {
+    @Transactional
+    protected ConversationSettings createDefaultSettings(Long userId, Long conversationId) {
+        // Double check to avoid race conditions
+        Optional<ConversationSettings> existing = settingsRepository.findByUserIdAndConversationId(userId, conversationId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
@@ -660,7 +667,14 @@ public class ConversationService {
                 .user(user)
                 .conversation(conversation)
                 .build();
-        return settingsRepository.save(settings);
+        
+        try {
+            return settingsRepository.save(settings);
+        } catch (RuntimeException e) {
+            // If save fails due to unique constraint, try to find it one last time
+            return settingsRepository.findByUserIdAndConversationId(userId, conversationId)
+                    .orElseThrow(() -> e);
+        }
     }
 
     private void validateParticipant(Conversation conversation, Long userId) {
