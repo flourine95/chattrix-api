@@ -22,6 +22,9 @@ public class ConversationResponse {
     // Unread count for current user
     private Integer unreadCount;
 
+    // Settings for current user
+    private ConversationSettingsResponse settings;
+
     @Getter
     @Setter
     @Builder

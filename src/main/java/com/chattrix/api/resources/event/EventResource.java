@@ -29,14 +29,17 @@ public class EventResource {
     private UserContext userContext;
 
     /**
-     * Get all events for a conversation
+     * Get events for a conversation with cursor-based pagination
      * GET /v1/conversations/{conversationId}/events
      */
     @GET
-    public Response getEvents(@PathParam("conversationId") Long conversationId) {
+    public Response getEvents(
+            @PathParam("conversationId") Long conversationId,
+            @QueryParam("cursor") Long cursor,
+            @QueryParam("limit") @DefaultValue("20") int limit) {
         Long userId = userContext.getCurrentUserId();
-        List<EventResponse> events = eventService.getEvents(userId, conversationId);
-        return Response.ok(ApiResponse.success(events, "Events retrieved successfully")).build();
+        var result = eventService.getEventsWithCursor(userId, conversationId, cursor, limit);
+        return Response.ok(ApiResponse.success(result, "Events retrieved successfully")).build();
     }
 
     /**

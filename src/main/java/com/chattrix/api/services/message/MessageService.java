@@ -513,7 +513,7 @@ public class MessageService {
         return new CursorPaginatedResponse<>(messageResponses, nextCursor, limit);
     }
 
-    public CursorPaginatedResponse<MediaResponse> getMediaFiles(Long userId, Long conversationId, String type, Long cursor, int limit) {
+    public CursorPaginatedResponse<MediaResponse> getMediaFiles(Long userId, Long conversationId, String type, String startDate, String endDate, Long cursor, int limit) {
         if (limit < 1) {
             throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
         }
@@ -526,7 +526,20 @@ public class MessageService {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
-        List<Message> messages = messageRepository.findMediaByCursor(conversationId, type, cursor, limit);
+        Instant start = null;
+        Instant end = null;
+        try {
+            if (startDate != null && !startDate.isEmpty()) {
+                start = Instant.parse(startDate);
+            }
+            if (endDate != null && !endDate.isEmpty()) {
+                end = Instant.parse(endDate);
+            }
+        } catch (Exception e) {
+            throw BusinessException.badRequest("Invalid date format. Use ISO-8601 (e.g., 2023-01-01T00:00:00Z)", "INVALID_DATE");
+        }
+
+        List<Message> messages = messageRepository.findMediaByCursor(conversationId, type, start, end, cursor, limit);
 
         boolean hasMore = messages.size() > limit;
         if (hasMore) {

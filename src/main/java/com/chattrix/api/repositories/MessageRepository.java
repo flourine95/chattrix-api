@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,7 +25,6 @@ public class MessageRepository {
 
     @Transactional
     public void delete(Message message) {
-        // Hibernate @SQLDelete will handle this as an UPDATE
         em.remove(em.contains(message) ? message : em.merge(message));
     }
 
@@ -197,15 +198,27 @@ public class MessageRepository {
     }
 
     /**
-     * Find media files with cursor-based pagination
+     * Find media files with cursor-based pagination and date filtering
      */
-    public List<Message> findMediaByCursor(Long conversationId, String type, Long cursor, int limit) {
+    public List<Message> findMediaByCursor(Long conversationId, String type, Instant startDate, Instant endDate, Long cursor, int limit) {
         StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.conversation.id = :conversationId");
 
         if (type != null && !type.trim().isEmpty()) {
-            jpql.append(" AND m.type = :type");
+            String[] types = type.split(",");
+            if (types.length > 1) {
+                jpql.append(" AND m.type IN :types");
+            } else {
+                jpql.append(" AND m.type = :type");
+            }
         } else {
-            jpql.append(" AND m.type IN ('IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT')");
+            jpql.append(" AND m.type IN ('IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT', 'VOICE', 'LINK')");
+        }
+
+        if (startDate != null) {
+            jpql.append(" AND m.sentAt >= :startDate");
+        }
+        if (endDate != null) {
+            jpql.append(" AND m.sentAt <= :endDate");
         }
 
         if (cursor != null) {
@@ -218,12 +231,30 @@ public class MessageRepository {
         typedQuery.setParameter("conversationId", conversationId);
 
         if (type != null && !type.trim().isEmpty()) {
-            try {
-                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
-                typedQuery.setParameter("type", messageType);
-            } catch (IllegalArgumentException e) {
-                return List.of();
+            String[] types = type.split(",");
+            if (types.length > 1) {
+                List<Message.MessageType> messageTypes = new ArrayList<>();
+                for (String t : types) {
+                    try {
+                        messageTypes.add(Message.MessageType.valueOf(t.trim().toUpperCase()));
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                typedQuery.setParameter("types", messageTypes);
+            } else {
+                try {
+                    Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
+                    typedQuery.setParameter("type", messageType);
+                } catch (IllegalArgumentException e) {
+                    return List.of();
+                }
             }
+        }
+
+        if (startDate != null) {
+            typedQuery.setParameter("startDate", startDate);
+        }
+        if (endDate != null) {
+            typedQuery.setParameter("endDate", endDate);
         }
 
         if (cursor != null) {
@@ -266,26 +297,34 @@ public class MessageRepository {
     }
 
     /**
-     * Soft delete messages that reference a specific poll
+     * Delete messages that reference a specific poll
      */
     @Transactional
     public int deleteByPollId(Long pollId) {
-        // Using UPDATE instead of DELETE for soft delete
-        return em.createQuery("UPDATE Message m SET m.deleted = true, m.deletedAt = :now WHERE m.poll.id = :pollId AND m.deleted = false")
+        // First delete read receipts for these messages
+        em.createQuery("DELETE FROM MessageReadReceipt rr WHERE rr.message.id IN (SELECT m.id FROM Message m WHERE m.poll.id = :pollId)")
                 .setParameter("pollId", pollId)
-                .setParameter("now", Instant.now())
+                .executeUpdate();
+
+        // Then delete the messages
+        return em.createQuery("DELETE FROM Message m WHERE m.poll.id = :pollId")
+                .setParameter("pollId", pollId)
                 .executeUpdate();
     }
 
     /**
-     * Soft delete messages that reference a specific event
+     * Delete messages that reference a specific event
      */
     @Transactional
     public int deleteByEventId(Long eventId) {
-        // Using UPDATE instead of DELETE for soft delete
-        return em.createQuery("UPDATE Message m SET m.deleted = true, m.deletedAt = :now WHERE m.event.id = :eventId AND m.deleted = false")
+        // First delete read receipts for these messages
+        em.createQuery("DELETE FROM MessageReadReceipt rr WHERE rr.message.id IN (SELECT m.id FROM Message m WHERE m.event.id = :eventId)")
                 .setParameter("eventId", eventId)
-                .setParameter("now", Instant.now())
+                .executeUpdate();
+
+        // Then delete the messages
+        return em.createQuery("DELETE FROM Message m WHERE m.event.id = :eventId")
+                .setParameter("eventId", eventId)
                 .executeUpdate();
     }
 
@@ -566,5 +605,29 @@ public class MessageRepository {
         .setParameter("endTime", targetMessage.getSentAt().plusSeconds(contextSize * 30))
         .setMaxResults(contextSize * 2 + 1) // contextSize before + target + contextSize after
         .getResultList();
+    }
+
+    /**
+     * Check if a birthday message has already been sent for a user in a conversation today
+     */
+    public boolean hasBirthdayMessageBeenSentToday(Long conversationId, Long birthdayUserId) {
+        // Get start of today in UTC
+        Instant startOfToday = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        
+        // Native query to handle JSONB array containment check in PostgreSQL
+        // Using standard SQL CAST to avoid parser confusion with :: operator
+        String sql = "SELECT COUNT(*) FROM messages " +
+                     "WHERE conversation_id = :conversationId " +
+                     "AND type = 'SYSTEM' " +
+                     "AND sent_at >= :startOfToday " +
+                     "AND mentions @> CAST(:mentionPattern AS jsonb)";
+        
+        Query query = em.createNativeQuery(sql);
+        query.setParameter("conversationId", conversationId);
+        query.setParameter("startOfToday", java.sql.Timestamp.from(startOfToday));
+        query.setParameter("mentionPattern", "[" + birthdayUserId + "]");
+        
+        Number count = (Number) query.getSingleResult();
+        return count.longValue() > 0;
     }
 }

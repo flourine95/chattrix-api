@@ -52,7 +52,16 @@ public class MessageReadResource {
         return Response.noContent().build();
     }
 
-    // 4. Global Unread Count
+    // 4. Mark conversation as unread
+    // POST /api/v1/read-receipts/conversations/{conversationId}/unread
+    @POST
+    @Path("/conversations/{conversationId}/unread")
+    public Response markConversationAsUnread(@PathParam("conversationId") Long conversationId) {
+        readReceiptService.markConversationAsUnread(userContext.getCurrentUserId(), conversationId);
+        return Response.noContent().build();
+    }
+
+    // 5. Global Unread Count
     // GET /api/v1/read-receipts/unread-count
     @GET
     @Path("/unread-count")

@@ -13,6 +13,7 @@ import jakarta.transaction.Transactional;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
@@ -51,6 +52,17 @@ public class SystemMessageService {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("addedBy", addedByUserId);
         return createSystemMessage(conversationId, addedUserId, "user_added", metadata);
+    }
+
+    @Transactional
+    public Message createUserAddedMessage(Long conversationId, List<Long> addedUserIds, Long addedByUserId) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("addedBy", addedByUserId);
+        metadata.put("addedUserIds", addedUserIds);
+        
+        // Use the first user in the list as the primary actor for the base fields
+        Long primaryUserId = addedUserIds.get(0);
+        return createSystemMessage(conversationId, primaryUserId, "users_added", metadata);
     }
     
     @Transactional

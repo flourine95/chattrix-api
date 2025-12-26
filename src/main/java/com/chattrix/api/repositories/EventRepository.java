@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -106,6 +107,54 @@ public class EventRepository {
         return events;
     }
 
+    /**
+     * Find events with cursor-based pagination
+     */
+    public List<Event> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
+                "SELECT e.id FROM Event e " +
+                "WHERE e.conversation.id = :conversationId ");
+
+        if (cursor != null) {
+            jpql.append("AND e.id < :cursor ");
+        }
+
+        jpql.append("ORDER BY e.id DESC");
+
+        TypedQuery<Long> idQuery = em.createQuery(jpql.toString(), Long.class)
+                .setParameter("conversationId", conversationId);
+
+        if (cursor != null) {
+            idQuery.setParameter("cursor", cursor);
+        }
+
+        List<Long> eventIds = idQuery.setMaxResults(limit + 1).getResultList();
+
+        if (eventIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Fetch full events with creator
+        List<Event> events = em.createQuery(
+                "SELECT DISTINCT e FROM Event e " +
+                "LEFT JOIN FETCH e.creator " +
+                "WHERE e.id IN :eventIds " +
+                "ORDER BY e.id DESC", Event.class)
+                .setParameter("eventIds", eventIds)
+                .getResultList();
+
+        // Fetch RSVPs for these events
+        em.createQuery(
+                "SELECT r FROM EventRsvp r " +
+                "LEFT JOIN FETCH r.user " +
+                "LEFT JOIN FETCH r.event " +
+                "WHERE r.event.id IN :eventIds", EventRsvp.class)
+                .setParameter("eventIds", eventIds)
+                .getResultList();
+
+        return events;
+    }
+
     @Transactional
     public void delete(Event event) {
         if (!em.contains(event)) {
@@ -126,4 +175,3 @@ public class EventRepository {
         em.detach(event);
     }
 }
-

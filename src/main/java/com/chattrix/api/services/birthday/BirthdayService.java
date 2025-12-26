@@ -2,9 +2,11 @@ package com.chattrix.api.services.birthday;
 
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
+import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ChatMessageRequest;
 import com.chattrix.api.requests.SendBirthdayWishesRequest;
@@ -31,6 +33,9 @@ public class BirthdayService {
 
     @Inject
     ConversationRepository conversationRepository;
+
+    @Inject
+    MessageRepository messageRepository;
 
     @Inject
     MessageService messageService;
@@ -185,11 +190,16 @@ public class BirthdayService {
      */
     @Transactional
     public void autoSendBirthdayWishes(User birthdayUser) {
+        System.out.println("[Birthday] Checking auto-wishes for user: " + birthdayUser.getUsername() + " (ID: " + birthdayUser.getId() + ")");
+        
         // Get all group conversations where this user is a member
+        // Use findByUserId which fetches participants
         List<Conversation> conversations = conversationRepository.findByUserId(birthdayUser.getId())
                 .stream()
                 .filter(c -> c.getType() == Conversation.ConversationType.GROUP)
                 .collect(Collectors.toList());
+
+        System.out.println("[Birthday] Found " + conversations.size() + " group conversations for user " + birthdayUser.getUsername());
 
         if (conversations.isEmpty()) {
             return;
@@ -199,38 +209,47 @@ public class BirthdayService {
         String message = generateAutoBirthdayMessage(birthdayUser);
 
         // Send message to each group conversation
-        // Use first participant (not birthday user) as sender
         for (Conversation conversation : conversations) {
-            // Get first participant as sender (could be improved to use a system user)
+            System.out.println("[Birthday] Processing conversation ID: " + conversation.getId());
+            
+            // CHECK: Has a birthday message already been sent for this user in this conversation today?
+            if (messageRepository.hasBirthdayMessageBeenSentToday(conversation.getId(), birthdayUser.getId())) {
+                System.out.println("[Birthday] Message already sent today for user " + birthdayUser.getId() + " in conversation " + conversation.getId());
+                continue;
+            }
+
+            // Get first participant as sender (not birthday user)
             User systemSender = conversation.getParticipants().stream()
                     .map(ConversationParticipant::getUser)
                     .filter(u -> !u.getId().equals(birthdayUser.getId()))
                     .findFirst()
                     .orElse(null);
 
-            if (systemSender == null) continue;
+            if (systemSender == null) {
+                System.out.println("[Birthday] No other participant found to act as sender in conversation " + conversation.getId());
+                continue;
+            }
 
-            // IMPORTANT: Only mention the birthday user if they are actually in this conversation
-            // Check if birthday user is a participant
-            boolean isBirthdayUserInConversation = conversation.getParticipants().stream()
-                    .anyMatch(p -> p.getUser().getId().equals(birthdayUser.getId()));
+            System.out.println("[Birthday] Sending wish from " + systemSender.getUsername() + " to " + birthdayUser.getUsername() + " in group " + conversation.getId());
 
-            // Create message request with mention ONLY if user is in conversation
+            // Create message request with mention
             ChatMessageRequest messageRequest = new ChatMessageRequest(
                     message,
                     "SYSTEM",
                     null, null, null, null, null,
                     null, null, null,
                     null,
-                    isBirthdayUserInConversation ? List.of(birthdayUser.getId()) : null
+                    List.of(birthdayUser.getId())
             );
 
             try {
                 // Send message using MessageService
                 messageService.sendMessage(systemSender.getId(), conversation.getId(), messageRequest);
+                System.out.println("[Birthday] Successfully sent birthday wish to conversation " + conversation.getId());
             } catch (Exception e) {
-                System.err.println("Failed to send birthday message to conversation " + 
+                System.err.println("[Birthday] Failed to send birthday message to conversation " + 
                         conversation.getId() + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
@@ -242,13 +261,14 @@ public class BirthdayService {
     @Transactional
     public void checkAndSendBirthdayWishes() {
         List<User> birthdayUsers = userRepository.findUsersWithBirthdayToday();
+        System.out.println("[Birthday] Found " + birthdayUsers.size() + " users with birthday today");
         
         for (User user : birthdayUsers) {
             try {
                 autoSendBirthdayWishes(user);
             } catch (Exception e) {
-                // Log error but continue with other users
-                System.err.println("Failed to send birthday wishes for user " + user.getId() + ": " + e.getMessage());
+                System.err.println("[Birthday] Error processing user " + user.getId() + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
@@ -341,7 +361,7 @@ public class BirthdayService {
         Integer age = calculateAge(birthdayUser.getDateOfBirth());
         String ageText = age != null ? " (" + age + " tuổi)" : "";
 
-        return String.format("🎂 Hôm nay là sinh nhật của @%s%s! Hãy cùng chúc mừng nhé! 🎉🎈", 
+        return String.format("🎂 Hôm nay là sinh nhật của @%s%s! Hãy cùng chúc mừng nhé! 🎉🎈",
                 birthdayUser.getUsername(), ageText);
     }
 

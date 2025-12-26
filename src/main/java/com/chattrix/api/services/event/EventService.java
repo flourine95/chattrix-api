@@ -11,6 +11,7 @@ import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.CreateEventRequest;
 import com.chattrix.api.requests.EventRsvpRequest;
 import com.chattrix.api.requests.UpdateEventRequest;
+import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.EventResponse;
 import com.chattrix.api.responses.EventRsvpResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
@@ -66,6 +67,38 @@ public class EventService {
         return events.stream()
                 .map(event -> enrichEventResponse(event, userId))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get events for a conversation with cursor-based pagination
+     */
+    @Transactional
+    public CursorPaginatedResponse<EventResponse> getEventsWithCursor(Long userId, Long conversationId, Long cursor, int limit) {
+        if (limit < 1) limit = 20;
+        if (limit > 100) limit = 100;
+
+        // Verify user is participant
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw BusinessException.forbidden("You are not a member of this conversation");
+        }
+
+        List<Event> events = eventRepository.findByConversationIdWithCursor(conversationId, cursor, limit);
+
+        boolean hasMore = events.size() > limit;
+        if (hasMore) {
+            events = events.subList(0, limit);
+        }
+
+        List<EventResponse> responses = events.stream()
+                .map(event -> enrichEventResponse(event, userId))
+                .toList();
+
+        Long nextCursor = null;
+        if (hasMore && !responses.isEmpty()) {
+            nextCursor = responses.get(responses.size() - 1).getId();
+        }
+
+        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
     /**

@@ -41,13 +41,14 @@ public class ConversationSearchResource {
     public Response getMediaFiles(
             @PathParam("conversationId") Long conversationId,
             @QueryParam("type") String type,
+            @QueryParam("startDate") String startDate,
+            @QueryParam("endDate") String endDate,
             @QueryParam("cursor") Long cursor,
             @QueryParam("limit") @DefaultValue("20") int limit) {
 
         var result = messageService.getMediaFiles(
-                userContext.getCurrentUserId(), conversationId, type, cursor, limit
+                userContext.getCurrentUserId(), conversationId, type, startDate, endDate, cursor, limit
         );
         return Response.ok(ApiResponse.success(result, "Media files retrieved successfully")).build();
     }
 }
-

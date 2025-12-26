@@ -1,5 +1,6 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
@@ -98,6 +99,19 @@ public class ReadReceiptService {
         participantRepository.resetUnreadCount(conversationId, userId, lastMessageId);
     }
 
+    @Transactional
+    public void markConversationAsUnread(Long userId, Long conversationId) {
+        ConversationParticipant participant = participantRepository.findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.badRequest("You are not a participant in this conversation", "BAD_REQUEST"));
+
+        // If it's already unread (count > 0), we don't need to do anything
+        // But usually "Mark as unread" in chat apps sets a visual indicator (like unreadCount = 1)
+        if (participant.getUnreadCount() == 0) {
+            participant.setUnreadCount(1);
+            participantRepository.save(participant);
+        }
+    }
+
     public List<ReadReceiptResponse> getReadReceipts(Long userId, Long messageId) {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> BusinessException.notFound("Message not found", "RESOURCE_NOT_FOUND"));
@@ -126,9 +140,3 @@ public class ReadReceiptService {
         return response;
     }
 }
-
-
-
-
-
-

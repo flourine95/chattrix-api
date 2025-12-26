@@ -79,6 +79,7 @@ public class ConversationService {
                 .role(ConversationParticipant.Role.ADMIN)
                 .build());
 
+        List<Long> addedUserIds = new ArrayList<>();
         for (Long participantId : request.getParticipantIds()) {
             if (!participantId.equals(currentUserId)) {
                 User participant = userRepository.findById(participantId)
@@ -89,15 +90,22 @@ public class ConversationService {
                         .conversation(conversation)
                         .role(ConversationParticipant.Role.MEMBER)
                         .build());
+                addedUserIds.add(participantId);
             }
         }
 
         conversation.setParticipants(participants);
         conversationRepository.save(conversation);
 
-        return conversationMapper.toResponse(conversation);
+        // Create system message for group creation with members
+        if (conversation.getType() == Conversation.ConversationType.GROUP && !addedUserIds.isEmpty()) {
+            systemMessageService.createUserAddedMessage(conversation.getId(), addedUserIds, currentUserId);
+        }
+
+        return enrichConversationResponse(conversation, currentUserId);
     }
 
+    @Transactional
     public PaginatedResponse<ConversationResponse> getConversations(Long userId, String filter, int page, int size) {
         List<Conversation> allConversations = conversationRepository.findByUserId(userId);
 
@@ -133,35 +141,10 @@ public class ConversationService {
         // Get page of conversations
         List<Conversation> pagedConversations = allConversations.subList(startIndex, endIndex);
 
-        // Map to response and populate unreadCount for current user
-        List<ConversationResponse> responses = conversationMapper.toResponseList(pagedConversations);
-        for (int i = 0; i < pagedConversations.size(); i++) {
-            Conversation conv = pagedConversations.get(i);
-            ConversationResponse response = responses.get(i);
-
-            // Find current user's participant to get unreadCount
-            conv.getParticipants().stream()
-                    .filter(p -> p.getUser().getId().equals(userId))
-                    .findFirst()
-                    .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
-
-            // Populate readBy for lastMessage if exists
-            if (response.getLastMessage() != null && conv.getLastMessage() != null) {
-                var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
-                response.getLastMessage().setReadCount((long) receipts.size());
-
-                List<ConversationResponse.ReadReceiptInfo> readByList = receipts.stream()
-                        .map(receipt -> ConversationResponse.ReadReceiptInfo.builder()
-                                .userId(receipt.getUser().getId())
-                                .username(receipt.getUser().getUsername())
-                                .fullName(receipt.getUser().getFullName())
-                                .avatarUrl(receipt.getUser().getAvatarUrl())
-                                .readAt(receipt.getReadAt())
-                                .build())
-                        .toList();
-                response.getLastMessage().setReadBy(readByList);
-            }
-        }
+        // Map to response and enrich
+        List<ConversationResponse> responses = pagedConversations.stream()
+                .map(conv -> enrichConversationResponse(conv, userId))
+                .toList();
 
         PaginatedResponse<ConversationResponse> result = new PaginatedResponse<>();
         result.setData(responses);
@@ -178,6 +161,7 @@ public class ConversationService {
     /**
      * Get conversations with cursor-based pagination and filtering.
      */
+    @Transactional
     public CursorPaginatedResponse<ConversationResponse> getConversationsWithCursor(Long userId, String filter, Long cursor, int limit) {
         // Validate limit
         if (limit < 1) {
@@ -196,35 +180,10 @@ public class ConversationService {
             conversations = conversations.subList(0, limit);
         }
 
-        // Map to response and populate unreadCount for current user
-        List<ConversationResponse> responses = conversationMapper.toResponseList(conversations);
-        for (int i = 0; i < conversations.size(); i++) {
-            Conversation conv = conversations.get(i);
-            ConversationResponse response = responses.get(i);
-
-            // Find current user's participant to get unreadCount
-            conv.getParticipants().stream()
-                    .filter(p -> p.getUser().getId().equals(userId))
-                    .findFirst()
-                    .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
-
-            // Populate readBy for lastMessage if exists
-            if (response.getLastMessage() != null && conv.getLastMessage() != null) {
-                var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
-                response.getLastMessage().setReadCount((long) receipts.size());
-
-                List<ConversationResponse.ReadReceiptInfo> readByList = receipts.stream()
-                        .map(receipt -> ConversationResponse.ReadReceiptInfo.builder()
-                                .userId(receipt.getUser().getId())
-                                .username(receipt.getUser().getUsername())
-                                .fullName(receipt.getUser().getFullName())
-                                .avatarUrl(receipt.getUser().getAvatarUrl())
-                                .readAt(receipt.getReadAt())
-                                .build())
-                        .toList();
-                response.getLastMessage().setReadBy(readByList);
-            }
-        }
+        // Map to response and enrich
+        List<ConversationResponse> responses = conversations.stream()
+                .map(conv -> enrichConversationResponse(conv, userId))
+                .toList();
 
         // Calculate next cursor
         Long nextCursor = null;
@@ -235,11 +194,63 @@ public class ConversationService {
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
+    @Transactional
     public ConversationResponse getConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
         validateParticipant(conversation, userId);
-        return conversationMapper.toResponse(conversation);
+        return enrichConversationResponse(conversation, userId);
+    }
+
+    /**
+     * Helper method to enrich conversation response with unread count, last message details, and user settings
+     */
+    private ConversationResponse enrichConversationResponse(Conversation conv, Long userId) {
+        ConversationResponse response = conversationMapper.toResponse(conv);
+
+        // 1. Set unreadCount for current user
+        conv.getParticipants().stream()
+                .filter(p -> p.getUser().getId().equals(userId))
+                .findFirst()
+                .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
+
+        // 2. Populate readBy for lastMessage if exists
+        if (response.getLastMessage() != null && conv.getLastMessage() != null) {
+            var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
+            response.getLastMessage().setReadCount((long) receipts.size());
+
+            List<ConversationResponse.ReadReceiptInfo> readByList = receipts.stream()
+                    .map(receipt -> ConversationResponse.ReadReceiptInfo.builder()
+                            .userId(receipt.getUser().getId())
+                            .username(receipt.getUser().getUsername())
+                            .fullName(receipt.getUser().getFullName())
+                            .avatarUrl(receipt.getUser().getAvatarUrl())
+                            .readAt(receipt.getReadAt())
+                            .build())
+                    .toList();
+            response.getLastMessage().setReadBy(readByList);
+        }
+
+        // 3. Populate settings for current user
+        ConversationSettings settings = settingsRepository
+                .findByUserIdAndConversationId(userId, conv.getId())
+                .orElseGet(() -> createDefaultSettings(userId, conv.getId()));
+
+        response.setSettings(ConversationSettingsResponse.builder()
+                .conversationId(conv.getId())
+                .muted(settings.isMuted())
+                .mutedUntil(settings.getMutedUntil())
+                .blocked(settings.isBlocked())
+                .notificationsEnabled(settings.isNotificationsEnabled())
+                .customNickname(settings.getCustomNickname())
+                .theme(settings.getTheme())
+                .pinned(settings.isPinned())
+                .pinOrder(settings.getPinOrder())
+                .archived(settings.isArchived())
+                .hidden(settings.isHidden())
+                .build());
+
+        return response;
     }
 
     public List<ConversationMemberResponse> getConversationMembers(Long userId, Long conversationId) {
@@ -324,7 +335,7 @@ public class ConversationService {
             systemMessageService.createGroupAvatarChangedMessage(conversationId, userId);
         }
         
-        return conversationMapper.toResponse(conversation);
+        return enrichConversationResponse(conversation, userId);
     }
 
     @Transactional
@@ -421,6 +432,7 @@ public class ConversationService {
         }
 
         List<AddMembersResponse.AddedMember> addedMembers = new ArrayList<>();
+        List<Long> newlyAddedUserIds = new ArrayList<>();
 
         for (Long newUserId : request.getUserIds()) {
             if (participantRepository.isUserParticipant(conversationId, newUserId)) continue;
@@ -443,8 +455,12 @@ public class ConversationService {
                     .joinedAt(newParticipant.getJoinedAt())
                     .build());
             
-            // Create system message for each added member
-            systemMessageService.createUserAddedMessage(conversationId, newUserId, userId);
+            newlyAddedUserIds.add(newUserId);
+        }
+
+        // Create ONE system message for all added members
+        if (!newlyAddedUserIds.isEmpty()) {
+            systemMessageService.createUserAddedMessage(conversationId, newlyAddedUserIds, userId);
         }
 
         return AddMembersResponse.builder()
@@ -567,6 +583,10 @@ public class ConversationService {
                 .notificationsEnabled(settings.isNotificationsEnabled())
                 .customNickname(settings.getCustomNickname())
                 .theme(settings.getTheme())
+                .pinned(settings.isPinned())
+                .pinOrder(settings.getPinOrder())
+                .archived(settings.isArchived())
+                .hidden(settings.isHidden())
                 .build();
     }
 
@@ -674,7 +694,7 @@ public class ConversationService {
         List<Conversation> mutualGroups = conversationRepository.findMutualGroups(currentUserId, otherUserId);
 
         return mutualGroups.stream()
-                .map(conversationMapper::toResponse)
+                .map(conv -> enrichConversationResponse(conv, currentUserId))
                 .toList();
     }
 }
