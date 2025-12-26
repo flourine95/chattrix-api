@@ -25,11 +25,13 @@ public class SeedUser {
             "Available for freelance work. 📩", "Life is short, make it sweet.",
             "Exploring the world, one city at a time. 🌍", "Gamer at heart. 🎮",
             "Silence is the best answer.", "Working hard in silence. 🚀",
-            "Here for a good time, not a long time.", "Photography is my passion. 📸",
-            "Foodie & Travel addict. 🍜", "Simplicity is the ultimate sophistication.",
-            "Do what you love, love what you do. ❤️", "Catch flights, not feelings. ✈️",
-            "Just another day in paradise. 🌴", "Trying to be a rainbow in someone's cloud. 🌈",
-            "Less talk, more action. 💪", "Stay hungry, stay foolish."
+            "Photography is my passion. 📸", "Foodie & Travel addict. 🍜",
+            "Do what you love, love what you do. ❤️", "Catch flights, not feelings. ✈️"
+    };
+
+    private static final String[] LOCATIONS = {
+            "Hanoi, Vietnam", "Ho Chi Minh City, Vietnam", "Da Nang, Vietnam",
+            "Can Tho, Vietnam", "Hai Phong, Vietnam", "Da Lat, Vietnam"
     };
 
     static class UserData {
@@ -39,7 +41,6 @@ public class SeedUser {
 
         public UserData(String fullName, int index) {
             this.fullName = fullName;
-            // Thay đổi logic tại đây: username = user + index
             this.username = "user" + index;
             this.email = "user" + index + "@example.com";
         }
@@ -68,77 +69,62 @@ public class SeedUser {
             users.add(new UserData(names[i], i + 1));
         }
 
-        String sqlHeader = "INSERT INTO users (full_name, username, email, password, avatar_url, phone, bio, gender, online, email_verified, profile_visibility, created_at, updated_at, last_seen) VALUES ";
+        // Header SQL sắp xếp theo đúng thứ tự bạn yêu cầu
+        String sqlHeader = "INSERT INTO users (avatar_url, bio, created_at, date_of_birth, email, email_verified, full_name, gender, last_seen, location, online, password, phone, profile_visibility, updated_at, username) VALUES ";
 
         Random rand = new Random();
         StringBuilder sqlBuilder = new StringBuilder();
 
-        System.out.println("⏳ Đang xử lý upload ảnh cho user1-20... Vui lòng đợi!");
-
         for (int i = 0; i < users.size(); i++) {
             UserData user = users.get(i);
-            int index = i + 1;
-
             try {
-                int colorIndex = (index - 1) % THEME_COLORS.length;
+                int colorIndex = i % THEME_COLORS.length;
                 String color = THEME_COLORS[colorIndex];
 
-                String avatarSourceUrl = "https://ui-avatars.com/api/?" +
-                        "background=" + color +
-                        "&color=ffffff" +
-                        "&size=512" +
-                        "&bold=true" +
-                        "&font-size=0.4" +
-                        "&length=2" +
-                        "&rounded=false" +
-                        "&name=" + URLEncoder.encode(user.fullName, StandardCharsets.UTF_8);
+                String avatarSourceUrl = "https://ui-avatars.com/api/?background=" + color + "&color=ffffff&name=" + URLEncoder.encode(user.fullName, StandardCharsets.UTF_8);
 
-                var params = ObjectUtils.asMap(
-                        "public_id", "avatars/" + user.username, // Public ID theo username mới
-                        "overwrite", true,
-                        "resource_type", "image"
-                );
+                var params = ObjectUtils.asMap("public_id", "avatars/" + user.username, "overwrite", true, "resource_type", "image");
                 var uploadResult = cloudinary.uploader().upload(avatarSourceUrl, params);
                 String avatarUrl = (String) uploadResult.get("secure_url");
 
+                // Logic data ngẫu nhiên
                 String gender = rand.nextBoolean() ? "MALE" : "FEMALE";
                 String phone = "09" + (10000000 + rand.nextInt(90000000));
-                String rawBio = RANDOM_BIOS[rand.nextInt(RANDOM_BIOS.length)];
-                String sqlBio = rawBio.replace("'", "''");
+                String sqlBio = RANDOM_BIOS[rand.nextInt(RANDOM_BIOS.length)].replace("'", "''");
 
+                // Ngày sinh ngẫu nhiên năm, cố định 25/12
+                int year = 1990 + rand.nextInt(16);
+                String dob = String.format("%d-12-25 06:25:17.861000 +00:00", year);
+
+                String location = LOCATIONS[rand.nextInt(LOCATIONS.length)];
+
+                // Format row theo đúng thứ tự cột của DB
                 String valueRow = String.format(
-                        "('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %b, %b, '%s', NOW(), NOW(), NOW())",
-                        user.fullName,
-                        user.username, // user1, user2...
-                        user.email,    // user1@example.com...
-                        hashedPassword,
-                        avatarUrl,
-                        phone,
-                        sqlBio,
-                        gender,
-                        false,
-                        true,
-                        "PUBLIC"
+                        "('%s', '%s', NOW(), '%s', '%s', %b, '%s', '%s', NOW(), '%s', %b, '%s', '%s', '%s', NOW(), '%s')",
+                        avatarUrl,          // avatar_url
+                        sqlBio,             // bio
+                        dob,                // date_of_birth
+                        user.email,         // email
+                        true,               // email_verified
+                        user.fullName,      // full_name
+                        gender,             // gender
+                        location,           // location
+                        false,              // online
+                        hashedPassword,     // password
+                        phone,              // phone
+                        "PUBLIC",           // profile_visibility
+                        user.username       // username
                 );
 
                 sqlBuilder.append(valueRow);
-                if (i < users.size() - 1) {
-                    sqlBuilder.append(",\n");
-                } else {
-                    sqlBuilder.append(";");
-                }
+                if (i < users.size() - 1) sqlBuilder.append(",\n"); else sqlBuilder.append(";");
 
-                System.out.println("-- ✅ Done: " + user.username);
-
+                System.out.println("-- ✅ Processed: " + user.username);
             } catch (Exception e) {
-                System.err.println("-- ❌ Error generating " + user.username + ": " + e.getMessage());
+                System.err.println("-- ❌ Error: " + user.username + " - " + e.getMessage());
             }
         }
 
-        System.out.println("\n\n-- 👇👇👇 SQL SCRIPT CHO USER1-20 👇👇👇");
-        System.out.println("----------------------------------------------------------------");
-        System.out.println(sqlHeader);
-        System.out.println(sqlBuilder);
-        System.out.println("----------------------------------------------------------------");
+        System.out.println("\n-- SQL SCRIPT --\n" + sqlHeader + "\n" + sqlBuilder);
     }
 }
