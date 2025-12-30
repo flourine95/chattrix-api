@@ -19,6 +19,8 @@ public interface CallMapper {
     @Mapping(target = "id", source = "call.id")
     @Mapping(target = "callerId", source = "call.callerId")
     @Mapping(target = "participants", expression = "java(mapParticipants(call))")
+    @Mapping(target = "callerName", ignore = true)
+    @Mapping(target = "callerAvatar", ignore = true)
     CallResponse toResponse(Call call);
 
     default List<CallParticipantResponse> mapParticipants(Call call) {

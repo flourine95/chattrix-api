@@ -14,6 +14,7 @@ import java.util.List;
 public interface ConversationMapper {
 
     @Mapping(target = "unreadCount", ignore = true)
+    @Mapping(target = "settings", ignore = true)
     ConversationResponse toResponse(Conversation conversation);
 
     List<ConversationResponse> toResponseList(List<Conversation> conversations);

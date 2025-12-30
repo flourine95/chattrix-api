@@ -38,6 +38,32 @@ public class WebSocketNotificationService {
         }
     }
 
+    public void sendFriendRequestRejected(Long targetUserId, Long requestId, Long rejectedBy) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "requestId", requestId,
+                    "rejectedBy", rejectedBy
+            );
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.rejected", payload);
+            chatSessionService.sendDirectMessage(targetUserId, message);
+        } catch (Exception e) {
+            log.error("Failed to send friend request rejected notification", e);
+        }
+    }
+
+    public void sendFriendRequestCancelled(Long targetUserId, Long requestId, Long cancelledBy) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "requestId", requestId,
+                    "cancelledBy", cancelledBy
+            );
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.cancelled", payload);
+            chatSessionService.sendDirectMessage(targetUserId, message);
+        } catch (Exception e) {
+            log.error("Failed to send friend request cancelled notification", e);
+        }
+    }
+
     // ==================== Call Events ====================
 
     public void sendCallInvitation(String calleeId, CallInvitationDto data) {
