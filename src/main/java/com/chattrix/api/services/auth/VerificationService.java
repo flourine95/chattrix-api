@@ -1,14 +1,11 @@
 package com.chattrix.api.services.auth;
 
-import com.chattrix.api.entities.PasswordResetToken;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.entities.VerificationToken;
+import com.chattrix.api.entities.UserToken;
 import com.chattrix.api.exceptions.BusinessException;
-import com.chattrix.api.repositories.PasswordResetTokenRepository;
 import com.chattrix.api.repositories.UserRepository;
-import com.chattrix.api.repositories.VerificationTokenRepository;
+import com.chattrix.api.repositories.UserTokenRepository;
 import com.chattrix.api.requests.ForgotPasswordRequest;
-import com.chattrix.api.requests.ResendVerificationRequest;
 import com.chattrix.api.requests.ResetPasswordRequest;
 import com.chattrix.api.requests.VerifyEmailRequest;
 import com.chattrix.api.services.notification.EmailService;
@@ -23,124 +20,188 @@ import java.time.temporal.ChronoUnit;
 @ApplicationScoped
 public class VerificationService {
 
-    private static final int VERIFICATION_TOKEN_EXPIRY_MINUTES = 15;
-    private static final int PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15;
+    private static final int TOKEN_EXPIRY_MINUTES = 15;
+
     @Inject
     private UserRepository userRepository;
+
     @Inject
-    private VerificationTokenRepository verificationTokenRepository;
-    @Inject
-    private PasswordResetTokenRepository passwordResetTokenRepository;
+    private UserTokenRepository userTokenRepository;
+
     @Inject
     private EmailService emailService;
 
+    /**
+     * Send verification email
+     * Flow: Find user -> Validate -> Delete old tokens -> Generate OTP -> Save token -> Send email
+     */
     @Transactional
-    public void sendVerificationEmail(ResendVerificationRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
+    public void sendVerificationEmailByEmail(String email) {
+        // 1. Find user by email
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> BusinessException.notFound(
+                    "User not found with email: " + email, 
+                    "RESOURCE_NOT_FOUND"
+                ));
 
+        // 2. Validate email not already verified
         if (user.isEmailVerified()) {
             throw BusinessException.badRequest("Email is already verified", "BAD_REQUEST");
         }
 
-        // Delete old verification tokens for this user
-        verificationTokenRepository.deleteByUser(user);
+        // 3. Delete old verification tokens for this user
+        userTokenRepository.deleteByUserIdAndType(user.getId(), UserToken.TokenType.VERIFY);
 
-        // Generate new OTP
+        // 4. Generate new OTP
         String otp = emailService.generateOTP();
 
-        // Create verification token
-        VerificationToken token = new VerificationToken();
-        token.setToken(otp);
-        token.setUser(user);
-        token.setExpiresAt(Instant.now().plus(VERIFICATION_TOKEN_EXPIRY_MINUTES, ChronoUnit.MINUTES));
-        verificationTokenRepository.save(token);
+        // 5. Create verification token
+        UserToken token = UserToken.builder()
+                .token(otp)
+                .user(user)
+                .type(UserToken.TokenType.VERIFY)
+                .expiresAt(Instant.now().plus(TOKEN_EXPIRY_MINUTES, ChronoUnit.MINUTES))
+                .build();
+        userTokenRepository.save(token);
 
-        // Send email
+        // 6. Send email
         emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), otp);
     }
 
+    /**
+     * Verify email with OTP
+     * Flow: Find user -> Find token -> Validate -> Mark as used -> Update user
+     */
     @Transactional
     public void verifyEmail(VerifyEmailRequest request) {
+        // 1. Find user by email
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound(
+                    "User not found with email: " + request.getEmail(), 
+                    "RESOURCE_NOT_FOUND"
+                ));
 
+        // 2. Validate email not already verified
         if (user.isEmailVerified()) {
             throw BusinessException.badRequest("Email is already verified", "BAD_REQUEST");
         }
 
-        VerificationToken token = verificationTokenRepository.findByToken(request.getOtp())
-                .orElseThrow(() -> BusinessException.badRequest("Invalid verification code", "BAD_REQUEST"));
+        // 3. Find token by OTP and type
+        UserToken token = userTokenRepository.findByTokenAndType(
+                request.getOtp(), 
+                UserToken.TokenType.VERIFY
+            )
+            .orElseThrow(() -> BusinessException.badRequest(
+                "Invalid verification code", 
+                "BAD_REQUEST"
+            ));
 
+        // 4. Validate token belongs to user
         if (!token.getUser().getId().equals(user.getId())) {
             throw BusinessException.badRequest("Invalid verification code", "BAD_REQUEST");
         }
 
+        // 5. Validate token is valid
         if (!token.isValid()) {
-            throw BusinessException.badRequest("Verification code has expired or already been used", "BAD_REQUEST");
+            throw BusinessException.badRequest(
+                "Verification code has expired or already been used", 
+                "BAD_REQUEST"
+            );
         }
 
-        // Mark token as used
+        // 6. Mark token as used
         token.markAsUsed();
-        verificationTokenRepository.save(token);
+        userTokenRepository.save(token);
 
-        // Mark email as verified
+        // 7. Mark email as verified
         user.setEmailVerified(true);
         userRepository.save(user);
     }
 
+    /**
+     * Send password reset email
+     * Flow: Find user -> Delete old tokens -> Generate OTP -> Save token -> Send email
+     */
     @Transactional
     public void sendPasswordResetEmail(ForgotPasswordRequest request) {
+        // 1. Find user by email
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound(
+                    "User not found with email: " + request.getEmail(), 
+                    "RESOURCE_NOT_FOUND"
+                ));
 
-        // Delete old password reset tokens for this user
-        passwordResetTokenRepository.deleteByUser(user);
+        // 2. Delete old password reset tokens for this user
+        userTokenRepository.deleteByUserIdAndType(user.getId(), UserToken.TokenType.RESET);
 
-        // Generate new OTP
+        // 3. Generate new OTP
         String otp = emailService.generateOTP();
 
-        // Create password reset token
-        PasswordResetToken token = new PasswordResetToken();
-        token.setToken(otp);
-        token.setUser(user);
-        token.setExpiresAt(Instant.now().plus(PASSWORD_RESET_TOKEN_EXPIRY_MINUTES, ChronoUnit.MINUTES));
-        passwordResetTokenRepository.save(token);
+        // 4. Create password reset token
+        UserToken token = UserToken.builder()
+                .token(otp)
+                .user(user)
+                .type(UserToken.TokenType.RESET)
+                .expiresAt(Instant.now().plus(TOKEN_EXPIRY_MINUTES, ChronoUnit.MINUTES))
+                .build();
+        userTokenRepository.save(token);
 
-        // Send email
+        // 5. Send email
         emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), otp);
     }
 
+    /**
+     * Reset password with OTP
+     * Flow: Find user -> Find token -> Validate -> Mark as used -> Update password
+     */
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
+        // 1. Find user by email
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> BusinessException.notFound("User not found with email: " + request.getEmail(), "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound(
+                    "User not found with email: " + request.getEmail(), 
+                    "RESOURCE_NOT_FOUND"
+                ));
 
-        PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getOtp())
-                .orElseThrow(() -> BusinessException.badRequest("Invalid reset code", "BAD_REQUEST"));
+        // 2. Find token by OTP and type
+        UserToken token = userTokenRepository.findByTokenAndType(
+                request.getOtp(), 
+                UserToken.TokenType.RESET
+            )
+            .orElseThrow(() -> BusinessException.badRequest(
+                "Invalid reset code", 
+                "BAD_REQUEST"
+            ));
 
+        // 3. Validate token belongs to user
         if (!token.getUser().getId().equals(user.getId())) {
             throw BusinessException.badRequest("Invalid reset code", "BAD_REQUEST");
         }
 
+        // 4. Validate token is valid
         if (!token.isValid()) {
-            throw BusinessException.badRequest("Reset code has expired or already been used", "BAD_REQUEST");
+            throw BusinessException.badRequest(
+                "Reset code has expired or already been used", 
+                "BAD_REQUEST"
+            );
         }
 
-        // Mark token as used
+        // 5. Mark token as used
         token.markAsUsed();
-        passwordResetTokenRepository.save(token);
+        userTokenRepository.save(token);
 
-        // Update password
+        // 6. Hash and update password
         String hashedPassword = BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt());
         user.setPassword(hashedPassword);
         userRepository.save(user);
     }
 
+    /**
+     * Cleanup expired tokens (scheduled job)
+     */
     @Transactional
     public void cleanupExpiredTokens() {
-        verificationTokenRepository.deleteExpiredTokens();
-        passwordResetTokenRepository.deleteExpiredTokens();
+        userTokenRepository.deleteExpiredTokens();
     }
 }
 

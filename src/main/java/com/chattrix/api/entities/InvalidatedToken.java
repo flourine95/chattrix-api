@@ -1,13 +1,15 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "invalidated_tokens")
 public class InvalidatedToken {
@@ -24,14 +26,5 @@ public class InvalidatedToken {
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
-
-    public InvalidatedToken() {
-    }
-
-    public InvalidatedToken(String token, Instant expiresAt) {
-        this.token = token;
-        this.invalidatedAt = Instant.now();
-        this.expiresAt = expiresAt;
-    }
 }
 

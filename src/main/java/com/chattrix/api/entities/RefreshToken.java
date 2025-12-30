@@ -1,14 +1,15 @@
 package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "refresh_tokens")
 public class RefreshToken {
@@ -53,16 +54,6 @@ public class RefreshToken {
 
     @Column(name = "ip_address", length = 50)
     private String ipAddress;
-
-    public RefreshToken() {
-    }
-
-    public RefreshToken(User user, Instant expiresAt) {
-        this.token = UUID.randomUUID().toString();
-        this.user = user;
-        this.expiresAt = expiresAt;
-        this.createdAt = Instant.now();
-    }
 
     public void revoke() {
         this.revoked = true;

@@ -98,7 +98,7 @@ public class AuthResource {
     @Path("/resend-verification")
     @RateLimited(maxRequests = 3, windowSeconds = 600)
     public Response resendVerification(@Valid ResendVerificationRequest request) {
-        verificationService.sendVerificationEmail(request);
+        verificationService.sendVerificationEmailByEmail(request.getEmail());
         return Response.ok(ApiResponse.success(null, "Verification email sent successfully")).build();
     }
 

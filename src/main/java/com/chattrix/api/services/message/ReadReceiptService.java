@@ -6,7 +6,6 @@ import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
-import com.chattrix.api.repositories.MessageReadReceiptRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ReadReceiptResponse;

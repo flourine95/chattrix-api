@@ -3,7 +3,6 @@ package com.chattrix.api.services.call;
 import com.chattrix.api.entities.*;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.CallHistoryMapper;
-import com.chattrix.api.repositories.CallHistoryRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.CallHistoryResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;

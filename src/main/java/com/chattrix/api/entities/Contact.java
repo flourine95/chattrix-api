@@ -1,13 +1,16 @@
 package com.chattrix.api.entities;
 
+import com.chattrix.api.enums.ContactStatus;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(
         name = "contacts",
@@ -64,10 +67,4 @@ public class Contact {
         this.updatedAt = Instant.now();
     }
 
-    public enum ContactStatus {
-        PENDING,    // Lời mời đang chờ
-        ACCEPTED,   // Đã chấp nhận (là bạn bè)
-        REJECTED,   // Đã từ chối
-        BLOCKED     // Đã chặn
-    }
 }

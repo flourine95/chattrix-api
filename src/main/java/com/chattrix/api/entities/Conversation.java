@@ -2,19 +2,18 @@ package com.chattrix.api.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Getter
 @Setter
-@Entity
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
+@Entity
 @Table(name = "conversations")
 public class Conversation {
 
@@ -46,6 +45,12 @@ public class Conversation {
     @OneToOne
     @JoinColumn(name = "last_message_id")
     private Message lastMessage;
+
+    // Metadata JSONB: GroupInviteLink info {token, expiresAt, maxUses, currentUses, createdBy, createdAt, revoked, revokedAt, revokedBy}
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb")
+    @Builder.Default
+    private Map<String, Object> metadata = new HashMap<>();
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

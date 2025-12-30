@@ -1,14 +1,15 @@
 package com.chattrix.api.responses;
 
-import com.chattrix.api.entities.Gender;
-import com.chattrix.api.entities.ProfileVisibility;
-import lombok.Getter;
-import lombok.Setter;
+import com.chattrix.api.entities.User;
+import lombok.*;
 
 import java.time.Instant;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserResponse {
     private Long id;
     private String username;
@@ -18,11 +19,10 @@ public class UserResponse {
     private String fullName;
     private String avatarUrl;
     private String bio;
-    private Gender gender;
+    private User.Gender gender;
     private Instant dateOfBirth;
     private String location;
-    private ProfileVisibility profileVisibility;
-    private boolean online;
+    private User.ProfileVisibility profileVisibility;
     private Instant lastSeen;
     private Instant createdAt;
     private Instant updatedAt;

@@ -1,5 +1,6 @@
 package com.chattrix.api.entities;
 
+import com.chattrix.api.enums.CallParticipantStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -7,9 +8,9 @@ import java.time.Instant;
 
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "call_participants", indexes = {
         @Index(name = "idx_call_participants_call_id", columnList = "call_id"),
@@ -30,7 +31,7 @@ public class CallParticipant {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private ParticipantStatus status;
+    private CallParticipantStatus status;
 
     @Column(name = "joined_at")
     private Instant joinedAt;
@@ -45,4 +46,5 @@ public class CallParticipant {
     protected void onPrePersist() {
         this.createdAt = Instant.now();
     }
+
 }

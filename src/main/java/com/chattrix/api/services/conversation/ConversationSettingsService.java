@@ -6,7 +6,6 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
-import com.chattrix.api.repositories.ConversationSettingsRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ConversationSettingsResponse;
 import jakarta.enterprise.context.ApplicationScoped;

@@ -1,5 +1,7 @@
 package com.chattrix.api.entities;
 
+import com.chattrix.api.enums.CallStatus;
+import com.chattrix.api.enums.CallType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,9 +12,9 @@ import java.util.List;
 
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "calls", indexes = {
         @Index(name = "idx_calls_caller_id", columnList = "caller_id"),
@@ -72,21 +74,6 @@ public class Call {
         this.updatedAt = Instant.now();
     }
 
-    public void accept(Long userId) {
-        participants.stream()
-                .filter(p -> p.getUserId().equals(userId))
-                .findFirst()
-                .ifPresent(p -> {
-                    p.setStatus(ParticipantStatus.JOINED);
-                    p.setJoinedAt(Instant.now());
-                });
-
-        if (this.status == CallStatus.RINGING) {
-            this.status = CallStatus.CONNECTED;
-            this.startTime = Instant.now();
-        }
-    }
-
     public void end(CallStatus endStatus) {
         if (isFinished()) return;
 
@@ -98,14 +85,7 @@ public class Call {
         } else {
             this.durationSeconds = 0;
         }
-    }
 
-    public boolean isCaller(Long userId) {
-        return this.callerId != null && this.callerId.equals(userId);
-    }
-
-    public boolean isParticipant(Long userId) {
-        return isCaller(userId) || participants.stream().anyMatch(p -> p.getUserId().equals(userId));
     }
 
     public boolean isFinished() {

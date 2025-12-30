@@ -1,24 +1,29 @@
 package com.chattrix.api.entities;
 
+import com.chattrix.api.enums.Gender;
+import com.chattrix.api.enums.ProfileVisibility;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
-@Table(
-        name = "users",
-        indexes = {
-                @Index(name = "idx_users_username", columnList = "username"),
-                @Index(name = "idx_users_email", columnList = "email")
-        }
-)
+@Table(name = "users", indexes = {
+        @Index(name = "idx_users_username", columnList = "username"),
+        @Index(name = "idx_users_email", columnList = "email")
+})
 public class User {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -61,11 +66,19 @@ public class User {
     @Column(name = "profile_visibility", length = 20)
     private ProfileVisibility profileVisibility = ProfileVisibility.PUBLIC;
 
-    @OneToMany(mappedBy = "user")
-    private Set<ConversationParticipant> conversationParticipants;
+    /**
+     * TRUNG TÂM NOTE: Lưu trữ ghi chú trạng thái và nhạc.
+     * Cấu trúc: { "content": "...", "emoji": "...", "expires_at": "...",
+     * "music": { "track_id": "...", "start_sec": 10, "end_sec": 40 } }
+     */
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "note_metadata", columnDefinition = "jsonb")
+    private Map<String, Object> noteMetadata = new HashMap<>();
 
-    @Column(name = "online", nullable = false)
-    private boolean online = false;
+    @OneToMany(mappedBy = "user")
+    @Builder.Default
+    private Set<ConversationParticipant> conversationParticipants = new HashSet<>();
 
     @Column(name = "last_seen")
     private Instant lastSeen;

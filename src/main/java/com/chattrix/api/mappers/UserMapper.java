@@ -1,10 +1,12 @@
 package com.chattrix.api.mappers;
 
 import com.chattrix.api.entities.User;
+import com.chattrix.api.requests.RegisterRequest;
 import com.chattrix.api.responses.ConversationMemberResponse;
 import com.chattrix.api.responses.MentionedUserResponse;
 import com.chattrix.api.responses.UserResponse;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 
 import java.util.List;
@@ -15,8 +17,11 @@ public interface UserMapper {
 
     List<UserResponse> toResponseList(List<User> users);
 
-    @org.mapstruct.Mapping(source = "id", target = "id")
-    @org.mapstruct.Mapping(source = "id", target = "userId")
+    @Mapping(target = "password", ignore = true)
+    User toEntity(RegisterRequest request);
+
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "id", target = "userId")
     MentionedUserResponse toMentionedUserResponse(User user);
 
     List<MentionedUserResponse> toMentionedUserResponseList(List<User> users);
