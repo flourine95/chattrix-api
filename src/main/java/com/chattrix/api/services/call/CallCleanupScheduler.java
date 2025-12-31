@@ -11,8 +11,6 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -30,8 +28,6 @@ import java.util.concurrent.TimeUnit;
  */
 @ApplicationScoped
 @Transactional
-@RequiredArgsConstructor(onConstructor_ = {@Inject})
-@NoArgsConstructor(force = true)
 @Slf4j
 public class CallCleanupScheduler {
 
@@ -42,9 +38,12 @@ public class CallCleanupScheduler {
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor();
 
-    private final CallRepository callRepository;
-    private final com.chattrix.api.services.cache.OnlineStatusCache onlineStatusCache;
-    private final WebSocketNotificationService webSocketService;
+    @Inject
+    private CallRepository callRepository;
+    @Inject
+    private OnlineStatusCache onlineStatusCache;
+    @Inject
+    private WebSocketNotificationService webSocketService;
 
     @PostConstruct
     public void init() {

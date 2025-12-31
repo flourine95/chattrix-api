@@ -82,14 +82,13 @@ public class HeartbeatMonitorService {
             var user = userRepository.findById(userId).orElse(null);
             if (user == null) return;
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("userId", userId.toString());
-            payload.put("username", user.getUsername());
-            payload.put("fullName", user.getFullName());
-            payload.put("online", isOnline);
-            payload.put("lastSeen", user.getLastSeen() != null ? user.getLastSeen().toString() : null);
+            UserStatusEventDto payload = UserStatusEventDto.builder()
+                    .userId(userId)
+                    .status(isOnline ? "online" : "offline")
+                    .lastSeen(user.getLastSeen())
+                    .build();
 
-            WebSocketMessage<Map<String, Object>> statusMessage = new WebSocketMessage<>("user.status", payload);
+            WebSocketMessage<UserStatusEventDto> statusMessage = new WebSocketMessage<>(WebSocketEventType.USER_STATUS, payload);
             List<Long> recipientUserIds = userRepository.findUserIdsWhoShouldReceiveStatusUpdates(userId);
 
             for (Long recipientId : recipientUserIds) {

@@ -33,14 +33,19 @@ public final class WebSocketEventType {
     public static final String ANNOUNCEMENT_CREATED = "announcement.created";
     public static final String ANNOUNCEMENT_DELETED = "announcement.deleted";
 
+    // Poll events - for future implementation
     public static final String POLL_CREATED = "poll.created";
     public static final String POLL_VOTED = "poll.voted";
     public static final String POLL_CLOSED = "poll.closed";
     public static final String POLL_UPDATED = "poll.updated";
 
+    // Event (calendar) events - for future implementation
     public static final String EVENT_CREATED = "event.created";
     public static final String EVENT_UPDATED = "event.updated";
     public static final String EVENT_DELETED = "event.deleted";
     public static final String EVENT_RSVP = "event.rsvp";
 
+    private WebSocketEventType() {
+        // Utility class
+    }
 }

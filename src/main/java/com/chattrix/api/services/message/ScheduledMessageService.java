@@ -356,17 +356,18 @@ public class ScheduledMessageService {
             OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(message);
 
             // 1. Send regular chat.message event so message appears in conversation real-time
-            WebSocketMessage<OutgoingMessageDto> chatMessage = new WebSocketMessage<>("chat.message", outgoingDto);
+            WebSocketMessage<OutgoingMessageDto> chatMessage = new WebSocketMessage<>(WebSocketEventType.CHAT_MESSAGE, outgoingDto);
             message.getConversation().getParticipants().forEach(participant -> {
                 chatSessionService.sendMessageToUser(participant.getUser().getId(), chatMessage);
             });
 
             // 2. Send scheduled.message.sent event for scheduled message notification
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("scheduledMessageId", message.getId());
-            payload.put("message", outgoingDto);
+            ScheduledMessageSentEventDto payload = ScheduledMessageSentEventDto.builder()
+                    .scheduledMessageId(message.getId())
+                    .message(outgoingDto)
+                    .build();
 
-            WebSocketMessage<Map<String, Object>> scheduledNotification = new WebSocketMessage<>("scheduled.message.sent", payload);
+            WebSocketMessage<ScheduledMessageSentEventDto> scheduledNotification = new WebSocketMessage<>(WebSocketEventType.SCHEDULED_MESSAGE_SENT, payload);
             message.getConversation().getParticipants().forEach(participant -> {
                 chatSessionService.sendMessageToUser(participant.getUser().getId(), scheduledNotification);
             });
@@ -378,13 +379,13 @@ public class ScheduledMessageService {
 
     private void sendFailureNotification(Message message, String failedReason) {
         try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("scheduledMessageId", message.getId());
-            payload.put("conversationId", message.getConversation().getId());
-            payload.put("failedReason", failedReason);
-            payload.put("failedAt", Instant.now().toString());
+            ScheduledMessageFailedEventDto payload = ScheduledMessageFailedEventDto.builder()
+                    .scheduledMessageId(message.getId())
+                    .error(failedReason)
+                    .failedAt(Instant.now())
+                    .build();
 
-            WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("scheduled.message.failed", payload);
+            WebSocketMessage<ScheduledMessageFailedEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.SCHEDULED_MESSAGE_FAILED, payload);
 
             chatSessionService.sendMessageToUser(message.getSender().getId(), wsMessage);
 
@@ -412,7 +413,7 @@ public class ScheduledMessageService {
                 updateDto.setLastMessage(lastMessageDto);
             }
 
-            WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>("conversation.update", updateDto);
+            WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
 
             // Broadcast to all participants in the conversation
             conversation.getParticipants().forEach(participant -> {

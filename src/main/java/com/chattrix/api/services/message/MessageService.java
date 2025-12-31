@@ -262,14 +262,14 @@ public class MessageService {
         messageRepository.save(message);
 
         // Broadcast update via WebSocket
-        Map<String, Object> payload = Map.of(
-                "messageId", message.getId(),
-                "conversationId", message.getConversation().getId(),
-                "content", message.getContent(),
-                "isEdited", true,
-                "updatedAt", message.getUpdatedAt().toString()
-        );
-        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("message.updated", payload);
+        MessageUpdateEventDto payload = MessageUpdateEventDto.builder()
+                .messageId(message.getId())
+                .conversationId(message.getConversation().getId())
+                .content(message.getContent())
+                .isEdited(true)
+                .updatedAt(message.getUpdatedAt())
+                .build();
+        WebSocketMessage<MessageUpdateEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_UPDATED, payload);
 
         message.getConversation().getParticipants().forEach(participant -> {
             chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
@@ -317,11 +317,11 @@ public class MessageService {
         }
 
         // Broadcast deletion via WebSocket
-        Map<String, Object> payload = Map.of(
-                "messageId", messageId,
-                "conversationId", conversationId
-        );
-        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("message.deleted", payload);
+        MessageDeleteEventDto payload = MessageDeleteEventDto.builder()
+                .messageId(messageId)
+                .conversationId(conversationId)
+                .build();
+        WebSocketMessage<MessageDeleteEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_DELETED, payload);
 
         conversation.getParticipants().forEach(participant -> {
             chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
@@ -339,7 +339,7 @@ public class MessageService {
             outgoingDto.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
         }
 
-        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>("chat.message", outgoingDto);
+        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage = new WebSocketMessage<>(WebSocketEventType.CHAT_MESSAGE, outgoingDto);
 
         // Broadcast the message to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {
@@ -359,7 +359,7 @@ public class MessageService {
                 mentionEvent.setMentionedUserId(mentionedUserId);
                 mentionEvent.setCreatedAt(message.getCreatedAt());
 
-                WebSocketMessage<MentionEventDto> mentionMessage = new WebSocketMessage<>("message.mention", mentionEvent);
+                WebSocketMessage<MentionEventDto> mentionMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_MENTION, mentionEvent);
                 chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
             }
         }
@@ -383,7 +383,7 @@ public class MessageService {
             updateDto.setLastMessage(lastMessageDto);
         }
 
-        WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>("conversation.update", updateDto);
+        WebSocketMessage<ConversationUpdateDto> message = new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
 
         // Broadcast to all participants in the conversation
         conversation.getParticipants().forEach(participant -> {

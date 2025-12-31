@@ -100,7 +100,7 @@ public class ReactionService {
         reactionEvent.setReactions(reactions);
         reactionEvent.setTimestamp(java.time.Instant.now());
 
-        WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>("message.reaction", reactionEvent);
+        WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_REACTION, reactionEvent);
 
         conversation.getParticipants().forEach(participant -> {
             Long participantId = participant.getUser().getId();
@@ -161,7 +161,7 @@ public class ReactionService {
             reactionEvent.setReactions(reactions);
             reactionEvent.setTimestamp(java.time.Instant.now());
 
-            WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>("message.reaction", reactionEvent);
+            WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_REACTION, reactionEvent);
 
             conversation.getParticipants().forEach(participant -> {
                 Long participantId = participant.getUser().getId();

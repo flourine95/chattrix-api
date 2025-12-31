@@ -167,11 +167,12 @@ public class PinnedMessageService {
     
     private void sendPinNotification(Long conversationId, String eventType, MessageResponse messageResponse) {
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("type", eventType);
-            data.put("message", messageResponse);
+            MessagePinEventDto data = MessagePinEventDto.builder()
+                    .action(eventType)
+                    .message(messageResponse)
+                    .build();
             
-            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("message.pin", data);
+            WebSocketMessage<MessagePinEventDto> message = new WebSocketMessage<>(WebSocketEventType.MESSAGE_PIN, data);
             
             List<Long> participantIds = participantRepository
                     .findByConversationId(conversationId)

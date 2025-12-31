@@ -60,15 +60,13 @@ public class UserStatusBroadcastService {
             }
             
             // Build status payload
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("userId", userId.toString());
-            payload.put("username", userResponse.getUsername());
-            payload.put("fullName", userResponse.getFullName());
-            payload.put("online", isOnline);
-            payload.put("lastSeen", userResponse.getLastSeen() != null ? 
-                userResponse.getLastSeen().toString() : null);
+            UserStatusEventDto payload = UserStatusEventDto.builder()
+                    .userId(userId)
+                    .status(isOnline ? "online" : "offline")
+                    .lastSeen(userResponse.getLastSeen())
+                    .build();
             
-            WebSocketMessage<Map<String, Object>> statusMessage = 
+            WebSocketMessage<UserStatusEventDto> statusMessage = 
                 new WebSocketMessage<>(WebSocketEventType.USER_STATUS, payload);
             
             // Get recipients (users who should receive this status update)

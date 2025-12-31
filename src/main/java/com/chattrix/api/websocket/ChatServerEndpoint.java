@@ -7,21 +7,19 @@ import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
-import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.UserResponse;
 import com.chattrix.api.services.auth.TokenService;
+import com.chattrix.api.services.cache.OnlineStatusCache;
 import com.chattrix.api.services.cache.UserProfileCache;
 import com.chattrix.api.services.call.CallService;
-import com.chattrix.api.services.cache.OnlineStatusCache;
 import com.chattrix.api.services.conversation.TypingIndicatorService;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.services.user.HeartbeatMonitorService;
 import com.chattrix.api.services.user.UserStatusBatchService;
 import com.chattrix.api.services.user.UserStatusBroadcastService;
-import com.chattrix.api.websocket.codec.GenericMessageEncoder;
 import com.chattrix.api.websocket.codec.MessageDecoder;
 import com.chattrix.api.websocket.codec.MessageEncoder;
 import com.chattrix.api.websocket.dto.*;
@@ -40,8 +38,7 @@ import java.util.stream.Collectors;
 @Dependent
 @Slf4j
 @ServerEndpoint(value = "/ws/chat",
-        configurator = CdiAwareConfigurator.class,
-        encoders = {MessageEncoder.class, GenericMessageEncoder.class},
+        encoders = MessageEncoder.class,
         decoders = MessageDecoder.class)
 public class ChatServerEndpoint {
 
@@ -120,7 +117,7 @@ public class ChatServerEndpoint {
 
         onlineStatusCache.markOnline(userId);
         batchService.queueLastSeenUpdate(userId);
-        
+
         String type = message.getType();
         Object payload = message.getPayload();
 
@@ -406,7 +403,7 @@ public class ChatServerEndpoint {
                     .toList();
 
             WebSocketMessage<TypingIndicatorResponseDto> msg = new WebSocketMessage<>(
-                    "typing.indicator",
+                    WebSocketEventType.TYPING_INDICATOR,
                     new TypingIndicatorResponseDto(conv.getId(), typingUsers));
 
             conv.getParticipants().forEach(p ->
@@ -417,10 +414,11 @@ public class ChatServerEndpoint {
     private void handleHeartbeat(Session session, Long userId) throws IOException, EncodeException {
         heartbeatMonitorService.recordHeartbeat(userId);
 
-        WebSocketMessage<Map<String, Object>> ack = new WebSocketMessage<>(WebSocketEventType.HEARTBEAT_ACK, Map.of(
-                "userId", userId.toString(),
-                "timestamp", Instant.now().toString()
-        ));
+        HeartbeatAckDto ackPayload = HeartbeatAckDto.builder()
+                .userId(userId)
+                .timestamp(Instant.now())
+                .build();
+        WebSocketMessage<HeartbeatAckDto> ack = new WebSocketMessage<>(WebSocketEventType.HEARTBEAT_ACK, ackPayload);
 
         session.getBasicRemote().sendObject(ack);
     }

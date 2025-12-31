@@ -5,19 +5,16 @@ import com.chattrix.api.websocket.dto.*;
 import com.chattrix.api.websocket.WebSocketEventType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
 @ApplicationScoped
-@RequiredArgsConstructor(onConstructor_ = {@Inject})
-@NoArgsConstructor(force = true)
 @Slf4j
 public class WebSocketNotificationService {
 
-    private final ChatSessionService chatSessionService;
+    @Inject
+    private ChatSessionService chatSessionService;
 
     // ==================== Friend Request Events ====================
 
@@ -41,11 +38,11 @@ public class WebSocketNotificationService {
 
     public void sendFriendRequestRejected(Long targetUserId, Long requestId, Long rejectedBy) {
         try {
-            Map<String, Object> payload = Map.of(
-                    "requestId", requestId,
-                    "rejectedBy", rejectedBy
-            );
-            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_REJECTED, payload);
+            FriendRequestRejectEventDto payload = FriendRequestRejectEventDto.builder()
+                    .requestId(requestId)
+                    .rejectedBy(rejectedBy)
+                    .build();
+            WebSocketMessage<FriendRequestRejectEventDto> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_REJECTED, payload);
             chatSessionService.sendDirectMessage(targetUserId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request rejected notification", e);
@@ -54,11 +51,11 @@ public class WebSocketNotificationService {
 
     public void sendFriendRequestCancelled(Long targetUserId, Long requestId, Long cancelledBy) {
         try {
-            Map<String, Object> payload = Map.of(
-                    "requestId", requestId,
-                    "cancelledBy", cancelledBy
-            );
-            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_CANCELLED, payload);
+            FriendRequestCancelEventDto payload = FriendRequestCancelEventDto.builder()
+                    .requestId(requestId)
+                    .cancelledBy(cancelledBy)
+                    .build();
+            WebSocketMessage<FriendRequestCancelEventDto> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_CANCELLED, payload);
             chatSessionService.sendDirectMessage(targetUserId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request cancelled notification", e);

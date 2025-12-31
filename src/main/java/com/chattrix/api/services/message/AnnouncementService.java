@@ -154,12 +154,12 @@ public class AnnouncementService {
         messageRepository.delete(message);
 
         // Broadcast deletion
-        Map<String, Object> payload = Map.of(
-                "messageId", messageId,
-                "conversationId", conversationId,
-                "type", "announcement"
-        );
-        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("announcement.deleted", payload);
+        AnnouncementDeleteEventDto payload = AnnouncementDeleteEventDto.builder()
+                .messageId(messageId)
+                .conversationId(conversationId)
+                .type("announcement")
+                .build();
+        WebSocketMessage<AnnouncementDeleteEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.ANNOUNCEMENT_DELETED, payload);
 
         message.getConversation().getParticipants().forEach(participant -> {
             chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
@@ -169,12 +169,12 @@ public class AnnouncementService {
     private void broadcastAnnouncement(Message announcement, Conversation conversation) {
         MessageResponse response = messageMapper.toResponse(announcement);
 
-        Map<String, Object> payload = Map.of(
-                "announcement", response,
-                "conversationId", conversation.getId()
-        );
+        AnnouncementEventDto payload = AnnouncementEventDto.builder()
+                .announcement(response)
+                .conversationId(conversation.getId())
+                .build();
 
-        WebSocketMessage<Map<String, Object>> wsMessage = new WebSocketMessage<>("announcement.created", payload);
+        WebSocketMessage<AnnouncementEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.ANNOUNCEMENT_CREATED, payload);
 
         // Broadcast to all participants
         conversation.getParticipants().forEach(participant -> {

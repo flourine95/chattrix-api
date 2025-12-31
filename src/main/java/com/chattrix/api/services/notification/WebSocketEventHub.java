@@ -11,15 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * WebSocket Event Manager - Quản lý và monitor tất cả WebSocket events.
- * 
- * Responsibilities:
- * - Track số lượng events được gửi
- * - Log tất cả events (audit trail)
- * - Cung cấp metrics/statistics
- * - Wrapper around ChatSessionService với monitoring
- */
 @ApplicationScoped
 @Slf4j
 public class WebSocketEventHub {
@@ -27,7 +18,6 @@ public class WebSocketEventHub {
     @Inject
     private ChatSessionService chatSessionService;
     
-    // Metrics (simple counters, không cần thread-safe strict)
     private long totalEventsSent = 0;
     private final Map<String, Long> eventCountByType = new HashMap<>();
     private final Map<String, Instant> lastEventTimeByType = new HashMap<>();
