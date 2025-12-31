@@ -27,10 +27,10 @@ public interface MessageMapper {
     @Mapping(target = "senderFullName", source = "sender.fullName")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "originalMessageId", source = "originalMessage.id")
-    @Mapping(target = "pollId", source = "poll.id")
-    @Mapping(target = "poll", source = "poll")
-    @Mapping(target = "eventId", source = "event.id")
-    @Mapping(target = "event", source = "event")
+    @Mapping(target = "pollId", ignore = true) // Poll data in JSONB metadata
+    @Mapping(target = "poll", ignore = true) // Poll data in JSONB metadata
+    @Mapping(target = "eventId", ignore = true) // Event data in JSONB metadata
+    @Mapping(target = "event", ignore = true) // Event data in JSONB metadata
     @Mapping(target = "pinnedBy", source = "pinnedBy.id")
     @Mapping(target = "pinnedByUsername", source = "pinnedBy.username")
     @Mapping(target = "pinnedByFullName", source = "pinnedBy.fullName")

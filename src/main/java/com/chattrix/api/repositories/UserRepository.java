@@ -90,27 +90,40 @@ public class UserRepository {
                 .getResultList();
     }
 
+    /**
+     * Find online users - now uses in-memory tracking via UserStatusService
+     * This method is deprecated and returns empty list
+     * @deprecated Use UserStatusService.isUserOnline() instead
+     */
+    @Deprecated
     public List<User> findByIsOnlineTrue() {
-        return em.createQuery("SELECT u FROM User u WHERE u.online = true ORDER BY u.fullName", User.class)
-                .getResultList();
+        // Online status is now tracked in-memory via UserStatusService
+        // This method is kept for backward compatibility but returns empty list
+        return List.of();
     }
 
+    /**
+     * Find online users in a conversation - now uses in-memory tracking
+     * This method is deprecated and returns empty list
+     * @deprecated Use UserStatusService.isUserOnline() for each participant instead
+     */
+    @Deprecated
     public List<User> findOnlineUsersByConversationId(Long conversationId) {
-        return em.createQuery(
-                        "SELECT DISTINCT u FROM User u " +
-                                "JOIN u.conversationParticipants cp " +
-                                "WHERE cp.conversation.id = :conversationId AND u.online = true " +
-                                "ORDER BY u.fullName", User.class)
-                .setParameter("conversationId", conversationId)
-                .getResultList();
+        // Online status is now tracked in-memory via UserStatusService
+        // This method is kept for backward compatibility but returns empty list
+        return List.of();
     }
 
+    /**
+     * Find stale online users - no longer needed as online status is in-memory
+     * This method is deprecated and returns empty list
+     * @deprecated Online status cleanup is now handled by UserStatusService
+     */
+    @Deprecated
     public List<User> findStaleOnlineUsers(Instant threshold) {
-        return em.createQuery(
-                        "SELECT u FROM User u " +
-                                "WHERE u.online = true AND u.lastSeen < :threshold", User.class)
-                .setParameter("threshold", threshold)
-                .getResultList();
+        // Online status is now tracked in-memory via UserStatusService
+        // No database cleanup needed
+        return List.of();
     }
 
     public List<User> searchUsers(String query, Long excludeUserId, int limit) {
@@ -320,4 +333,57 @@ public class UserRepository {
                 .setParameter("day", day)
                 .getResultList();
     }
+
+    /**
+     * Find recent active users for cache warming
+     * Returns users who have been active in the last 7 days
+     */
+    public List<User> findRecentActiveUsers(int limit) {
+        Instant sevenDaysAgo = Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS);
+        return em.createQuery(
+                        "SELECT u FROM User u " +
+                                "WHERE u.lastSeen >= :threshold " +
+                                "ORDER BY u.lastSeen DESC", User.class)
+                .setParameter("threshold", sevenDaysAgo)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+    
+    /**
+     * Batch update lastSeen for multiple users in single query.
+     * Uses CASE WHEN for efficient batch update.
+     * 
+     * Example: Update 100 users in 1 query instead of 100 separate queries.
+     * 
+     * @param updates Map of userId -> lastSeen timestamp
+     */
+    @Transactional
+    public void batchUpdateLastSeen(java.util.Map<Long, Instant> updates) {
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+        
+        // Build CASE WHEN query for batch update
+        StringBuilder sql = new StringBuilder("UPDATE users SET last_seen = CASE id ");
+        
+        for (java.util.Map.Entry<Long, Instant> entry : updates.entrySet()) {
+            sql.append("WHEN ").append(entry.getKey())
+               .append(" THEN TIMESTAMP '").append(entry.getValue()).append("' ");
+        }
+        
+        sql.append("END WHERE id IN (");
+        sql.append(updates.keySet().stream()
+            .map(String::valueOf)
+            .collect(java.util.stream.Collectors.joining(",")));
+        sql.append(")");
+        
+        int updatedCount = em.createNativeQuery(sql.toString()).executeUpdate();
+        
+        // Log if mismatch (some users might have been deleted)
+        if (updatedCount != updates.size()) {
+            System.out.println("Warning: Batch update expected " + updates.size() + 
+                " users but updated " + updatedCount);
+        }
+    }
 }
+

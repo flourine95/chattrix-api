@@ -157,7 +157,11 @@ public class AuthService {
 
         // 4. Invalidate access token
         Date expiration = tokenService.getExpirationFromToken(accessToken);
-        InvalidatedToken invalidatedToken = new InvalidatedToken(accessToken, expiration.toInstant());
+        InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                .token(accessToken)
+                .expiresAt(expiration.toInstant())
+                .invalidatedAt(Instant.now())
+                .build();
         invalidatedTokenRepository.save(invalidatedToken);
 
         // 5. Revoke refresh token
@@ -207,10 +211,11 @@ public class AuthService {
             try {
                 Date expiration = tokenService.getExpirationFromToken(oldAccessToken);
                 if (expiration.after(new Date())) {
-                    InvalidatedToken invalidatedToken = new InvalidatedToken(
-                        oldAccessToken, 
-                        expiration.toInstant()
-                    );
+                    InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                            .token(oldAccessToken)
+                            .expiresAt(expiration.toInstant())
+                            .invalidatedAt(Instant.now())
+                            .build();
                     invalidatedTokenRepository.save(invalidatedToken);
                 }
             } catch (Exception e) {

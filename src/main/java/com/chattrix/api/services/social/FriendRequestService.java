@@ -2,6 +2,7 @@ package com.chattrix.api.services.social;
 
 import com.chattrix.api.entities.Contact;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.enums.ContactStatus;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ContactRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -11,11 +12,9 @@ import com.chattrix.api.services.notification.WebSocketNotificationService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-
 @ApplicationScoped
 public class FriendRequestService {
 
@@ -43,11 +42,11 @@ public class FriendRequestService {
         Optional<Contact> existingContact = contactRepository.findByUserIdAndContactUserId(senderId, request.receiverUserId);
         if (existingContact.isPresent()) {
             Contact contact = existingContact.get();
-            if (contact.getStatus() == Contact.ContactStatus.PENDING) {
+            if (contact.getStatus() == ContactStatus.PENDING) {
                 throw BusinessException.badRequest("Friend request already sent", "BAD_REQUEST");
-            } else if (contact.getStatus() == Contact.ContactStatus.ACCEPTED) {
+            } else if (contact.getStatus() == ContactStatus.ACCEPTED) {
                 throw BusinessException.badRequest("Already friends", "BAD_REQUEST");
-            } else if (contact.getStatus() == Contact.ContactStatus.BLOCKED) {
+            } else if (contact.getStatus() == ContactStatus.BLOCKED) {
                 throw BusinessException.badRequest("Cannot send friend request to blocked user", "BAD_REQUEST");
             }
         }
@@ -55,7 +54,7 @@ public class FriendRequestService {
         Contact contact = new Contact();
         contact.setUser(sender);
         contact.setContactUser(receiver);
-        contact.setStatus(Contact.ContactStatus.PENDING);
+        contact.setStatus(ContactStatus.PENDING);
         contact.setNickname(request.nickname);
         contact.setRequestedAt(Instant.now());
 
@@ -78,18 +77,18 @@ public class FriendRequestService {
             throw BusinessException.badRequest("You are not the receiver of this request", "BAD_REQUEST");
         }
 
-        if (request.getStatus() != Contact.ContactStatus.PENDING) {
+        if (request.getStatus() != ContactStatus.PENDING) {
             throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
-        request.setStatus(Contact.ContactStatus.ACCEPTED);
+        request.setStatus(ContactStatus.ACCEPTED);
         request.setAcceptedAt(Instant.now());
         contactRepository.save(request);
 
         Contact reverseContact = new Contact();
         reverseContact.setUser(request.getContactUser());
         reverseContact.setContactUser(request.getUser());
-        reverseContact.setStatus(Contact.ContactStatus.ACCEPTED);
+        reverseContact.setStatus(ContactStatus.ACCEPTED);
         reverseContact.setAcceptedAt(Instant.now());
         contactRepository.save(reverseContact);
 
@@ -110,11 +109,11 @@ public class FriendRequestService {
             throw BusinessException.badRequest("You are not the receiver of this request", "BAD_REQUEST");
         }
 
-        if (request.getStatus() != Contact.ContactStatus.PENDING) {
+        if (request.getStatus() != ContactStatus.PENDING) {
             throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
-        request.setStatus(Contact.ContactStatus.REJECTED);
+        request.setStatus(ContactStatus.REJECTED);
         request.setRejectedAt(Instant.now());
         contactRepository.save(request);
 
@@ -131,7 +130,7 @@ public class FriendRequestService {
             throw BusinessException.badRequest("You are not the sender of this request", "BAD_REQUEST");
         }
 
-        if (request.getStatus() != Contact.ContactStatus.PENDING) {
+        if (request.getStatus() != ContactStatus.PENDING) {
             throw BusinessException.badRequest("Friend request is not pending", "BAD_REQUEST");
         }
 
@@ -167,7 +166,7 @@ public class FriendRequestService {
         response.setAvatarUrl(otherUser.getAvatarUrl());
         response.setStatus(contact.getStatus().name());
         response.setNickname(contact.getNickname());
-        response.setOnline(otherUser.isOnline());
+        // response.setOnline(otherUser.isOnline()); // TODO: Use OnlineStatusCache
         response.setRequestedAt(contact.getRequestedAt());
         response.setAcceptedAt(contact.getAcceptedAt());
         response.setRejectedAt(contact.getRejectedAt());

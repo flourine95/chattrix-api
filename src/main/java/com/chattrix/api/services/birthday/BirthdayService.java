@@ -1,5 +1,6 @@
 package com.chattrix.api.services.birthday;
 
+import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
@@ -14,7 +15,6 @@ import com.chattrix.api.services.message.MessageService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -23,7 +23,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-
 @ApplicationScoped
 public class BirthdayService {
 
@@ -208,7 +207,7 @@ public class BirthdayService {
         // Use findByUserId which fetches participants
         List<Conversation> conversations = conversationRepository.findByUserId(birthdayUser.getId())
                 .stream()
-                .filter(c -> c.getType() == Conversation.ConversationType.GROUP)
+                .filter(c -> c.getType() == ConversationType.GROUP)
                 .collect(Collectors.toList());
 
         System.out.println("[Birthday] Found " + conversations.size() + " group conversations for user " + birthdayUser.getUsername());

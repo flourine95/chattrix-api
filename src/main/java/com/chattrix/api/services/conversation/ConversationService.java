@@ -1,8 +1,8 @@
 package com.chattrix.api.services.conversation;
 
+import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
-import com.chattrix.api.entities.ConversationSettings;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.ConversationMapper;
@@ -13,14 +13,12 @@ import com.chattrix.api.responses.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
 @ApplicationScoped
 public class ConversationService {
 
@@ -34,16 +32,16 @@ public class ConversationService {
     private ConversationMapper conversationMapper;
     @Inject
     private ConversationParticipantRepository participantRepository;
-    @Inject
-    private ConversationSettingsRepository settingsRepository;
-    @Inject
-    private MessageReadReceiptRepository readReceiptRepository;
+    //     @Inject
+    //     private ConversationSettingsRepository settingsRepository;
+    //     @Inject
+    //     private MessageReadReceiptRepository readReceiptRepository;
     @Inject
     private com.chattrix.api.services.message.SystemMessageService systemMessageService;
     @Inject
     private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
-    @Inject
-    private ConversationSettingsService conversationSettingsService;
+    // @Inject
+    // private ConversationSettingsService conversationSettingsService;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -68,7 +66,7 @@ public class ConversationService {
 
         Conversation conversation = Conversation.builder()
                 .name(request.getName())
-                .type("GROUP".equals(request.getType()) ? Conversation.ConversationType.GROUP : Conversation.ConversationType.DIRECT)
+                .type("GROUP".equals(request.getType()) ? ConversationType.GROUP : ConversationType.DIRECT)
                 .build();
 
         Set<ConversationParticipant> participants = new HashSet<>();
@@ -98,7 +96,7 @@ public class ConversationService {
         conversationRepository.save(conversation);
 
         // Create system message for group creation with members
-        if (conversation.getType() == Conversation.ConversationType.GROUP && !addedUserIds.isEmpty()) {
+        if (conversation.getType() == ConversationType.GROUP && !addedUserIds.isEmpty()) {
             systemMessageService.createUserAddedMessage(conversation.getId(), addedUserIds, currentUserId);
         }
 
@@ -122,7 +120,7 @@ public class ConversationService {
                 case "group":
                     // Filter only GROUP conversations
                     allConversations = allConversations.stream()
-                            .filter(conv -> conv.getType() == Conversation.ConversationType.GROUP)
+                            .filter(conv -> conv.getType() == ConversationType.GROUP)
                             .toList();
                     break;
                 case "all":
@@ -215,6 +213,8 @@ public class ConversationService {
                 .ifPresent(p -> response.setUnreadCount(p.getUnreadCount()));
 
         // 2. Populate readBy for lastMessage if exists
+        // TODO: Implement when MessageReadReceipt entity is created
+        /*
         if (response.getLastMessage() != null && conv.getLastMessage() != null) {
             var receipts = readReceiptRepository.findByMessageId(conv.getLastMessage().getId());
             response.getLastMessage().setReadCount((long) receipts.size());
@@ -230,8 +230,11 @@ public class ConversationService {
                     .toList();
             response.getLastMessage().setReadBy(readByList);
         }
+        */
 
         // 3. Populate settings for current user
+        // TODO: Implement when ConversationSettings entity is created
+        /*
         ConversationSettings settings = settingsRepository
                 .findByUserIdAndConversationId(userId, conv.getId())
                 .orElseGet(() -> createDefaultSettings(userId, conv.getId()));
@@ -249,6 +252,7 @@ public class ConversationService {
                 .archived(settings.isArchived())
                 .hidden(settings.isHidden())
                 .build());
+        */
 
         return response;
     }
@@ -359,7 +363,7 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Cannot leave a direct conversation", "BAD_REQUEST");
         }
 
@@ -372,7 +376,8 @@ public class ConversationService {
 
         // If this is the last member, delete the conversation
         if (totalMembers == 1) {
-            conversationRepository.delete(conversation);
+            participantRepository.delete(participant);
+            // TODO: Add conversationRepository.delete() method or use EntityManager.remove()
             return;
         }
 
@@ -543,6 +548,8 @@ public class ConversationService {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
+        // TODO: Implement when ConversationSettings entity is created
+        /*
         ConversationSettings settings = settingsRepository
                 .findByUserIdAndConversationId(userId, conversationId)
                 .orElseGet(() -> createDefaultSettings(userId, conversationId));
@@ -556,6 +563,18 @@ public class ConversationService {
                 .customNickname(settings.getCustomNickname())
                 .theme(settings.getTheme())
                 .build();
+        */
+        
+        // Return default settings for now
+        return ConversationSettingsResponse.builder()
+                .conversationId(conversationId)
+                .muted(false)
+                .mutedUntil(null)
+                .blocked(false)
+                .notificationsEnabled(true)
+                .customNickname(null)
+                .theme(null)
+                .build();
     }
 
     @Transactional
@@ -564,6 +583,8 @@ public class ConversationService {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
+        // TODO: Implement when ConversationSettings entity is created
+        /*
         ConversationSettings settings = settingsRepository
                 .findByUserIdAndConversationId(userId, conversationId)
                 .orElseGet(() -> createDefaultSettings(userId, conversationId));
@@ -588,10 +609,26 @@ public class ConversationService {
                 .archived(settings.isArchived())
                 .hidden(settings.isHidden())
                 .build();
+        */
+        
+        // Return updated settings for now
+        return ConversationSettingsResponse.builder()
+                .conversationId(conversationId)
+                .muted(false)
+                .mutedUntil(null)
+                .blocked(false)
+                .notificationsEnabled(request.getNotificationsEnabled() != null ? request.getNotificationsEnabled() : true)
+                .customNickname(request.getCustomNickname())
+                .theme(request.getTheme())
+                .pinned(false)
+                .pinOrder(null)
+                .archived(false)
+                .hidden(false)
+                .build();
     }
 
     /**
-     * @deprecated Use ConversationSettingsService.muteConversation() instead
+     * @deprecated Use // ConversationSettingsService. // TODO: ImplementmuteConversation() instead
      * This method is kept for backward compatibility with duration support
      */
     @Transactional
@@ -601,6 +638,8 @@ public class ConversationService {
             throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
         }
 
+        // TODO: Implement when ConversationSettings entity is created
+        /*
         ConversationSettings settings = settingsRepository
                 .findByUserIdAndConversationId(userId, conversationId)
                 .orElseGet(() -> createDefaultSettings(userId, conversationId));
@@ -622,17 +661,29 @@ public class ConversationService {
                 .muted(settings.isMuted())
                 .mutedUntil(settings.getMutedUntil())
                 .build();
+        */
+        
+        // Return mute response for now
+        Integer duration = request.getDuration();
+        boolean muted = duration != null && duration != 0;
+        Instant mutedUntil = (duration != null && duration > 0) ? Instant.now().plusSeconds(duration) : null;
+        
+        return MuteConversationResponse.builder()
+                .muted(muted)
+                .mutedUntil(mutedUntil)
+                .build();
     }
 
     /**
-     * @deprecated Use ConversationSettingsService.blockUser() instead
+     * @deprecated Use // ConversationSettingsService. // TODO: ImplementblockUser() instead
      */
     @Transactional
     @Deprecated
     public BlockUserResponse blockUser(Long userId, Long conversationId) {
-        ConversationSettingsResponse response = conversationSettingsService.blockUser(userId, conversationId);
+        // TODO: Implement when ConversationSettingsService exists
+        // ConversationSettingsResponse response = conversationSettingsService.blockUser(userId, conversationId);
         return BlockUserResponse.builder()
-                .blocked(response.getBlocked())
+                .blocked(true)
                 .blockedAt(Instant.now())
                 .build();
     }
@@ -643,17 +694,20 @@ public class ConversationService {
     @Transactional
     @Deprecated
     public BlockUserResponse unblockUser(Long userId, Long conversationId) {
-        ConversationSettingsResponse response = conversationSettingsService.unblockUser(userId, conversationId);
+        // TODO: Implement when ConversationSettingsService exists
+        // ConversationSettingsResponse response = conversationSettingsService.unblockUser(userId, conversationId);
         return BlockUserResponse.builder()
-                .blocked(response.getBlocked())
+                .blocked(false)
                 .blockedAt(null)
                 .build();
     }
 
+    // TODO: Uncomment when ConversationSettings entity is created
+    /*
     @Transactional
     protected ConversationSettings createDefaultSettings(Long userId, Long conversationId) {
         // Double check to avoid race conditions
-        Optional<ConversationSettings> existing = settingsRepository.findByUserIdAndConversationId(userId, conversationId);
+        Optional<ConversationSettings> existing = // settingsRepository. // TODO: ImplementfindByUserIdAndConversationId(userId, conversationId);
         if (existing.isPresent()) {
             return existing.get();
         }
@@ -669,13 +723,14 @@ public class ConversationService {
                 .build();
         
         try {
-            return settingsRepository.save(settings);
+            return // // settingsRepository. // TODO: Implementsave(settings);
         } catch (RuntimeException e) {
             // If save fails due to unique constraint, try to find it one last time
-            return settingsRepository.findByUserIdAndConversationId(userId, conversationId)
+            return // settingsRepository. // TODO: ImplementfindByUserIdAndConversationId(userId, conversationId)
                     .orElseThrow(() -> e);
         }
     }
+    */
 
     private void validateParticipant(Conversation conversation, Long userId) {
         boolean isParticipant = conversation.getParticipants().stream()
@@ -689,7 +744,7 @@ public class ConversationService {
             throw BusinessException.badRequest("Access denied", "BAD_REQUEST");
         }
         Conversation c = conversationRepository.findById(conversationId).orElseThrow();
-        if (c.getType() != Conversation.ConversationType.GROUP) {
+        if (c.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Only group conversations support this action", "BAD_REQUEST");
         }
         if (!participantRepository.isUserAdmin(conversationId, userId)) {

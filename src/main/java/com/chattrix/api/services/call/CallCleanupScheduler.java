@@ -2,10 +2,10 @@ package com.chattrix.api.services.call;
 
 import com.chattrix.api.entities.Call;
 import com.chattrix.api.entities.CallParticipant;
-import com.chattrix.api.entities.CallStatus;
+import com.chattrix.api.enums.CallStatus;
 import com.chattrix.api.repositories.CallRepository;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
-import com.chattrix.api.services.user.UserStatusService;
+import com.chattrix.api.services.cache.OnlineStatusCache;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -43,7 +43,7 @@ public class CallCleanupScheduler {
             Executors.newSingleThreadScheduledExecutor();
 
     private final CallRepository callRepository;
-    private final UserStatusService userStatusService;
+    private final com.chattrix.api.services.cache.OnlineStatusCache onlineStatusCache;
     private final WebSocketNotificationService webSocketService;
 
     @PostConstruct

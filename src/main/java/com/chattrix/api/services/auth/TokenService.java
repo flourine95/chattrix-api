@@ -52,7 +52,12 @@ public class TokenService {
 
     public RefreshToken generateRefreshToken(User user, String accessTokenId, String accessToken) {
         Instant expiresAt = Instant.now().plusMillis(jwtConfig.getRefreshExpirationMillis());
-        RefreshToken refreshToken = new RefreshToken(user, expiresAt);
+        RefreshToken refreshToken = RefreshToken.builder()
+                .user(user)
+                .expiresAt(expiresAt)
+                .createdAt(Instant.now())
+                .revoked(false)
+                .build();
         refreshToken.setAccessTokenId(accessTokenId);
         refreshToken.setAccessToken(accessToken);
         refreshTokenRepository.save(refreshToken);

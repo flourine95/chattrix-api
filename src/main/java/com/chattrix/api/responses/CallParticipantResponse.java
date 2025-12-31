@@ -1,6 +1,6 @@
 package com.chattrix.api.responses;
 
-import com.chattrix.api.entities.ParticipantStatus;
+import com.chattrix.api.enums.CallParticipantStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,7 +12,7 @@ public class CallParticipantResponse {
     private Long userId;
     private String fullName;
     private String avatarUrl;
-    private ParticipantStatus status;
+    private CallParticipantStatus status;
     private Instant joinedAt;
     private Instant leftAt;
 }

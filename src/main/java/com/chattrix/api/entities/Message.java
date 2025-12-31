@@ -23,7 +23,7 @@ import java.util.Map;
 @Table(name = "messages", indexes = {
         @Index(name = "idx_messages_conversation", columnList = "conversation_id"),
         @Index(name = "idx_messages_sender", columnList = "sender_id"),
-        @Index(name = "idx_messages_sent_at", columnList = "sent_at")
+        @Index(name = "idx_messages_created_at", columnList = "created_at")
 })
 @SQLDelete(sql = "UPDATE messages SET deleted = true, deleted_at = NOW() WHERE id = ?")
 @SQLRestriction("deleted = false")
@@ -55,11 +55,11 @@ public class Message {
     @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false)
     private MessageType type;
 
     @Builder.Default
@@ -81,7 +81,7 @@ public class Message {
     private Message replyToMessage;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "forwarded", nullable = false)
     private boolean forwarded = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -93,9 +93,10 @@ public class Message {
     private Integer forwardCount = 0;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "pinned", nullable = false)
     private boolean pinned = false;
 
+    @Column(name = "pinned_at")
     private Instant pinnedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -103,28 +104,37 @@ public class Message {
     private User pinnedBy;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "scheduled", nullable = false)
     private boolean scheduled = false;
 
+    @Column(name = "scheduled_time")
     private Instant scheduledTime;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "scheduled_status")
     private ScheduledStatus scheduledStatus;
 
+    @Column(name = "sent_at")
     private Instant sentAt;
+    
+    @Column(name = "created_at")
     private Instant createdAt;
+    
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "edited", nullable = false)
     private boolean edited = false;
 
+    @Column(name = "edited_at")
     private Instant editedAt;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "deleted", nullable = false)
     private boolean deleted = false;
 
+    @Column(name = "deleted_at")
     private Instant deletedAt;
 
     @PrePersist

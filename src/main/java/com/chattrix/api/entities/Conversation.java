@@ -1,5 +1,6 @@
 package com.chattrix.api.entities;
 
+import com.chattrix.api.enums.ConversationType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -69,8 +70,4 @@ public class Conversation {
         this.updatedAt = Instant.now();
     }
 
-    public enum ConversationType {
-        DIRECT,
-        GROUP
-    }
 }

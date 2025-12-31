@@ -1,6 +1,8 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.entities.*;
+import com.chattrix.api.enums.ScheduledStatus;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
@@ -17,11 +19,9 @@ import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-
 @ApplicationScoped
 public class ScheduledMessageService {
 
@@ -86,10 +86,10 @@ public class ScheduledMessageService {
         }
 
         // Parse message type
-        Message.MessageType messageType = Message.MessageType.TEXT;
+        MessageType messageType = MessageType.TEXT;
         if (request.type() != null) {
             try {
-                messageType = Message.MessageType.valueOf(request.type().toUpperCase());
+                messageType = MessageType.valueOf(request.type().toUpperCase());
             } catch (IllegalArgumentException e) {
                 throw BusinessException.badRequest("Invalid message type: " + request.type(), "BAD_REQUEST");
             }
@@ -101,17 +101,18 @@ public class ScheduledMessageService {
         message.setSender(sender);
         message.setContent(request.content());
         message.setType(messageType);
-        message.setMediaUrl(request.mediaUrl());
-        message.setThumbnailUrl(request.thumbnailUrl());
-        message.setFileName(request.fileName());
-        message.setFileSize(request.fileSize());
-        message.setDuration(request.duration());
+        // TODO: Use MessageMetadata for media fields
+        // message.setMediaUrl(request.mediaUrl());
+        // message.setThumbnailUrl(request.thumbnailUrl());
+        // message.setFileName(request.fileName());
+        // message.setFileSize(request.fileSize());
+        // message.setDuration(request.duration());
         message.setReplyToMessage(replyToMessage);
         
         // Set scheduled fields
         message.setScheduled(true);
         message.setScheduledTime(request.scheduledTime());
-        message.setScheduledStatus(Message.ScheduledStatus.PENDING);
+        message.setScheduledStatus(ScheduledStatus.PENDING);
 
         messageRepository.save(message);
 
@@ -126,7 +127,7 @@ public class ScheduledMessageService {
             limit = 100;
         }
 
-        Message.ScheduledStatus scheduledStatus = status != null ? parseStatus(status) : null;
+        ScheduledStatus scheduledStatus = status != null ? parseStatus(status) : null;
 
         List<Message> messages = messageRepository.findScheduledMessagesByCursor(
                 userId, conversationId, scheduledStatus, cursor, limit);
@@ -184,7 +185,7 @@ public class ScheduledMessageService {
             throw BusinessException.notFound("Scheduled message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
-        if (message.getScheduledStatus() != Message.ScheduledStatus.PENDING) {
+        if (message.getScheduledStatus() != ScheduledStatus.PENDING) {
             throw BusinessException.badRequest("Cannot edit scheduled message: Message has already been " +
                     message.getScheduledStatus().name().toLowerCase(), "BAD_REQUEST");
         }
@@ -202,6 +203,8 @@ public class ScheduledMessageService {
             message.setScheduledTime(request.scheduledTime());
         }
 
+        // TODO: Use MessageMetadata for media fields
+        /*
         if (request.mediaUrl() != null) {
             message.setMediaUrl(request.mediaUrl());
         }
@@ -213,6 +216,7 @@ public class ScheduledMessageService {
         if (request.fileName() != null) {
             message.setFileName(request.fileName());
         }
+        */
 
         messageRepository.save(message);
 
@@ -236,11 +240,11 @@ public class ScheduledMessageService {
             throw BusinessException.notFound("Scheduled message not found in this conversation", "RESOURCE_NOT_FOUND");
         }
 
-        if (message.getScheduledStatus() == Message.ScheduledStatus.SENT) {
+        if (message.getScheduledStatus() == ScheduledStatus.SENT) {
             throw BusinessException.badRequest("Cannot cancel scheduled message: Message has already been sent", "BAD_REQUEST");
         }
 
-        message.setScheduledStatus(Message.ScheduledStatus.CANCELLED);
+        message.setScheduledStatus(ScheduledStatus.CANCELLED);
         messageRepository.save(message);
     }
 
@@ -275,12 +279,12 @@ public class ScheduledMessageService {
                     continue;
                 }
 
-                if (message.getScheduledStatus() == Message.ScheduledStatus.SENT) {
+                if (message.getScheduledStatus() == ScheduledStatus.SENT) {
                     failedIds.add(messageId);
                     continue;
                 }
 
-                message.setScheduledStatus(Message.ScheduledStatus.CANCELLED);
+                message.setScheduledStatus(ScheduledStatus.CANCELLED);
                 messageRepository.save(message);
                 cancelledCount++;
 
@@ -307,15 +311,15 @@ public class ScheduledMessageService {
                 );
 
                 if (!isStillParticipant) {
-                    scheduledMsg.setScheduledStatus(Message.ScheduledStatus.FAILED);
-                    scheduledMsg.setFailedReason("User has left the conversation");
+                    scheduledMsg.setScheduledStatus(ScheduledStatus.FAILED);
+                    // scheduledMsg.setFailedReason("User has left the conversation"); // TODO: Add failedReason field
                     messageRepository.save(scheduledMsg);
                     sendFailureNotification(scheduledMsg, "User has left the conversation");
                     continue;
                 }
 
                 // Update message to mark as sent
-                scheduledMsg.setScheduledStatus(Message.ScheduledStatus.SENT);
+                scheduledMsg.setScheduledStatus(ScheduledStatus.SENT);
                 scheduledMsg.setSentAt(Instant.now());
                 // Keep scheduled=true to maintain history that this was a scheduled message
                 messageRepository.save(scheduledMsg);
@@ -338,8 +342,9 @@ public class ScheduledMessageService {
                 broadcastConversationUpdate(scheduledMsg.getConversation());
 
             } catch (Exception e) {
-                scheduledMsg.setScheduledStatus(Message.ScheduledStatus.FAILED);
-                scheduledMsg.setFailedReason(e.getMessage());
+                scheduledMsg.setScheduledStatus(ScheduledStatus.FAILED);
+                // TODO: Add failedReason field to Message entity
+                // scheduledMsg.setFailedReason(e.getMessage());
                 messageRepository.save(scheduledMsg);
                 sendFailureNotification(scheduledMsg, e.getMessage());
             }
@@ -419,9 +424,9 @@ public class ScheduledMessageService {
         }
     }
 
-    private Message.ScheduledStatus parseStatus(String status) {
+    private ScheduledStatus parseStatus(String status) {
         try {
-            return Message.ScheduledStatus.valueOf(status.toUpperCase());
+            return ScheduledStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw BusinessException.badRequest("Invalid status: " + status, "BAD_REQUEST");
         }

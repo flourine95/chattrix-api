@@ -63,6 +63,8 @@ public class MessageForwardService {
             forwardedMessage.setForwarded(true);
             forwardedMessage.setOriginalMessage(originalMessage);
 
+            // TODO: Copy media metadata when MessageMetadata is implemented
+            /*
             if (originalMessage.getMediaUrl() != null) {
                 forwardedMessage.setMediaUrl(originalMessage.getMediaUrl());
                 forwardedMessage.setThumbnailUrl(originalMessage.getThumbnailUrl());
@@ -70,6 +72,7 @@ public class MessageForwardService {
                 forwardedMessage.setFileSize(originalMessage.getFileSize());
                 forwardedMessage.setDuration(originalMessage.getDuration());
             }
+            */
 
             messageRepository.save(forwardedMessage);
 

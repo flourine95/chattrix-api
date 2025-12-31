@@ -23,7 +23,7 @@ public interface ConversationMapper {
     @Mapping(target = "username", source = "user.username")
     @Mapping(target = "fullName", source = "user.fullName")
     @Mapping(target = "avatarUrl", source = "user.avatarUrl")
-    @Mapping(target = "online", source = "user.online")
+    @Mapping(target = "online", ignore = true) // Online status from cache
     @Mapping(target = "lastSeen", source = "user.lastSeen")
     ConversationResponse.ParticipantResponse toParticipantResponse(ConversationParticipant participant);
 

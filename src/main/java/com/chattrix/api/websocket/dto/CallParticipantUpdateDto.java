@@ -1,6 +1,6 @@
 package com.chattrix.api.websocket.dto;
 
-import com.chattrix.api.entities.ParticipantStatus;
+import com.chattrix.api.enums.CallParticipantStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -11,5 +11,5 @@ public class CallParticipantUpdateDto {
     private Long userId;
     private String fullName;
     private String avatarUrl;
-    private ParticipantStatus status; // JOINED, LEFT, REJECTED, etc.
+    private CallParticipantStatus status; // JOINED, LEFT, REJECTED, etc.
 }

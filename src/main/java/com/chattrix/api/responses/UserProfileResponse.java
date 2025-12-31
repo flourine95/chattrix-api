@@ -1,7 +1,7 @@
 package com.chattrix.api.responses;
 
-import com.chattrix.api.entities.Gender;
-import com.chattrix.api.entities.ProfileVisibility;
+import com.chattrix.api.enums.Gender;
+import com.chattrix.api.enums.ProfileVisibility;
 import lombok.Getter;
 import lombok.Setter;
 

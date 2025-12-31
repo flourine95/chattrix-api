@@ -1,7 +1,7 @@
 package com.chattrix.api.repositories;
 
-import com.chattrix.api.entities.TokenType;
 import com.chattrix.api.entities.UserToken;
+import com.chattrix.api.enums.TokenType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
@@ -29,7 +29,7 @@ public class UserTokenRepository {
     public Optional<UserToken> findByToken(String token) {
         try {
             UserToken userToken = entityManager.createQuery(
-                    "SELECT t FROM UserToken t WHERE t.token = :token", UserToken.class)
+                            "SELECT t FROM UserToken t WHERE t.token = :token", UserToken.class)
                     .setParameter("token", token)
                     .getSingleResult();
             return Optional.of(userToken);
@@ -41,7 +41,7 @@ public class UserTokenRepository {
     public Optional<UserToken> findByTokenAndType(String token, TokenType type) {
         try {
             UserToken userToken = entityManager.createQuery(
-                    "SELECT t FROM UserToken t WHERE t.token = :token AND t.type = :type", UserToken.class)
+                            "SELECT t FROM UserToken t WHERE t.token = :token AND t.type = :type", UserToken.class)
                     .setParameter("token", token)
                     .setParameter("type", type)
                     .getSingleResult();
@@ -53,8 +53,8 @@ public class UserTokenRepository {
 
     public List<UserToken> findByUserIdAndType(Long userId, TokenType type) {
         return entityManager.createQuery(
-                "SELECT t FROM UserToken t WHERE t.user.id = :userId AND t.type = :type ORDER BY t.createdAt DESC", 
-                UserToken.class)
+                        "SELECT t FROM UserToken t WHERE t.user.id = :userId AND t.type = :type ORDER BY t.createdAt DESC",
+                        UserToken.class)
                 .setParameter("userId", userId)
                 .setParameter("type", type)
                 .getResultList();
@@ -63,8 +63,8 @@ public class UserTokenRepository {
     public Optional<UserToken> findLatestByUserIdAndType(Long userId, TokenType type) {
         try {
             UserToken token = entityManager.createQuery(
-                    "SELECT t FROM UserToken t WHERE t.user.id = :userId AND t.type = :type " +
-                    "ORDER BY t.createdAt DESC", UserToken.class)
+                            "SELECT t FROM UserToken t WHERE t.user.id = :userId AND t.type = :type " +
+                                    "ORDER BY t.createdAt DESC", UserToken.class)
                     .setParameter("userId", userId)
                     .setParameter("type", type)
                     .setMaxResults(1)
@@ -77,27 +77,27 @@ public class UserTokenRepository {
 
     public void deleteExpiredTokens() {
         entityManager.createQuery(
-                "DELETE FROM UserToken t WHERE t.expiresAt < :now")
+                        "DELETE FROM UserToken t WHERE t.expiresAt < :now")
                 .setParameter("now", Instant.now())
                 .executeUpdate();
     }
 
     public void deleteUsedTokens() {
         entityManager.createQuery(
-                "DELETE FROM UserToken t WHERE t.used = true")
+                        "DELETE FROM UserToken t WHERE t.used = true")
                 .executeUpdate();
     }
 
     public void deleteByUserId(Long userId) {
         entityManager.createQuery(
-                "DELETE FROM UserToken t WHERE t.user.id = :userId")
+                        "DELETE FROM UserToken t WHERE t.user.id = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
     }
 
     public void deleteByUserIdAndType(Long userId, TokenType type) {
         entityManager.createQuery(
-                "DELETE FROM UserToken t WHERE t.user.id = :userId AND t.type = :type")
+                        "DELETE FROM UserToken t WHERE t.user.id = :userId AND t.type = :type")
                 .setParameter("userId", userId)
                 .setParameter("type", type)
                 .executeUpdate();
@@ -105,7 +105,7 @@ public class UserTokenRepository {
 
     public long countByUserIdAndType(Long userId, TokenType type) {
         return entityManager.createQuery(
-                "SELECT COUNT(t) FROM UserToken t WHERE t.user.id = :userId AND t.type = :type", Long.class)
+                        "SELECT COUNT(t) FROM UserToken t WHERE t.user.id = :userId AND t.type = :type", Long.class)
                 .setParameter("userId", userId)
                 .setParameter("type", type)
                 .getSingleResult();
@@ -113,7 +113,7 @@ public class UserTokenRepository {
 
     public List<UserToken> findExpiredTokens() {
         return entityManager.createQuery(
-                "SELECT t FROM UserToken t WHERE t.expiresAt < :now", UserToken.class)
+                        "SELECT t FROM UserToken t WHERE t.expiresAt < :now", UserToken.class)
                 .setParameter("now", Instant.now())
                 .getResultList();
     }

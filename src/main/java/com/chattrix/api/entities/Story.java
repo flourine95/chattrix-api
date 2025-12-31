@@ -35,9 +35,10 @@ public class Story {
     private String mediaUrl;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
     private StoryType type; // IMAGE, VIDEO
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "caption", columnDefinition = "TEXT")
     private String caption;
 
     /**
@@ -50,6 +51,7 @@ public class Story {
     @Column(name = "metadata", columnDefinition = "jsonb")
     private List<Map<String, Object>> metadata = new ArrayList<>();
 
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "expires_at", nullable = false)

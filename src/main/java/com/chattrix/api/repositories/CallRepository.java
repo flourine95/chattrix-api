@@ -1,12 +1,13 @@
 package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Call;
-import com.chattrix.api.entities.CallStatus;
-import com.chattrix.api.entities.ParticipantStatus;
+import com.chattrix.api.enums.CallParticipantStatus;
+import com.chattrix.api.enums.CallStatus;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -50,9 +51,9 @@ public class CallRepository {
                             CallStatus.CONNECTED
                     ))
                     .setParameter("inactiveParticipantStatuses", List.of(
-                            ParticipantStatus.LEFT,
-                            ParticipantStatus.REJECTED,
-                            ParticipantStatus.MISSED
+                            CallParticipantStatus.LEFT,
+                            CallParticipantStatus.REJECTED,
+                            CallParticipantStatus.MISSED
                     ))
                     .setMaxResults(1)
                     .getSingleResult();
@@ -134,5 +135,97 @@ public class CallRepository {
                 ))
                 .setParameter("cutoff", cutoffTime)
                 .getResultList();
+    }
+
+    /**
+     * Find call history for a user (finished calls)
+     * Returns calls with status ENDED, MISSED, or REJECTED
+     */
+    public List<Call> findCallHistoryByUserId(Long userId, int limit) {
+        return em.createQuery(
+                        "SELECT DISTINCT c FROM Call c " +
+                                "LEFT JOIN c.participants p " +
+                                "WHERE (c.callerId = :userId OR p.userId = :userId) " +
+                                "AND c.status IN :finishedStatuses " +
+                                "ORDER BY c.createdAt DESC",
+                        Call.class)
+                .setParameter("userId", userId)
+                .setParameter("finishedStatuses", List.of(
+                        CallStatus.ENDED,
+                        CallStatus.MISSED,
+                        CallStatus.REJECTED
+                ))
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    /**
+     * Find call history with cursor-based pagination
+     */
+    public List<Call> findCallHistoryByUserIdWithCursor(Long userId, Long cursor, int limit) {
+        StringBuilder jpql = new StringBuilder(
+                "SELECT DISTINCT c FROM Call c " +
+                        "LEFT JOIN c.participants p " +
+                        "WHERE (c.callerId = :userId OR p.userId = :userId) " +
+                        "AND c.status IN :finishedStatuses "
+        );
+
+        if (cursor != null) {
+            jpql.append("AND c.id < :cursor ");
+        }
+
+        jpql.append("ORDER BY c.createdAt DESC");
+
+        TypedQuery<Call> query = em.createQuery(jpql.toString(), Call.class);
+        query.setParameter("userId", userId);
+        query.setParameter("finishedStatuses", List.of(
+                CallStatus.ENDED,
+                CallStatus.MISSED,
+                CallStatus.REJECTED
+        ));
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        query.setMaxResults(limit + 1);
+
+        return query.getResultList();
+    }
+
+    /**
+     * Find call history by user and status
+     */
+    public List<Call> findCallHistoryByUserIdAndStatus(Long userId, CallStatus status, int limit) {
+        return em.createQuery(
+                        "SELECT DISTINCT c FROM Call c " +
+                                "LEFT JOIN c.participants p " +
+                                "WHERE (c.callerId = :userId OR p.userId = :userId) " +
+                                "AND c.status = :status " +
+                                "ORDER BY c.createdAt DESC",
+                        Call.class)
+                .setParameter("userId", userId)
+                .setParameter("status", status)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    /**
+     * Count call history for a user
+     */
+    public long countCallHistoryByUserId(Long userId) {
+        return em.createQuery(
+                        "SELECT COUNT(DISTINCT c) FROM Call c " +
+                                "LEFT JOIN c.participants p " +
+                                "WHERE (c.callerId = :userId OR p.userId = :userId) " +
+                                "AND c.status IN :finishedStatuses",
+                        Long.class)
+                .setParameter("userId", userId)
+                .setParameter("finishedStatuses", List.of(
+                        CallStatus.ENDED,
+                        CallStatus.MISSED,
+                        CallStatus.REJECTED
+                ))
+                .getSingleResult();
     }
 }

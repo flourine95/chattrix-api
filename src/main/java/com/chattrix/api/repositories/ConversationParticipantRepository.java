@@ -182,5 +182,18 @@ public class ConversationParticipantRepository {
             return Optional.empty();
         }
     }
+
+    /**
+     * Get max pin order for user (for pinning conversations)
+     */
+    public Integer getMaxPinOrder(Long userId) {
+        Integer maxOrder = em.createQuery(
+                        "SELECT MAX(cp.pinOrder) FROM ConversationParticipant cp " +
+                                "WHERE cp.user.id = :userId AND cp.pinned = true",
+                        Integer.class)
+                .setParameter("userId", userId)
+                .getSingleResult();
+        return maxOrder != null ? maxOrder : 0;
+    }
 }
 

@@ -1,5 +1,6 @@
 package com.chattrix.api.services.conversation;
 
+import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
@@ -13,9 +14,7 @@ import com.chattrix.api.services.message.SystemMessageService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
-
 @ApplicationScoped
 public class MemberMuteService {
     
@@ -40,7 +39,7 @@ public class MemberMuteService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
         
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Can only mute members in group conversations", "INVALID_CONVERSATION_TYPE");
         }
         
@@ -71,7 +70,7 @@ public class MemberMuteService {
         // Set mute
         memberParticipant.setMuted(true);
         memberParticipant.setMutedAt(Instant.now());
-        memberParticipant.setMutedBy(adminUser);
+        // memberParticipant.setMutedBy(adminUser); // TODO: Add mutedBy field to ConversationParticipant entity
         
         // Set mute duration
         Integer duration = request.getDuration();
@@ -100,7 +99,7 @@ public class MemberMuteService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
         
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Can only unmute members in group conversations", "INVALID_CONVERSATION_TYPE");
         }
         
@@ -122,7 +121,7 @@ public class MemberMuteService {
         // Unmute
         memberParticipant.setMuted(false);
         memberParticipant.setMutedUntil(null);
-        memberParticipant.setMutedBy(null);
+        // memberParticipant.setMutedBy(null); // TODO: Add mutedBy field to ConversationParticipant entity
         memberParticipant.setMutedAt(null);
         
         participantRepository.save(memberParticipant);
@@ -156,7 +155,7 @@ public class MemberMuteService {
                 .muted(participant.isMuted())
                 .mutedUntil(participant.getMutedUntil())
                 .mutedAt(participant.getMutedAt())
-                .mutedBy(participant.getMutedBy() != null ? participant.getMutedBy().getId() : null)
+                .mutedBy(null) // TODO: Add mutedBy field to ConversationParticipant
                 .build();
     }
 }

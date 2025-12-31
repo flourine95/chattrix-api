@@ -3,7 +3,7 @@ package com.chattrix.api.responses;
 import lombok.*;
 
 import java.time.Instant;
-
+import com.chattrix.api.enums.ConversationType;
 @Getter
 @Setter
 @Builder

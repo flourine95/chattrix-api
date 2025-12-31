@@ -2,6 +2,7 @@ package com.chattrix.api.services.notification;
 
 import com.chattrix.api.responses.FriendRequestResponse;
 import com.chattrix.api.websocket.dto.*;
+import com.chattrix.api.websocket.WebSocketEventType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.NoArgsConstructor;
@@ -22,7 +23,7 @@ public class WebSocketNotificationService {
 
     public void sendFriendRequestReceived(Long receiverId, FriendRequestResponse friendRequest) {
         try {
-            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>("friend.request.received", friendRequest);
+            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_RECEIVED, friendRequest);
             chatSessionService.sendDirectMessage(receiverId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request notification", e);
@@ -31,7 +32,7 @@ public class WebSocketNotificationService {
 
     public void sendFriendRequestAccepted(Long senderId, FriendRequestResponse friendRequest) {
         try {
-            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>("friend.request.accepted", friendRequest);
+            WebSocketMessage<FriendRequestResponse> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_ACCEPTED, friendRequest);
             chatSessionService.sendDirectMessage(senderId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request accepted notification", e);
@@ -44,7 +45,7 @@ public class WebSocketNotificationService {
                     "requestId", requestId,
                     "rejectedBy", rejectedBy
             );
-            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.rejected", payload);
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_REJECTED, payload);
             chatSessionService.sendDirectMessage(targetUserId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request rejected notification", e);
@@ -57,7 +58,7 @@ public class WebSocketNotificationService {
                     "requestId", requestId,
                     "cancelledBy", cancelledBy
             );
-            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>("friend.request.cancelled", payload);
+            WebSocketMessage<Map<String, Object>> message = new WebSocketMessage<>(WebSocketEventType.FRIEND_REQUEST_CANCELLED, payload);
             chatSessionService.sendDirectMessage(targetUserId, message);
         } catch (Exception e) {
             log.error("Failed to send friend request cancelled notification", e);
@@ -68,7 +69,7 @@ public class WebSocketNotificationService {
 
     public void sendCallInvitation(String calleeId, CallInvitationDto data) {
         try {
-            WebSocketMessage<CallInvitationDto> message = new WebSocketMessage<>("call.incoming", data);
+            WebSocketMessage<CallInvitationDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_INCOMING, data);
             chatSessionService.sendDirectMessage(Long.parseLong(calleeId), message);
         } catch (Exception e) {
             log.error("Failed to send call invitation", e);
@@ -81,7 +82,7 @@ public class WebSocketNotificationService {
      */
     public void sendCallParticipantUpdate(Long targetUserId, CallParticipantUpdateDto data) {
         try {
-            WebSocketMessage<CallParticipantUpdateDto> message = new WebSocketMessage<>("call.participant_update", data);
+            WebSocketMessage<CallParticipantUpdateDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_PARTICIPANT_UPDATE, data);
             chatSessionService.sendDirectMessage(targetUserId, message);
         } catch (Exception e) {
             log.error("Failed to send participant update to user {}", targetUserId, e);
@@ -94,7 +95,7 @@ public class WebSocketNotificationService {
                     .callId(callId)
                     .acceptedBy(Long.parseLong(acceptedBy))
                     .build();
-            WebSocketMessage<CallAcceptDto> message = new WebSocketMessage<>("call.accepted", data);
+            WebSocketMessage<CallAcceptDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_ACCEPTED, data);
             chatSessionService.sendDirectMessage(Long.parseLong(callerId), message);
         } catch (Exception e) {
             log.error("Failed to send call accepted notification", e);
@@ -108,7 +109,7 @@ public class WebSocketNotificationService {
                     .rejectedBy(Long.parseLong(rejectedBy))
                     .reason(reason)
                     .build();
-            WebSocketMessage<CallRejectDto> message = new WebSocketMessage<>("call.rejected", data);
+            WebSocketMessage<CallRejectDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_REJECTED, data);
             chatSessionService.sendDirectMessage(Long.parseLong(callerId), message);
         } catch (Exception e) {
             log.error("Failed to send call rejected notification", e);
@@ -122,7 +123,7 @@ public class WebSocketNotificationService {
                     .endedBy(Long.parseLong(endedBy))
                     .durationSeconds(durationSeconds)
                     .build();
-            WebSocketMessage<CallEndDto> message = new WebSocketMessage<>("call.ended", data);
+            WebSocketMessage<CallEndDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_ENDED, data);
             chatSessionService.sendDirectMessage(Long.parseLong(userId), message);
         } catch (Exception e) {
             log.error("Failed to send call ended notification", e);
@@ -135,7 +136,7 @@ public class WebSocketNotificationService {
                     .callId(callId)
                     .reason("no_answer")
                     .build();
-            WebSocketMessage<CallTimeoutDto> message = new WebSocketMessage<>("call.timeout", data);
+            WebSocketMessage<CallTimeoutDto> message = new WebSocketMessage<>(WebSocketEventType.CALL_TIMEOUT, data);
             chatSessionService.sendDirectMessage(Long.parseLong(callerId), message);
             chatSessionService.sendDirectMessage(Long.parseLong(calleeId), message);
         } catch (Exception e) {

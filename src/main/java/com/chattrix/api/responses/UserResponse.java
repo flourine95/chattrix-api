@@ -1,6 +1,8 @@
 package com.chattrix.api.responses;
 
 import com.chattrix.api.entities.User;
+import com.chattrix.api.enums.Gender;
+import com.chattrix.api.enums.ProfileVisibility;
 import lombok.*;
 
 import java.time.Instant;
@@ -19,10 +21,10 @@ public class UserResponse {
     private String fullName;
     private String avatarUrl;
     private String bio;
-    private User.Gender gender;
+    private Gender gender;
     private Instant dateOfBirth;
     private String location;
-    private User.ProfileVisibility profileVisibility;
+    private ProfileVisibility profileVisibility;
     private Instant lastSeen;
     private Instant createdAt;
     private Instant updatedAt;

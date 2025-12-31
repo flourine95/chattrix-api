@@ -1,7 +1,7 @@
 package com.chattrix.api.responses;
 
-import com.chattrix.api.entities.CallStatus;
-import com.chattrix.api.entities.CallType;
+import com.chattrix.api.enums.CallStatus;
+import com.chattrix.api.enums.CallType;
 import lombok.Data;
 
 import java.time.Instant;

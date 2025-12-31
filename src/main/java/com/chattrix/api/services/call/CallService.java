@@ -2,6 +2,8 @@ package com.chattrix.api.services.call;
 
 import com.chattrix.api.config.AgoraConfig;
 import com.chattrix.api.entities.*;
+import com.chattrix.api.enums.CallParticipantStatus;
+import com.chattrix.api.enums.CallStatus;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.CallMapper;
 import com.chattrix.api.repositories.CallRepository;
@@ -71,7 +73,7 @@ public class CallService {
         participants.add(CallParticipant.builder()
                 .call(call)
                 .userId(callerId)
-                .status(ParticipantStatus.JOINED)
+                .status(CallParticipantStatus.JOINED)
                 .joinedAt(Instant.now())
                 .build());
 
@@ -80,7 +82,7 @@ public class CallService {
                 .map(p -> CallParticipant.builder()
                         .call(call)
                         .userId(p.getUser().getId())
-                        .status(ParticipantStatus.RINGING)
+                        .status(CallParticipantStatus.RINGING)
                         .build())
                 .collect(Collectors.toList());
         
@@ -118,7 +120,7 @@ public class CallService {
                     return newP;
                 });
 
-        participant.setStatus(ParticipantStatus.JOINED);
+        participant.setStatus(CallParticipantStatus.JOINED);
         participant.setJoinedAt(Instant.now());
         
         if (call.getStatus() == CallStatus.RINGING) {
@@ -128,7 +130,7 @@ public class CallService {
         timeoutScheduler.cancelTimeout(callId);
         Call savedCall = callRepository.save(call);
 
-        notifyParticipantUpdate(savedCall, userId, ParticipantStatus.JOINED);
+        notifyParticipantUpdate(savedCall, userId, CallParticipantStatus.JOINED);
 
         String token = generateAgoraToken(savedCall.getChannelId(), userId.toString());
         return callMapper.toConnectionResponse(toFullResponse(savedCall), token);
@@ -146,18 +148,18 @@ public class CallService {
         call.getParticipants().stream()
                 .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
-                .ifPresent(p -> p.setStatus(ParticipantStatus.REJECTED));
+                .ifPresent(p -> p.setStatus(CallParticipantStatus.REJECTED));
 
         boolean anyJoined = call.getParticipants().stream()
-                .anyMatch(p -> p.getStatus() == ParticipantStatus.JOINED);
+                .anyMatch(p -> p.getStatus() == CallParticipantStatus.JOINED);
         boolean anyRinging = call.getParticipants().stream()
-                .anyMatch(p -> p.getStatus() == ParticipantStatus.RINGING);
+                .anyMatch(p -> p.getStatus() == CallParticipantStatus.RINGING);
         
         if (!anyJoined && !anyRinging) {
             finalizeCall(call, CallStatus.REJECTED);
         }
 
-        notifyParticipantUpdate(call, userId, ParticipantStatus.REJECTED);
+        notifyParticipantUpdate(call, userId, CallParticipantStatus.REJECTED);
         return toFullResponse(call);
     }
 
@@ -168,23 +170,23 @@ public class CallService {
                 .filter(p -> p.getUserId().equals(userId))
                 .findFirst()
                 .ifPresent(p -> {
-                    p.setStatus(ParticipantStatus.LEFT);
+                    p.setStatus(CallParticipantStatus.LEFT);
                     p.setLeftAt(Instant.now());
                 });
 
         long activeCount = call.getParticipants().stream()
-                .filter(p -> p.getStatus() == ParticipantStatus.JOINED)
+                .filter(p -> p.getStatus() == CallParticipantStatus.JOINED)
                 .count();
 
         if (activeCount == 0) {
             finalizeCall(call, CallStatus.ENDED);
         }
 
-        notifyParticipantUpdate(call, userId, ParticipantStatus.LEFT);
+        notifyParticipantUpdate(call, userId, CallParticipantStatus.LEFT);
         return toFullResponse(call);
     }
 
-    private void notifyParticipantUpdate(Call call, Long actorId, ParticipantStatus status) {
+    private void notifyParticipantUpdate(Call call, Long actorId, CallParticipantStatus status) {
         User actor = userRepository.findById(actorId).orElse(null);
         CallParticipantUpdateDto update = CallParticipantUpdateDto.builder()
                 .callId(call.getId())

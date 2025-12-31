@@ -1,5 +1,6 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
@@ -10,12 +11,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 @ApplicationScoped
 public class SystemMessageService {
     
@@ -142,7 +141,7 @@ public class SystemMessageService {
             message.setConversation(conversation);
             message.setSender(actor);
             message.setContent(contentJson);
-            message.setType(Message.MessageType.SYSTEM);
+            message.setType(MessageType.SYSTEM);
             message.setSentAt(Instant.now());
             
             return messageRepository.save(message);

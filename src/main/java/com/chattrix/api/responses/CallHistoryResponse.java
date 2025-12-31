@@ -1,8 +1,8 @@
 package com.chattrix.api.responses;
 
-import com.chattrix.api.entities.CallDirection;
-import com.chattrix.api.entities.CallHistoryStatus;
-import com.chattrix.api.entities.CallType;
+import com.chattrix.api.enums.CallDirection;
+import com.chattrix.api.enums.CallStatus;
+import com.chattrix.api.enums.CallType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,7 +21,7 @@ public class CallHistoryResponse {
     private String remoteUserName;
     private String remoteUserAvatar;
     private CallType callType;
-    private CallHistoryStatus status;
+    private CallStatus status;
     private CallDirection direction;
     private Instant timestamp;
     private Integer durationSeconds;

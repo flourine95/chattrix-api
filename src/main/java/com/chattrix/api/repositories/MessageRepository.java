@@ -1,6 +1,7 @@
 package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Message;
+import com.chattrix.api.enums.ScheduledStatus;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.*;
 import jakarta.transaction.Transactional;
@@ -10,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
+import com.chattrix.api.enums.MessageType;
 @ApplicationScoped
 public class MessageRepository {
 
@@ -21,6 +22,34 @@ public class MessageRepository {
     public Message save(Message message) {
         em.persist(message);
         return message;
+    }
+
+    /**
+     * Batch insert messages for better performance
+     * Uses JPA batch size of 50 for optimal performance
+     */
+    @Transactional
+    public List<Message> saveAll(List<Message> messages) {
+        List<Message> savedMessages = new ArrayList<>();
+        
+        final int batchSize = 50; // JPA batch size
+        for (int i = 0; i < messages.size(); i++) {
+            Message message = messages.get(i);
+            em.persist(message);
+            savedMessages.add(message);
+            
+            // Flush and clear every 50 entities to avoid memory issues
+            if ((i + 1) % batchSize == 0) {
+                em.flush();
+                em.clear();
+            }
+        }
+        
+        // Final flush for remaining messages
+        em.flush();
+        em.clear();
+        
+        return savedMessages;
     }
 
     @Transactional
@@ -38,7 +67,7 @@ public class MessageRepository {
                 Message.class
         );
         query.setParameter("conversationId", conversationId);
-        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
+        query.setParameter("sentStatus", ScheduledStatus.SENT);
         query.setFirstResult(page * size);
         query.setMaxResults(size);
 
@@ -53,7 +82,7 @@ public class MessageRepository {
                 Long.class
         );
         query.setParameter("conversationId", conversationId);
-        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
+        query.setParameter("sentStatus", ScheduledStatus.SENT);
         return query.getSingleResult();
     }
 
@@ -86,7 +115,7 @@ public class MessageRepository {
                         Message.class
                 )
                 .setParameter("conversationId", conversationId)
-                .setParameter("sentStatus", Message.ScheduledStatus.SENT)
+                .setParameter("sentStatus", ScheduledStatus.SENT)
                 .getResultList();
     }
 
@@ -104,8 +133,6 @@ public class MessageRepository {
 
         StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
-                "LEFT JOIN FETCH m.poll " +
-                "LEFT JOIN FETCH m.event " +
                 "WHERE m.conversation.id = :conversationId " +
                 "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) "
         );
@@ -119,7 +146,7 @@ public class MessageRepository {
         TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
         query.setHint("jakarta.persistence.fetchgraph", entityGraph);
         query.setParameter("conversationId", conversationId);
-        query.setParameter("sentStatus", Message.ScheduledStatus.SENT);
+        query.setParameter("sentStatus", ScheduledStatus.SENT);
 
         if (cursor != null) {
             query.setParameter("cursor", cursor);
@@ -148,7 +175,7 @@ public class MessageRepository {
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
         String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
 
-        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender LEFT JOIN FETCH m.poll LEFT JOIN FETCH m.event WHERE m.conversation.id = :conversationId");
+        StringBuilder jpql = new StringBuilder("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.conversation.id = :conversationId");
 
         if (query != null && !query.trim().isEmpty()) {
             jpql.append(" AND LOWER(m.content) LIKE :query");
@@ -177,7 +204,7 @@ public class MessageRepository {
 
         if (type != null && !type.trim().isEmpty()) {
             try {
-                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
+                MessageType messageType = MessageType.valueOf(type.toUpperCase());
                 typedQuery.setParameter("type", messageType);
             } catch (IllegalArgumentException e) {
                 return List.of();
@@ -233,16 +260,16 @@ public class MessageRepository {
         if (type != null && !type.trim().isEmpty()) {
             String[] types = type.split(",");
             if (types.length > 1) {
-                List<Message.MessageType> messageTypes = new ArrayList<>();
+                List<MessageType> messageTypes = new ArrayList<>();
                 for (String t : types) {
                     try {
-                        messageTypes.add(Message.MessageType.valueOf(t.trim().toUpperCase()));
+                        messageTypes.add(MessageType.valueOf(t.trim().toUpperCase()));
                     } catch (IllegalArgumentException ignored) {}
                 }
                 typedQuery.setParameter("types", messageTypes);
             } else {
                 try {
-                    Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
+                    MessageType messageType = MessageType.valueOf(type.toUpperCase());
                     typedQuery.setParameter("type", messageType);
                 } catch (IllegalArgumentException e) {
                     return List.of();
@@ -297,38 +324,6 @@ public class MessageRepository {
     }
 
     /**
-     * Delete messages that reference a specific poll
-     */
-    @Transactional
-    public int deleteByPollId(Long pollId) {
-        // First delete read receipts for these messages
-        em.createQuery("DELETE FROM MessageReadReceipt rr WHERE rr.message.id IN (SELECT m.id FROM Message m WHERE m.poll.id = :pollId)")
-                .setParameter("pollId", pollId)
-                .executeUpdate();
-
-        // Then delete the messages
-        return em.createQuery("DELETE FROM Message m WHERE m.poll.id = :pollId")
-                .setParameter("pollId", pollId)
-                .executeUpdate();
-    }
-
-    /**
-     * Delete messages that reference a specific event
-     */
-    @Transactional
-    public int deleteByEventId(Long eventId) {
-        // First delete read receipts for these messages
-        em.createQuery("DELETE FROM MessageReadReceipt rr WHERE rr.message.id IN (SELECT m.id FROM Message m WHERE m.event.id = :eventId)")
-                .setParameter("eventId", eventId)
-                .executeUpdate();
-
-        // Then delete the messages
-        return em.createQuery("DELETE FROM Message m WHERE m.event.id = :eventId")
-                .setParameter("eventId", eventId)
-                .executeUpdate();
-    }
-
-    /**
      * Count messages that are replies to a specific note
      */
     public long countByReplyToNoteId(Long noteId) {
@@ -338,51 +333,69 @@ public class MessageRepository {
                 .setParameter("noteId", noteId)
                 .getSingleResult();
     }
-
+    
     /**
-     * Find all unread messages in a conversation for a specific user
+     * Find unread messages in a conversation for a user
+     * Uses ConversationParticipant.lastReadMessageId to determine unread messages
      */
-    public List<Message> findUnreadMessages(Long conversationId, Long userId) {
-        return em.createQuery(
-                        "SELECT m FROM Message m " +
-                                "WHERE m.conversation.id = :conversationId " +
-                                "AND m.sender.id <> :userId " +
-                                "AND NOT EXISTS (" +
-                                "  SELECT 1 FROM MessageReadReceipt r " +
-                                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
-                                ") " +
-                                "ORDER BY m.sentAt ASC",
-                        Message.class)
+    public List<Message> findUnreadMessagesByLastRead(Long conversationId, Long userId, Long lastReadMessageId) {
+        if (lastReadMessageId == null) {
+            // No messages read yet, return all messages from others
+            return em.createQuery(
+                    "SELECT m FROM Message m " +
+                    "LEFT JOIN FETCH m.sender " +
+                    "WHERE m.conversation.id = :conversationId " +
+                    "AND m.sender.id <> :userId " +
+                    "ORDER BY m.sentAt ASC",
+                    Message.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId)
                 .getResultList();
-    }
-
-    /**
-     * Find unread messages up to a specific message ID
-     */
-    public List<Message> findUnreadMessagesUpTo(Long conversationId, Long userId, Long lastMessageId) {
-        // First get the sentAt time of the lastMessage
-        Message lastMessage = em.find(Message.class, lastMessageId);
-        if (lastMessage == null) {
-            return findUnreadMessages(conversationId, userId);
         }
-
+        
+        // Return messages after lastReadMessageId
         return em.createQuery(
-                        "SELECT m FROM Message m " +
-                                "WHERE m.conversation.id = :conversationId " +
-                                "AND m.sender.id <> :userId " +
-                                "AND m.sentAt <= :lastSentAt " +
-                                "AND NOT EXISTS (" +
-                                "  SELECT 1 FROM MessageReadReceipt r " +
-                                "  WHERE r.message.id = m.id AND r.user.id = :userId" +
-                                ") " +
-                                "ORDER BY m.sentAt ASC",
-                        Message.class)
+                "SELECT m FROM Message m " +
+                "LEFT JOIN FETCH m.sender " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.sender.id <> :userId " +
+                "AND m.id > :lastReadMessageId " +
+                "ORDER BY m.sentAt ASC",
+                Message.class)
+            .setParameter("conversationId", conversationId)
+            .setParameter("userId", userId)
+            .setParameter("lastReadMessageId", lastReadMessageId)
+            .getResultList();
+    }
+    
+    /**
+     * Count unread messages in a conversation for a user
+     * Uses ConversationParticipant.lastReadMessageId
+     */
+    public long countUnreadMessagesByLastRead(Long conversationId, Long userId, Long lastReadMessageId) {
+        if (lastReadMessageId == null) {
+            // No messages read yet, count all messages from others
+            return em.createQuery(
+                    "SELECT COUNT(m) FROM Message m " +
+                    "WHERE m.conversation.id = :conversationId " +
+                    "AND m.sender.id <> :userId",
+                    Long.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId)
-                .setParameter("lastSentAt", lastMessage.getSentAt())
-                .getResultList();
+                .getSingleResult();
+        }
+        
+        // Count messages after lastReadMessageId
+        return em.createQuery(
+                "SELECT COUNT(m) FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.sender.id <> :userId " +
+                "AND m.id > :lastReadMessageId",
+                Long.class)
+            .setParameter("conversationId", conversationId)
+            .setParameter("userId", userId)
+            .setParameter("lastReadMessageId", lastReadMessageId)
+            .getSingleResult();
     }
 
     // ==================== SCHEDULED MESSAGES METHODS ====================
@@ -400,7 +413,7 @@ public class MessageRepository {
                                 "AND m.scheduledTime <= :time " +
                                 "ORDER BY m.scheduledTime ASC",
                         Message.class)
-                .setParameter("status", Message.ScheduledStatus.PENDING)
+                .setParameter("status", ScheduledStatus.PENDING)
                 .setParameter("time", time)
                 .getResultList();
     }
@@ -408,7 +421,7 @@ public class MessageRepository {
     /**
      * Find scheduled messages with cursor-based pagination
      */
-    public List<Message> findScheduledMessagesByCursor(Long senderId, Long conversationId, Message.ScheduledStatus status, Long cursor, int limit) {
+    public List<Message> findScheduledMessagesByCursor(Long senderId, Long conversationId, ScheduledStatus status, Long cursor, int limit) {
         StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
                 "LEFT JOIN FETCH m.conversation " +
@@ -462,8 +475,8 @@ public class MessageRepository {
                                 "AND m.conversation.id = :conversationId " +
                                 "AND m.scheduled = true " +
                                 "AND m.scheduledStatus = :pendingStatus")
-                .setParameter("cancelledStatus", Message.ScheduledStatus.CANCELLED)
-                .setParameter("pendingStatus", Message.ScheduledStatus.PENDING)
+                .setParameter("cancelledStatus", ScheduledStatus.CANCELLED)
+                .setParameter("pendingStatus", ScheduledStatus.PENDING)
                 .setParameter("senderId", senderId)
                 .setParameter("conversationId", conversationId)
                 .executeUpdate();
@@ -516,7 +529,7 @@ public class MessageRepository {
         
         TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
         query.setParameter("conversationId", conversationId);
-        query.setParameter("announcementType", Message.MessageType.ANNOUNCEMENT);
+        query.setParameter("announcementType", MessageType.ANNOUNCEMENT);
         
         if (cursor != null) {
             query.setParameter("cursor", cursor);
@@ -565,7 +578,7 @@ public class MessageRepository {
 
         if (type != null && !type.trim().isEmpty()) {
             try {
-                Message.MessageType messageType = Message.MessageType.valueOf(type.toUpperCase());
+                MessageType messageType = MessageType.valueOf(type.toUpperCase());
                 typedQuery.setParameter("type", messageType);
             } catch (IllegalArgumentException e) {
                 return List.of();

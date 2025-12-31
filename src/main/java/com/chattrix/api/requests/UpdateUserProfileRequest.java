@@ -1,7 +1,7 @@
 package com.chattrix.api.requests;
 
-import com.chattrix.api.entities.Gender;
-import com.chattrix.api.entities.ProfileVisibility;
+import com.chattrix.api.enums.Gender;
+import com.chattrix.api.enums.ProfileVisibility;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;

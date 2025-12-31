@@ -1,5 +1,6 @@
 package com.chattrix.api.services.conversation;
 
+import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.ConversationMapper;
@@ -10,7 +11,6 @@ import com.chattrix.api.services.message.SystemMessageService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 @ApplicationScoped
 public class GroupAvatarService {
 
@@ -35,7 +35,7 @@ public class GroupAvatarService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Can only update avatar for group conversations", "BAD_REQUEST");
         }
 
@@ -68,7 +68,7 @@ public class GroupAvatarService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Can only delete avatar for group conversations", "BAD_REQUEST");
         }
 

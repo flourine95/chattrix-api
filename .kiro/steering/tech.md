@@ -20,6 +20,7 @@ inclusion: always
 - **JJWT 0.12.6** - JWT authentication
 - **jBCrypt 0.4** - Password hashing
 - **Hibernate Validator 8.0.3** - Bean validation
+- **SLF4J** - Logging framework (provided by WildFly)
 
 ## Architecture Rules
 
@@ -41,6 +42,7 @@ Resources → Services → Repositories → Entities
 - `@Inject` services
 - `@Secured` for auth, `@RateLimited` for rate limiting
 - Get current user: `UserContext.getCurrentUserId()`
+- Add `@Slf4j` for logging
 
 ### `services/` - Business Logic
 - `@ApplicationScoped` (stateless) or `@RequestScoped` (stateful)
@@ -48,6 +50,7 @@ Resources → Services → Repositories → Entities
 - `@Transactional` on methods that modify data
 - **NEVER return null** - throw exceptions for missing resources
 - Use MapStruct mappers for entity ↔ DTO conversion
+- Add `@Slf4j` for logging
 
 ### `repositories/` - Data Access
 - `@PersistenceContext EntityManager`
@@ -158,6 +161,37 @@ return Response.status(Status.OK).entity(responseDto).build();
 - Bidirectional: specify `mappedBy` on inverse side
 - Bidirectional: add `@JsonIgnore` on inverse side
 - `@JoinColumn` for FK column names
+
+### Logging with SLF4J
+**MANDATORY logging pattern with Lombok:**
+```java
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class ServiceName {
+    public void method() {
+        log.debug("Debug message with param: {}", param);
+        log.info("Info message");
+        log.warn("Warning message");
+        log.error("Error message", exception);
+    }
+}
+```
+
+**Logging levels:**
+- `DEBUG` - Detailed flow information (method entry/exit, parameters)
+- `INFO` - Important business events (user registered, order created)
+- `WARN` - Recoverable issues (validation failed, retry attempt)
+- `ERROR` - Exceptions and critical errors
+
+**Best practices:**
+- Use `@Slf4j` annotation from Lombok - no need to declare logger manually
+- Use parameterized logging: `log.info("User {} logged in", username)` (NOT string concatenation)
+- Log at method entry: `log.debug("Method called with params: {}", params)`
+- Log business events: `log.info("User registered: {}", userId)`
+- Log exceptions: `log.error("Failed to process", exception)`
+- Never log sensitive data (passwords, tokens)
+- Use appropriate log levels
 
 ## Docker Development
 

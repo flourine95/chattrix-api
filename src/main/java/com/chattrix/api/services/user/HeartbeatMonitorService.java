@@ -22,8 +22,8 @@ public class HeartbeatMonitorService {
     private final ConcurrentMap<Long, Instant> lastHeartbeat = new ConcurrentHashMap<>();
     private static final int HEARTBEAT_TIMEOUT_SECONDS = 30;
 
-    @Inject
-    private UserStatusService userStatusService;
+    //     @Inject
+    //     private UserStatusService userStatusService;
 
     @Inject
     private UserRepository userRepository;
@@ -53,7 +53,7 @@ public class HeartbeatMonitorService {
                 log.info("User {} heartbeat timeout. Last heartbeat: {}", userId, lastBeat);
 
                 try {
-                    userStatusService.setUserOffline(userId);
+                    // userStatusService.setUserOffline(userId); // TODO: Use OnlineStatusCache + UserStatusBatchService
                     broadcastUserStatusChange(userId, false);
                     log.info("Marked user {} as offline due to heartbeat timeout", userId);
                     return true;

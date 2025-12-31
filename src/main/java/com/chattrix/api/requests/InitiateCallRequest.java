@@ -1,6 +1,6 @@
 package com.chattrix.api.requests;
 
-import com.chattrix.api.entities.CallType;
+import com.chattrix.api.enums.CallType;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

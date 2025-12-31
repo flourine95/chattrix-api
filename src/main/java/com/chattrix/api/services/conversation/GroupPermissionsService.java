@@ -1,5 +1,8 @@
 package com.chattrix.api.services.conversation;
 
+import com.chattrix.api.enums.DeletePermissionLevel;
+import com.chattrix.api.enums.PermissionLevel;
+import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.GroupPermissions;
@@ -12,7 +15,6 @@ import com.chattrix.api.responses.GroupPermissionsResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 @ApplicationScoped
 public class GroupPermissionsService {
     
@@ -33,7 +35,7 @@ public class GroupPermissionsService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
         
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Permissions only apply to group conversations", "INVALID_CONVERSATION_TYPE");
         }
         
@@ -58,7 +60,7 @@ public class GroupPermissionsService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
         
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Permissions only apply to group conversations", "INVALID_CONVERSATION_TYPE");
         }
         
@@ -73,25 +75,25 @@ public class GroupPermissionsService {
         
         // Update permissions
         if (request.getSendMessages() != null) {
-            permissions.setSendMessages(GroupPermissions.PermissionLevel.valueOf(request.getSendMessages()));
+            permissions.setSendMessages(PermissionLevel.valueOf(request.getSendMessages()));
         }
         if (request.getAddMembers() != null) {
-            permissions.setAddMembers(GroupPermissions.PermissionLevel.valueOf(request.getAddMembers()));
+            permissions.setAddMembers(PermissionLevel.valueOf(request.getAddMembers()));
         }
         if (request.getRemoveMembers() != null) {
-            permissions.setRemoveMembers(GroupPermissions.PermissionLevel.valueOf(request.getRemoveMembers()));
+            permissions.setRemoveMembers(PermissionLevel.valueOf(request.getRemoveMembers()));
         }
         if (request.getEditGroupInfo() != null) {
-            permissions.setEditGroupInfo(GroupPermissions.PermissionLevel.valueOf(request.getEditGroupInfo()));
+            permissions.setEditGroupInfo(PermissionLevel.valueOf(request.getEditGroupInfo()));
         }
         if (request.getPinMessages() != null) {
-            permissions.setPinMessages(GroupPermissions.PermissionLevel.valueOf(request.getPinMessages()));
+            permissions.setPinMessages(PermissionLevel.valueOf(request.getPinMessages()));
         }
         if (request.getDeleteMessages() != null) {
-            permissions.setDeleteMessages(GroupPermissions.DeletePermissionLevel.valueOf(request.getDeleteMessages()));
+            permissions.setDeleteMessages(DeletePermissionLevel.valueOf(request.getDeleteMessages()));
         }
         if (request.getCreatePolls() != null) {
-            permissions.setCreatePolls(GroupPermissions.PermissionLevel.valueOf(request.getCreatePolls()));
+            permissions.setCreatePolls(PermissionLevel.valueOf(request.getCreatePolls()));
         }
         
         permissionsRepository.save(permissions);
@@ -112,7 +114,7 @@ public class GroupPermissionsService {
         }
         
         // Direct conversations have no restrictions
-        if (conversation.getType() == Conversation.ConversationType.DIRECT) {
+        if (conversation.getType() == ConversationType.DIRECT) {
             return true;
         }
         
@@ -133,12 +135,12 @@ public class GroupPermissionsService {
         
         // Check permission based on action
         return switch (action) {
-            case "send_messages" -> isAdmin || permissions.getSendMessages() == GroupPermissions.PermissionLevel.ALL;
-            case "add_members" -> isAdmin || permissions.getAddMembers() == GroupPermissions.PermissionLevel.ALL;
+            case "send_messages" -> isAdmin || permissions.getSendMessages() == PermissionLevel.ALL;
+            case "add_members" -> isAdmin || permissions.getAddMembers() == PermissionLevel.ALL;
             case "remove_members" -> isAdmin; // Always admin only
-            case "edit_group_info" -> isAdmin || permissions.getEditGroupInfo() == GroupPermissions.PermissionLevel.ALL;
-            case "pin_messages" -> isAdmin || permissions.getPinMessages() == GroupPermissions.PermissionLevel.ALL;
-            case "create_polls" -> isAdmin || permissions.getCreatePolls() == GroupPermissions.PermissionLevel.ALL;
+            case "edit_group_info" -> isAdmin || permissions.getEditGroupInfo() == PermissionLevel.ALL;
+            case "pin_messages" -> isAdmin || permissions.getPinMessages() == PermissionLevel.ALL;
+            case "create_polls" -> isAdmin || permissions.getCreatePolls() == PermissionLevel.ALL;
             default -> false;
         };
     }
@@ -156,7 +158,7 @@ public class GroupPermissionsService {
         }
         
         // Direct conversations - only owner can delete
-        if (conversation.getType() == Conversation.ConversationType.DIRECT) {
+        if (conversation.getType() == ConversationType.DIRECT) {
             return userId.equals(messageOwnerId);
         }
         
@@ -180,6 +182,7 @@ public class GroupPermissionsService {
             case OWNER -> isOwner;
             case ADMIN_ONLY -> isAdmin;
             case ALL -> true;
+            default -> false;
         };
     }
     
@@ -187,13 +190,13 @@ public class GroupPermissionsService {
     private GroupPermissions createDefaultPermissions(Conversation conversation) {
         GroupPermissions permissions = GroupPermissions.builder()
                 .conversation(conversation)
-                .sendMessages(GroupPermissions.PermissionLevel.ALL)
-                .addMembers(GroupPermissions.PermissionLevel.ADMIN_ONLY)
-                .removeMembers(GroupPermissions.PermissionLevel.ADMIN_ONLY)
-                .editGroupInfo(GroupPermissions.PermissionLevel.ADMIN_ONLY)
-                .pinMessages(GroupPermissions.PermissionLevel.ADMIN_ONLY)
-                .deleteMessages(GroupPermissions.DeletePermissionLevel.ADMIN_ONLY)
-                .createPolls(GroupPermissions.PermissionLevel.ALL)
+                .sendMessages(PermissionLevel.ALL)
+                .addMembers(PermissionLevel.ADMIN_ONLY)
+                .removeMembers(PermissionLevel.ADMIN_ONLY)
+                .editGroupInfo(PermissionLevel.ADMIN_ONLY)
+                .pinMessages(PermissionLevel.ADMIN_ONLY)
+                .deleteMessages(DeletePermissionLevel.ADMIN_ONLY)
+                .createPolls(PermissionLevel.ALL)
                 .build();
         
         return permissionsRepository.save(permissions);

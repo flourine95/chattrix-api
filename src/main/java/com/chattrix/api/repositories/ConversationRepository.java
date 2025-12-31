@@ -189,11 +189,41 @@ public class ConversationRepository {
                 .getResultList();
     }
 
-    @Transactional
-    public void delete(Conversation conversation) {
-        if (!em.contains(conversation)) {
-            conversation = em.merge(conversation);
+    /**
+     * Find conversations by invite token from JSONB metadata
+     * Uses native query to query JSONB field
+     */
+    public Optional<Conversation> findByInviteToken(String token) {
+        try {
+            // Native query to search JSONB metadata for invite token
+            String sql = "SELECT c.* FROM conversations c " +
+                        "WHERE c.metadata->>'inviteLink'->>'token' = :token " +
+                        "AND c.metadata->>'inviteLink'->>'revoked' = 'false'";
+            
+            Conversation conversation = (Conversation) em.createNativeQuery(sql, Conversation.class)
+                .setParameter("token", token)
+                .getSingleResult();
+            
+            return Optional.of(conversation);
+        } catch (NoResultException e) {
+            return Optional.empty();
         }
-        em.remove(conversation);
+    }
+    
+    /**
+     * Find conversations with active invite links
+     * Uses native query to query JSONB field
+     */
+    public List<Conversation> findConversationsWithActiveInviteLinks(Long userId) {
+        String sql = "SELECT DISTINCT c.* FROM conversations c " +
+                    "INNER JOIN conversation_participants cp ON c.id = cp.conversation_id " +
+                    "WHERE cp.user_id = :userId " +
+                    "AND c.metadata->>'inviteLink' IS NOT NULL " +
+                    "AND c.metadata->>'inviteLink'->>'revoked' = 'false' " +
+                    "ORDER BY c.updated_at DESC";
+        
+        return em.createNativeQuery(sql, Conversation.class)
+            .setParameter("userId", userId)
+            .getResultList();
     }
 }

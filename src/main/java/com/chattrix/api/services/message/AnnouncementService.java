@@ -1,5 +1,7 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.enums.ConversationType;
+import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
@@ -17,10 +19,8 @@ import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.util.List;
 import java.util.Map;
-
 @ApplicationScoped
 public class AnnouncementService {
 
@@ -51,7 +51,7 @@ public class AnnouncementService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
 
-        if (conversation.getType() != Conversation.ConversationType.GROUP) {
+        if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Announcements can only be created in group conversations", "INVALID_CONVERSATION_TYPE");
         }
 
@@ -69,7 +69,7 @@ public class AnnouncementService {
         announcement.setConversation(conversation);
         announcement.setSender(user);
         announcement.setContent(request.getContent());
-        announcement.setType(Message.MessageType.ANNOUNCEMENT);
+        announcement.setType(MessageType.ANNOUNCEMENT);
 
         messageRepository.save(announcement);
 
@@ -133,7 +133,7 @@ public class AnnouncementService {
                 .orElseThrow(() -> BusinessException.notFound("Message not found", "MESSAGE_NOT_FOUND"));
 
         // Verify it's an announcement
-        if (message.getType() != Message.MessageType.ANNOUNCEMENT) {
+        if (message.getType() != MessageType.ANNOUNCEMENT) {
             throw BusinessException.badRequest("Message is not an announcement", "INVALID_MESSAGE_TYPE");
         }
 

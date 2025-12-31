@@ -12,7 +12,6 @@ import com.chattrix.api.responses.BulkCancelResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.message.MessageEditService;
 import com.chattrix.api.services.message.MessageForwardService;
 import com.chattrix.api.services.message.MessageService;
 import com.chattrix.api.services.message.ScheduledMessageService;
@@ -30,8 +29,6 @@ public class MessageResource {
 
     @Inject
     private MessageService messageService;
-    @Inject
-    private MessageEditService messageEditService;
     @Inject
     private MessageForwardService messageForwardService;
     @Inject
@@ -79,6 +76,8 @@ public class MessageResource {
         return Response.ok(ApiResponse.success(null, "Message deleted successfully")).build();
     }
 
+    // TODO: Re-enable after MessageEditHistory refactor
+    /*
     @PUT
     @Path("/{messageId}")
     public Response editMessage(
@@ -99,6 +98,7 @@ public class MessageResource {
         var history = messageEditService.getEditHistory(userContext.getCurrentUserId(), conversationId, messageId);
         return Response.ok(ApiResponse.success(history, "Edit history retrieved")).build();
     }
+    */
 
     @POST
     @Path("/forward")

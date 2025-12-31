@@ -15,7 +15,7 @@ public interface ContactMapper {
     @Mapping(target = "username", source = "contactUser.username")
     @Mapping(target = "fullName", source = "contactUser.fullName")
     @Mapping(target = "avatarUrl", source = "contactUser.avatarUrl")
-    @Mapping(target = "online", source = "contactUser.online")
+    @Mapping(target = "online", ignore = true) // Online status from cache
     @Mapping(target = "lastSeen", source = "contactUser.lastSeen")
     @Mapping(target = "favorite", source = "favorite")
     ContactResponse toResponse(Contact contact);

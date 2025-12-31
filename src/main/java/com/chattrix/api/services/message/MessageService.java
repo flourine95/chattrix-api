@@ -1,14 +1,13 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.enums.ConversationType;
+import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
-import com.chattrix.api.entities.MessageReadReceipt;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
-import com.chattrix.api.mappers.EventMapper;
 import com.chattrix.api.mappers.MessageMapper;
-import com.chattrix.api.mappers.PollMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.*;
@@ -19,9 +18,7 @@ import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.responses.PaginatedResponse;
 import com.chattrix.api.responses.ReadReceiptResponse;
-import com.chattrix.api.services.event.EventService;
 import com.chattrix.api.services.notification.ChatSessionService;
-import com.chattrix.api.services.poll.PollService;
 import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MentionEventDto;
 import com.chattrix.api.websocket.dto.OutgoingMessageDto;
@@ -29,12 +26,10 @@ import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 @ApplicationScoped
 public class MessageService {
 
@@ -62,23 +57,23 @@ public class MessageService {
     @Inject
     private ConversationParticipantRepository participantRepository;
 
-    @Inject
-    private MessageReadReceiptRepository readReceiptRepository;
+    //     @Inject
+    //     private MessageReadReceiptRepository readReceiptRepository;
 
-    @Inject
-    private MessageEditHistoryRepository messageEditHistoryRepository;
+    //     @Inject
+    //     private MessageEditHistoryRepository messageEditHistoryRepository;
 
-    @Inject
-    private PollMapper pollMapper;
+    //     @Inject
+    //     private PollMapper pollMapper;
 
-    @Inject
-    private EventMapper eventMapper;
+    //     @Inject
+    //     private EventMapper eventMapper;
 
-    @Inject
-    private PollRepository pollRepository;
+    // @Inject
+    // private PollRepository pollRepository;
 
-    @Inject
-    private EventRepository eventRepository;
+    // @Inject
+    // private EventRepository eventRepository;
 
     @Transactional
     public CursorPaginatedResponse<MessageResponse> getMessages(Long userId, Long conversationId, Long cursor, int limit, String sort) {
@@ -157,7 +152,7 @@ public class MessageService {
         }
         
         // Check if user is muted (for group conversations)
-        if (conversation.getType() == Conversation.ConversationType.GROUP) {
+        if (conversation.getType() == ConversationType.GROUP) {
             ConversationParticipant participant = conversation.getParticipants().stream()
                     .filter(p -> p.getUser().getId().equals(userId))
                     .findFirst()
@@ -204,27 +199,27 @@ public class MessageService {
         message.setConversation(conversation);
 
         // Set message type
-        Message.MessageType messageType = Message.MessageType.TEXT;
+        MessageType messageType = MessageType.TEXT;
         if (request.type() != null) {
             try {
-                messageType = Message.MessageType.valueOf(request.type().toUpperCase());
+                messageType = MessageType.valueOf(request.type().toUpperCase());
             } catch (IllegalArgumentException e) {
                 throw BusinessException.badRequest("Invalid message type: " + request.type(), "BAD_REQUEST");
             }
         }
         message.setType(messageType);
 
-        // Set rich media fields
-        message.setMediaUrl(request.mediaUrl());
-        message.setThumbnailUrl(request.thumbnailUrl());
-        message.setFileName(request.fileName());
-        message.setFileSize(request.fileSize());
-        message.setDuration(request.duration());
+        // TODO: Set rich media fields using MessageMetadata
+        // message.setMediaUrl(request.mediaUrl());
+        // message.setThumbnailUrl(request.thumbnailUrl());
+        // message.setFileName(request.fileName());
+        // message.setFileSize(request.fileSize());
+        // message.setDuration(request.duration());
 
-        // Set location fields
-        message.setLatitude(request.latitude());
-        message.setLongitude(request.longitude());
-        message.setLocationName(request.locationName());
+        // TODO: Set location fields using MessageMetadata
+        // message.setLatitude(request.latitude());
+        // message.setLongitude(request.longitude());
+        // message.setLocationName(request.locationName());
 
         // Set reply and mentions
         message.setReplyToMessage(replyToMessage);
@@ -307,10 +302,9 @@ public class MessageService {
         }
 
         // Delete related data first to avoid foreign key constraint violations
-        // 1. Delete read receipts
-        readReceiptRepository.deleteByMessageId(messageId);
-        // 2. Delete message edit history
-        messageEditHistoryRepository.deleteByMessageId(messageId);
+        // TODO: Uncomment when MessageReadReceipt and MessageEditHistory entities exist
+        // readReceiptRepository.deleteByMessageId(messageId);
+        // messageEditHistoryRepository.deleteByMessageId(messageId);
 
         messageRepository.delete(message);
 
@@ -407,7 +401,8 @@ public class MessageService {
             response.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
         }
 
-        // Populate read receipts
+        // TODO: Populate read receipts when MessageReadReceipt entity exists
+        /*
         long readCount = readReceiptRepository.countByMessageId(message.getId());
         response.setReadCount(readCount);
 
@@ -427,24 +422,28 @@ public class MessageService {
                     .toList();
             response.setReadBy(readByList);
         }
+        */
 
-        // Populate Poll details if it's a POLL message
-        if (message.getType() == Message.MessageType.POLL && message.getPoll() != null) {
+        // TODO: Populate Poll details when Poll entity exists
+        /*
+        if (message.getType() == MessageType.POLL && message.getPoll() != null) {
             pollRepository.initializePoll(message.getPoll());
             response.setPoll(pollMapper.toResponseWithDetails(message.getPoll(), userId, userMapper));
         }
+        */
 
-        // Populate Event details if it's an EVENT message
-        if (message.getType() == Message.MessageType.EVENT && message.getEvent() != null) {
+        // TODO: Populate Event details when Event entity exists
+        /*
+        if (message.getType() == MessageType.EVENT && message.getEvent() != null) {
             response.setEvent(enrichEventResponse(message.getEvent(), userId));
         }
+        */
 
         return response;
     }
 
-    /**
-     * Helper method to enrich event response (copied from EventService to avoid circular dependency or complex refactoring)
-     */
+    // TODO: Uncomment when Event entity is created
+    /*
     private com.chattrix.api.responses.EventResponse enrichEventResponse(com.chattrix.api.entities.Event event, Long userId) {
         com.chattrix.api.responses.EventResponse response = eventMapper.toResponse(event);
 
@@ -477,6 +476,7 @@ public class MessageService {
 
         return response;
     }
+    */
 
     // ==================== CHAT INFO METHODS ====================
 
@@ -562,11 +562,11 @@ public class MessageService {
         MediaResponse response = new MediaResponse();
         response.setId(message.getId());
         response.setType(message.getType().name());
-        response.setMediaUrl(message.getMediaUrl());
-        response.setThumbnailUrl(message.getThumbnailUrl());
-        response.setFileName(message.getFileName());
-        response.setFileSize(message.getFileSize());
-        response.setDuration(message.getDuration());
+        // response.setMediaUrl(message.getMediaUrl()); // TODO: Use metadata
+        // response.setThumbnailUrl(message.getThumbnailUrl()); // TODO: Use metadata
+        // response.setFileName(message.getFileName()); // TODO: Use metadata
+        // response.setFileSize(message.getFileSize()); // TODO: Use metadata
+        // response.setDuration(message.getDuration()); // TODO: Use metadata
         response.setSenderId(message.getSender().getId());
         response.setSenderUsername(message.getSender().getUsername());
         response.setSentAt(message.getSentAt());
