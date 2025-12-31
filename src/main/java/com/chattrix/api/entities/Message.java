@@ -41,6 +41,13 @@ import java.util.Map;
                 )
         }
 )
+@NamedEntityGraph(
+        name = "Message.withSenderAndConversation",
+        attributeNodes = {
+                @NamedAttributeNode("sender"),
+                @NamedAttributeNode("conversation")
+        }
+)
 public class Message {
 
     @Id

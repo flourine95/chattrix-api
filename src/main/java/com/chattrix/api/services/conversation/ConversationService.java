@@ -199,6 +199,7 @@ public class ConversationService {
 
     /**
      * Get conversations with cursor-based pagination and filtering.
+     * Cursor is the conversation ID of the last item from previous page.
      */
     @Transactional
     public CursorPaginatedResponse<ConversationResponse> getConversationsWithCursor(Long userId, String filter, Long cursor, int limit) {
@@ -210,12 +211,13 @@ public class ConversationService {
             limit = 100;
         }
 
-        // Fetch conversations with cursor and filter
+        // Fetch limit + 1 to check if there are more items
         List<Conversation> conversations = conversationRepository.findByUserIdWithCursorAndFilter(userId, cursor, limit, filter);
 
         // Check if there are more items
         boolean hasMore = conversations.size() > limit;
         if (hasMore) {
+            // Remove the extra item
             conversations = conversations.subList(0, limit);
         }
 
@@ -235,7 +237,7 @@ public class ConversationService {
                 })
                 .toList();
 
-        // Calculate next cursor
+        // Calculate next cursor (ID of last item in current page)
         Long nextCursor = null;
         if (hasMore && !responses.isEmpty()) {
             nextCursor = responses.get(responses.size() - 1).getId();

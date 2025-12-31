@@ -90,11 +90,14 @@ public class ConversationRepository {
     /**
      * Find conversations by user ID with cursor and filter.
      * Supports filtering by unread and group conversations.
+     * Sorted by ID DESC (newest conversations first).
+     * Cursor is the ID of the last conversation from the previous page.
      */
     public List<Conversation> findByUserIdWithCursorAndFilter(Long userId, Long cursor, int limit, String filter) {
         // First, get conversation IDs with cursor pagination (without FETCH JOIN)
+        // Fetch limit + 1 to check if there are more items
         StringBuilder jpql = new StringBuilder(
-                "SELECT c.id, c.updatedAt FROM Conversation c " +
+                "SELECT c.id FROM Conversation c " +
                 "WHERE EXISTS (SELECT 1 FROM ConversationParticipant cp WHERE cp.conversation = c AND cp.user.id = :userId) ");
         
         // Apply filter at database level
@@ -104,37 +107,35 @@ public class ConversationRepository {
             jpql.append("AND c.type = 'GROUP' ");
         }
         
+        // Cursor pagination: get conversations with ID less than cursor
         if (cursor != null) {
             jpql.append("AND c.id < :cursor ");
         }
         
-        jpql.append("ORDER BY c.updatedAt DESC, c.id DESC");
+        // Order by ID DESC (newest conversations first)
+        jpql.append("ORDER BY c.id DESC");
         
-        var idQuery = em.createQuery(jpql.toString(), Object[].class)
+        var idQuery = em.createQuery(jpql.toString(), Long.class)
                 .setParameter("userId", userId);
         
         if (cursor != null) {
             idQuery.setParameter("cursor", cursor);
         }
         
-        List<Object[]> results = idQuery.setMaxResults(limit + 1).getResultList();
+        // Fetch limit + 1 to check hasMore
+        List<Long> conversationIds = idQuery.setMaxResults(limit + 1).getResultList();
         
-        if (results.isEmpty()) {
+        if (conversationIds.isEmpty()) {
             return List.of();
         }
         
-        // Extract IDs
-        List<Long> conversationIds = results.stream()
-                .map(row -> (Long) row[0])
-                .toList();
-        
-        // Then fetch full conversations with participants and users
+        // Then fetch full conversations with participants
+        // Keep the same order as the ID query
         return em.createQuery(
                 "SELECT DISTINCT c FROM Conversation c " +
                 "LEFT JOIN FETCH c.participants " +
-                "LEFT JOIN FETCH c.participants.user " +
                 "WHERE c.id IN :ids " +
-                "ORDER BY c.updatedAt DESC, c.id DESC", Conversation.class)
+                "ORDER BY c.id DESC", Conversation.class)
                 .setParameter("ids", conversationIds)
                 .getResultList();
     }

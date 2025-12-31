@@ -35,9 +35,8 @@ public class ConversationParticipant {
     @Column(name = "joined_at")
     private Instant joinedAt;
 
-    @Builder.Default
     @Column(name = "unread_count", nullable = false)
-    private int unreadCount = 0;
+    private int unreadCount;
 
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
@@ -50,9 +49,8 @@ public class ConversationParticipant {
     private Long unreadMarkerId;
 
     // Gộp từ ConversationSettings
-    @Builder.Default
     @Column(name = "muted", nullable = false)
-    private boolean muted = false;
+    private boolean muted;
 
     @Column(name = "muted_until")
     private Instant mutedUntil;
@@ -60,16 +58,14 @@ public class ConversationParticipant {
     @Column(name = "muted_at")
     private Instant mutedAt;
 
-    @Builder.Default
     @Column(name = "archived", nullable = false)
-    private boolean archived = false;
+    private boolean archived;
 
     @Column(name = "archived_at")
     private Instant archivedAt;
 
-    @Builder.Default
     @Column(name = "pinned", nullable = false)
-    private boolean pinned = false;
+    private boolean pinned;
 
     @Column(name = "pin_order")
     private Integer pinOrder;
@@ -83,13 +79,28 @@ public class ConversationParticipant {
     @Column(name = "custom_nickname", length = 100)
     private String customNickname;
 
-    @Builder.Default
     @Column(name = "notifications_enabled", nullable = false)
-    private boolean notificationsEnabled = true;
+    private boolean notificationsEnabled;
 
     @PrePersist
     protected void onPrePersist() {
-        this.joinedAt = Instant.now();
+        if (this.joinedAt == null) {
+            this.joinedAt = Instant.now();
+        }
+        // Set default values for primitive boolean fields
+        // These will only be set if the field wasn't explicitly initialized
+        if (!muted && mutedAt == null && mutedUntil == null) {
+            this.muted = false;
+        }
+        if (!archived && archivedAt == null) {
+            this.archived = false;
+        }
+        if (!pinned && pinnedAt == null && pinOrder == null) {
+            this.pinned = false;
+        }
+        if (!notificationsEnabled && this.id == null) {
+            this.notificationsEnabled = true;
+        }
     }
 
     /**
