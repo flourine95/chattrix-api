@@ -16,10 +16,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @ApplicationScoped
 public class ReactionService {
@@ -35,6 +32,12 @@ public class ReactionService {
 
     @Inject
     private ChatSessionService chatSessionService;
+    
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     @Transactional
     public ReactionResponse addReaction(Long userId, Long messageId, String emoji) {
@@ -90,6 +93,13 @@ public class ReactionService {
 
         message.setReactions(reactions);
         messageRepository.save(message);
+
+        // Invalidate caches
+        messageCache.invalidate(message.getConversation().getId());
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(message.getConversation().getId(), participantIds);
 
         // Broadcast reaction event to all conversation participants
         ReactionEventDto reactionEvent = new ReactionEventDto();
@@ -151,6 +161,13 @@ public class ReactionService {
 
             message.setReactions(reactions);
             messageRepository.save(message);
+
+            // Invalidate caches
+            messageCache.invalidate(message.getConversation().getId());
+            Set<Long> participantIds = conversation.getParticipants().stream()
+                    .map(p -> p.getUser().getId())
+                    .collect(java.util.stream.Collectors.toSet());
+            cacheManager.invalidateConversationCaches(message.getConversation().getId(), participantIds);
 
             // Broadcast reaction event to all conversation participants
             ReactionEventDto reactionEvent = new ReactionEventDto();

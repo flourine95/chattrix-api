@@ -17,6 +17,7 @@ import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @ApplicationScoped
 public class MessageForwardService {
@@ -32,6 +33,15 @@ public class MessageForwardService {
 
     @Inject
     private UserRepository userRepository;
+    
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
+    @Inject
+    private com.chattrix.api.services.notification.ChatSessionService chatSessionService;
+    @Inject
+    private com.chattrix.api.mappers.WebSocketMapper webSocketMapper;
 
     @Transactional
     public List<MessageResponse> forwardMessage(Long userId, ForwardMessageRequest request) {
@@ -79,7 +89,18 @@ public class MessageForwardService {
             participantRepository.incrementUnreadCountForOthers(conversationId, userId);
 
             conversation.setUpdatedAt(Instant.now());
+            conversation.setLastMessage(forwardedMessage);
             conversationRepository.save(conversation);
+
+            // Invalidate caches (CRITICAL - lastMessage changed)
+            messageCache.invalidate(conversationId);
+            Set<Long> participantIds = conversation.getParticipants().stream()
+                    .map(p -> p.getUser().getId())
+                    .collect(java.util.stream.Collectors.toSet());
+            cacheManager.invalidateConversationCaches(conversationId, participantIds);
+
+            // Broadcast forwarded message via WebSocket
+            broadcastForwardedMessage(forwardedMessage, conversation);
 
             forwardedMessages.add(mapToMessageResponse(forwardedMessage));
         }
@@ -92,6 +113,20 @@ public class MessageForwardService {
         messageRepository.save(originalMessage);
 
         return forwardedMessages;
+    }
+
+    private void broadcastForwardedMessage(Message message, Conversation conversation) {
+        com.chattrix.api.websocket.dto.OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(message);
+        com.chattrix.api.websocket.dto.WebSocketMessage<com.chattrix.api.websocket.dto.OutgoingMessageDto> wsMessage = 
+            new com.chattrix.api.websocket.dto.WebSocketMessage<>(
+                com.chattrix.api.websocket.WebSocketEventType.CHAT_MESSAGE, 
+                outgoingDto
+            );
+
+        // Broadcast to all participants
+        conversation.getParticipants().forEach(participant -> {
+            chatSessionService.sendMessageToUser(participant.getUser().getId(), wsMessage);
+        });
     }
 
     private MessageResponse mapToMessageResponse(Message message) {

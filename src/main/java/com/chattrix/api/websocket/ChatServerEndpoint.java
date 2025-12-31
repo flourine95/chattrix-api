@@ -1,10 +1,12 @@
 package com.chattrix.api.websocket;
 
+import com.chattrix.api.dto.MessageMetadata;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.MessageMetadataMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
@@ -12,6 +14,8 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.UserResponse;
 import com.chattrix.api.services.auth.TokenService;
+import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.cache.OnlineStatusCache;
 import com.chattrix.api.services.cache.UserProfileCache;
 import com.chattrix.api.services.call.CallService;
@@ -72,6 +76,12 @@ public class ChatServerEndpoint {
     private MessageMapper messageMapper;
     @Inject
     private UserProfileCache userProfileCache;
+    @Inject
+    private MessageMetadataMapper metadataMapper;
+    @Inject
+    private CacheManager cacheManager;
+    @Inject
+    private MessageCache messageCache;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -230,38 +240,19 @@ public class ChatServerEndpoint {
         }
         newMessage.setType(messageType);
 
-        // Set rich media fields in metadata
-        Map<String, Object> metadata = newMessage.getMetadata();
-        if (metadata == null) {
-            metadata = new HashMap<>();
-        }
-        if (dto.getMediaUrl() != null) {
-            metadata.put("mediaUrl", dto.getMediaUrl());
-        }
-        if (dto.getThumbnailUrl() != null) {
-            metadata.put("thumbnailUrl", dto.getThumbnailUrl());
-        }
-        if (dto.getFileName() != null) {
-            metadata.put("fileName", dto.getFileName());
-        }
-        if (dto.getFileSize() != null) {
-            metadata.put("fileSize", dto.getFileSize());
-        }
-        if (dto.getDuration() != null) {
-            metadata.put("duration", dto.getDuration());
-        }
-
-        // Set location fields in metadata
-        if (dto.getLatitude() != null) {
-            metadata.put("latitude", dto.getLatitude());
-        }
-        if (dto.getLongitude() != null) {
-            metadata.put("longitude", dto.getLongitude());
-        }
-        if (dto.getLocationName() != null) {
-            metadata.put("locationName", dto.getLocationName());
-        }
-
+        // Build metadata using MessageMetadataMapper (type-safe)
+        MessageMetadata metadataDto = MessageMetadata.builder()
+                .mediaUrl(dto.getMediaUrl())
+                .thumbnailUrl(dto.getThumbnailUrl())
+                .fileName(dto.getFileName())
+                .fileSize(dto.getFileSize())
+                .duration(dto.getDuration())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
+                .locationName(dto.getLocationName())
+                .build();
+        
+        Map<String, Object> metadata = metadataMapper.toMap(metadataDto);
         newMessage.setMetadata(metadata);
 
         // Set reply and mentions
@@ -273,6 +264,13 @@ public class ChatServerEndpoint {
         // Update conversation's lastMessage
         conv.setLastMessage(newMessage);
         conversationRepository.save(conv);
+
+        // Invalidate caches
+        Set<Long> participantIds = conv.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conv.getId(), participantIds);
+        messageCache.invalidate(conv.getId());
 
         // 3. Broadcast
         OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(newMessage);

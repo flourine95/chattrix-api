@@ -15,6 +15,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @ApplicationScoped
 public class TokenService {
@@ -51,8 +52,12 @@ public class TokenService {
     }
 
     public RefreshToken generateRefreshToken(User user, String accessTokenId, String accessToken) {
+        // Generate unique refresh token
+        String refreshTokenString = UUID.randomUUID().toString();
+        
         Instant expiresAt = Instant.now().plusMillis(jwtConfig.getRefreshExpirationMillis());
         RefreshToken refreshToken = RefreshToken.builder()
+                .token(refreshTokenString)
                 .user(user)
                 .expiresAt(expiresAt)
                 .createdAt(Instant.now())

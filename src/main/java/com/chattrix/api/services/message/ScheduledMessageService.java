@@ -44,6 +44,15 @@ public class ScheduledMessageService {
 
     @Inject
     private ChatSessionService chatSessionService;
+    
+    @Inject
+    private com.chattrix.api.services.cache.ConversationCache conversationCache;
+    
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     @Transactional
     public MessageResponse scheduleMessage(Long userId, Long conversationId, ScheduleMessageRequest request) {
@@ -333,6 +342,13 @@ public class ScheduledMessageService {
                         scheduledMsg.getConversation().getId(),
                         scheduledMsg.getSender().getId()
                 );
+
+                // Invalidate caches (CRITICAL - lastMessage changed)
+                Set<Long> participantIds = conversation.getParticipants().stream()
+                        .map(p -> p.getUser().getId())
+                        .collect(java.util.stream.Collectors.toSet());
+                cacheManager.invalidateConversationCaches(conversation.getId(), participantIds);
+                messageCache.invalidate(conversation.getId());
 
                 // Send success notification (includes chat.message and scheduled.message.sent events)
                 sendSuccessNotification(scheduledMsg);

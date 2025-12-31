@@ -69,8 +69,8 @@ public class SeedUser {
             users.add(new UserData(names[i], i + 1));
         }
 
-        // Header SQL sắp xếp theo đúng thứ tự bạn yêu cầu
-        String sqlHeader = "INSERT INTO users (avatar_url, bio, created_at, date_of_birth, email, email_verified, full_name, gender, last_seen, location, online, password, phone, profile_visibility, updated_at, username) VALUES ";
+        // Header SQL sắp xếp theo đúng thứ tự bạn yêu cầu (không bao gồm id vì auto-increment)
+        String sqlHeader = "INSERT INTO users (avatar_url, bio, created_at, date_of_birth, email, email_verified, full_name, gender, last_seen, location, note_metadata, password, phone, profile_visibility, updated_at, username) VALUES ";
 
         Random rand = new Random();
         StringBuilder sqlBuilder = new StringBuilder();
@@ -87,20 +87,19 @@ public class SeedUser {
                 var uploadResult = cloudinary.uploader().upload(avatarSourceUrl, params);
                 String avatarUrl = (String) uploadResult.get("secure_url");
 
-                // Logic data ngẫu nhiên
                 String gender = rand.nextBoolean() ? "MALE" : "FEMALE";
                 String phone = "09" + (10000000 + rand.nextInt(90000000));
                 String sqlBio = RANDOM_BIOS[rand.nextInt(RANDOM_BIOS.length)].replace("'", "''");
 
-                // Ngày sinh ngẫu nhiên năm, cố định 25/12
                 int year = 1990 + rand.nextInt(16);
                 String dob = String.format("%d-12-25 06:25:17.861000 +00:00", year);
 
                 String location = LOCATIONS[rand.nextInt(LOCATIONS.length)];
 
-                // Format row theo đúng thứ tự cột của DB
+                // Format row theo đúng thứ tự cột:
+                // avatar_url, bio, created_at, date_of_birth, email, email_verified, full_name, gender, last_seen, location, note_metadata, password, phone, profile_visibility, updated_at, username
                 String valueRow = String.format(
-                        "('%s', '%s', NOW(), '%s', '%s', %b, '%s', '%s', NOW(), '%s', %b, '%s', '%s', '%s', NOW(), '%s')",
+                        "('%s', '%s', NOW(), '%s', '%s', %b, '%s', '%s', NOW(), '%s', %s, '%s', '%s', '%s', NOW(), '%s')",
                         avatarUrl,          // avatar_url
                         sqlBio,             // bio
                         dob,                // date_of_birth
@@ -109,7 +108,7 @@ public class SeedUser {
                         user.fullName,      // full_name
                         gender,             // gender
                         location,           // location
-                        false,              // online
+                        "NULL",             // note_metadata (để NULL nếu không có data)
                         hashedPassword,     // password
                         phone,              // phone
                         "PUBLIC",           // profile_visibility

@@ -50,6 +50,9 @@ public class PinnedMessageService {
     @Inject
     private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
     
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    
     @Transactional
     public MessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
         // Validate conversation exists
@@ -99,6 +102,9 @@ public class PinnedMessageService {
         message.setPinnedBy(pinningUser);
         messageRepository.save(message);
         
+        // Invalidate cache
+        messageCache.invalidate(conversationId);
+        
         // Send WebSocket notification
         MessageResponse response = messageMapper.toResponse(message);
         sendPinNotification(conversationId, "MESSAGE_PINNED", response);
@@ -141,6 +147,9 @@ public class PinnedMessageService {
         message.setPinnedAt(null);
         message.setPinnedBy(null);
         messageRepository.save(message);
+        
+        // Invalidate cache
+        messageCache.invalidate(conversationId);
         
         // Send WebSocket notification
         MessageResponse response = messageMapper.toResponse(message);

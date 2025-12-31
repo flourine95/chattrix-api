@@ -42,6 +42,10 @@ public class ConversationService {
     private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
     // @Inject
     // private ConversationSettingsService conversationSettingsService;
+    @Inject
+    private com.chattrix.api.services.cache.ConversationCache conversationCache;
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -53,6 +57,20 @@ public class ConversationService {
             long count = request.getParticipantIds().stream().filter(id -> !id.equals(currentUserId)).count();
             if (count != 1)
                 throw BusinessException.badRequest("DIRECT conversation must have exactly 1 other participant.", "BAD_REQUEST");
+            
+            // Check for existing DIRECT conversation
+            Long otherUserId = request.getParticipantIds().stream()
+                    .filter(id -> !id.equals(currentUserId))
+                    .findFirst()
+                    .orElseThrow();
+            
+            Optional<Conversation> existingConversation = conversationRepository
+                    .findDirectConversationBetweenUsers(currentUserId, otherUserId);
+            
+            if (existingConversation.isPresent()) {
+                // Return existing conversation instead of creating duplicate
+                return enrichConversationResponse(existingConversation.get(), currentUserId);
+            }
         }
 
         if ("GROUP".equals(request.getType())) {
@@ -100,48 +118,71 @@ public class ConversationService {
             systemMessageService.createUserAddedMessage(conversation.getId(), addedUserIds, currentUserId);
         }
 
+        // Invalidate cache for all participants
+        Set<Long> allParticipantIds = participants.stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversation.getId(), allParticipantIds);
+
         return enrichConversationResponse(conversation, currentUserId);
     }
 
     @Transactional
     public PaginatedResponse<ConversationResponse> getConversations(Long userId, String filter, int page, int size) {
-        List<Conversation> allConversations = conversationRepository.findByUserId(userId);
-
-        // Apply filter
+        // FIXED: Use cursor-based pagination with filter at database level
+        // Calculate cursor from page number (simulate offset-based pagination with cursor)
+        Long cursor = null; // Start from beginning for first page
+        
+        // For subsequent pages, we need to fetch all previous pages to get the cursor
+        // This is a limitation of cursor pagination when used with offset-based API
+        // Better solution: migrate API to cursor-based pagination
+        int totalToFetch = (page + 1) * size;
+        
+        List<Conversation> conversations = conversationRepository.findByUserIdWithCursorAndFilter(
+            userId, cursor, totalToFetch, filter);
+        
+        // Calculate total (this is expensive but needed for offset pagination)
+        // TODO: Add countByUserIdWithFilter() method to repository for better performance
+        long totalElements = conversationRepository.findByUserId(userId).size();
         if (filter != null) {
             switch (filter.toLowerCase()) {
                 case "unread":
-                    // Filter conversations with unread messages
-                    allConversations = allConversations.stream()
+                    totalElements = conversationRepository.findByUserId(userId).stream()
                             .filter(conv -> conv.getParticipants().stream()
                                     .anyMatch(p -> p.getUser().getId().equals(userId) && p.getUnreadCount() > 0))
-                            .toList();
+                            .count();
                     break;
                 case "group":
-                    // Filter only GROUP conversations
-                    allConversations = allConversations.stream()
+                    totalElements = conversationRepository.findByUserId(userId).stream()
                             .filter(conv -> conv.getType() == ConversationType.GROUP)
-                            .toList();
-                    break;
-                case "all":
-                default:
-                    // Return all conversations (no filtering needed)
+                            .count();
                     break;
             }
         }
-
-        // Calculate pagination
-        long totalElements = allConversations.size();
+        
         int totalPages = (int) Math.ceil((double) totalElements / size);
         int startIndex = page * size;
-        int endIndex = Math.min(startIndex + size, allConversations.size());
-
+        int endIndex = Math.min(startIndex + size, conversations.size());
+        
         // Get page of conversations
-        List<Conversation> pagedConversations = allConversations.subList(startIndex, endIndex);
-
-        // Map to response and enrich
+        List<Conversation> pagedConversations = conversations.subList(
+            Math.min(startIndex, conversations.size()), 
+            Math.min(endIndex, conversations.size()));
+        
+        // Map to response with cache
         List<ConversationResponse> responses = pagedConversations.stream()
-                .map(conv -> enrichConversationResponse(conv, userId))
+                .map(conv -> {
+                    // Try cache first
+                    ConversationResponse cached = conversationCache.get(userId, conv.getId());
+                    if (cached != null) {
+                        return cached;
+                    }
+                    
+                    // Cache miss - enrich and cache
+                    ConversationResponse response = enrichConversationResponse(conv, userId);
+                    conversationCache.put(userId, conv.getId(), response);
+                    return response;
+                })
                 .toList();
 
         PaginatedResponse<ConversationResponse> result = new PaginatedResponse<>();
@@ -178,9 +219,20 @@ public class ConversationService {
             conversations = conversations.subList(0, limit);
         }
 
-        // Map to response and enrich
+        // Map to response with cache
         List<ConversationResponse> responses = conversations.stream()
-                .map(conv -> enrichConversationResponse(conv, userId))
+                .map(conv -> {
+                    // Try cache first
+                    ConversationResponse cached = conversationCache.get(userId, conv.getId());
+                    if (cached != null) {
+                        return cached;
+                    }
+                    
+                    // Cache miss - enrich and cache
+                    ConversationResponse response = enrichConversationResponse(conv, userId);
+                    conversationCache.put(userId, conv.getId(), response);
+                    return response;
+                })
                 .toList();
 
         // Calculate next cursor
@@ -194,10 +246,19 @@ public class ConversationService {
 
     @Transactional
     public ConversationResponse getConversation(Long userId, Long conversationId) {
+        // Try cache first
+        ConversationResponse cached = conversationCache.get(userId, conversationId);
+        if (cached != null) {
+            return cached;
+        }
+        
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
         validateParticipant(conversation, userId);
-        return enrichConversationResponse(conversation, userId);
+        
+        ConversationResponse response = enrichConversationResponse(conversation, userId);
+        conversationCache.put(userId, conversationId, response);
+        return response;
     }
 
     /**
@@ -339,6 +400,12 @@ public class ConversationService {
             systemMessageService.createGroupAvatarChangedMessage(conversationId, userId);
         }
         
+        // Invalidate cache for all participants
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
+        
         return enrichConversationResponse(conversation, userId);
     }
 
@@ -356,6 +423,9 @@ public class ConversationService {
                 .orElseThrow(() -> BusinessException.notFound("Participant not found", "RESOURCE_NOT_FOUND"));
 
         participantRepository.delete(participant);
+        
+        // Invalidate cache for user
+        conversationCache.invalidate(userId, conversationId);
     }
 
     @Transactional
@@ -422,6 +492,12 @@ public class ConversationService {
         // Create system message
         systemMessageService.createUserLeftMessage(conversationId, userId);
         System.out.println("DEBUG: System message created");
+        
+        // Invalidate cache for all participants
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
     }
 
     @Transactional
@@ -468,6 +544,12 @@ public class ConversationService {
             systemMessageService.createUserAddedMessage(conversationId, newlyAddedUserIds, userId);
         }
 
+        // Invalidate cache for all participants (including new ones)
+        Set<Long> allParticipantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, allParticipantIds);
+
         return AddMembersResponse.builder()
                 .conversationId(conversationId)
                 .addedMembers(addedMembers)
@@ -507,6 +589,12 @@ public class ConversationService {
             e.printStackTrace();
             throw e;
         }
+        
+        // Invalidate cache for all remaining participants
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
     }
 
     @Transactional
@@ -532,6 +620,12 @@ public class ConversationService {
         } else if (oldRole == ConversationParticipant.Role.ADMIN && newRole == ConversationParticipant.Role.MEMBER) {
             systemMessageService.createUserDemotedMessage(conversationId, memberUserId, userId);
         }
+
+        // Invalidate cache for all participants
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
         return ConversationResponse.ParticipantResponse.builder()
                 .userId(participant.getUser().getId())

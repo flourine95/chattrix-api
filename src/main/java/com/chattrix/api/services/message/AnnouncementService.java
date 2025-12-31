@@ -24,6 +24,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 @ApplicationScoped
 public class AnnouncementService {
 
@@ -44,6 +46,12 @@ public class AnnouncementService {
 
     @Inject
     private ChatSessionService chatSessionService;
+    
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     /**
      * Create announcement (admin only)
@@ -79,6 +87,13 @@ public class AnnouncementService {
         // Update conversation's lastMessage
         conversation.setLastMessage(announcement);
         conversationRepository.save(conversation);
+
+        // Invalidate caches (CRITICAL - lastMessage changed)
+        messageCache.invalidate(conversationId);
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
         // Broadcast to all participants
         broadcastAnnouncement(announcement, conversation);
@@ -155,6 +170,9 @@ public class AnnouncementService {
 
         // Delete
         messageRepository.delete(message);
+
+        // Invalidate caches
+        messageCache.invalidate(conversationId);
 
         // Broadcast deletion
         AnnouncementDeleteEventDto payload = AnnouncementDeleteEventDto.builder()

@@ -28,6 +28,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+
 @ApplicationScoped
 public class MessageService {
 
@@ -54,6 +56,12 @@ public class MessageService {
 
     @Inject
     private ConversationParticipantRepository participantRepository;
+    
+    @Inject
+    private com.chattrix.api.services.cache.MessageCache messageCache;
+    
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     //     @Inject
     //     private MessageReadReceiptRepository readReceiptRepository;
@@ -232,6 +240,13 @@ public class MessageService {
         // Increment unread count for all participants except the sender
         participantRepository.incrementUnreadCountForOthers(conversationId, userId);
 
+        // Invalidate caches (CRITICAL - lastMessage changed)
+        messageCache.invalidate(conversationId);
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
+
         // Broadcast message to all participants via WebSocket
         broadcastMessage(message, conversation);
 
@@ -258,6 +273,13 @@ public class MessageService {
         message.setEdited(true);
         message.setUpdatedAt(Instant.now());
         messageRepository.save(message);
+
+        // Invalidate caches
+        messageCache.invalidate(conversationId);
+        Set<Long> participantIds = message.getConversation().getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
         // Broadcast update via WebSocket
         MessageUpdateEventDto payload = MessageUpdateEventDto.builder()
@@ -313,6 +335,13 @@ public class MessageService {
             conversationRepository.save(conversation);
             broadcastConversationUpdate(conversation);
         }
+
+        // Invalidate caches (CRITICAL - message deleted, lastMessage may have changed)
+        messageCache.invalidate(conversationId);
+        Set<Long> participantIds = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
         // Broadcast deletion via WebSocket
         MessageDeleteEventDto payload = MessageDeleteEventDto.builder()

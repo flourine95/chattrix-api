@@ -13,6 +13,11 @@ public class UserProfileService {
 
     @Inject
     private UserRepository userRepository;
+    
+    @Inject
+    private com.chattrix.api.services.cache.UserProfileCache userProfileCache;
+    @Inject
+    private com.chattrix.api.services.cache.CacheManager cacheManager;
 
     public User getUserProfile(Long userId) {
         return userRepository.findById(userId)
@@ -85,7 +90,12 @@ public class UserProfileService {
             user.setAvatarUrl(request.getAvatarUrl().trim());
         }
 
-        return userRepository.save(user);
+        User updatedUser = userRepository.save(user);
+        
+        // Invalidate user caches (profile changed)
+        cacheManager.invalidateUserCaches(userId);
+
+        return updatedUser;
     }
 
     public User getUserByUsername(String username) {
