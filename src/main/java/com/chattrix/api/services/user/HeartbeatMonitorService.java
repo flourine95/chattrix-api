@@ -2,6 +2,8 @@ package com.chattrix.api.services.user;
 
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.websocket.WebSocketEventType;
+import com.chattrix.api.websocket.dto.UserStatusEventDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.ejb.Schedule;
 import jakarta.ejb.Singleton;

@@ -9,6 +9,7 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ReactionResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.ReactionEventDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;

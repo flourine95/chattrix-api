@@ -12,6 +12,8 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.websocket.WebSocketEventType;
+import com.chattrix.api.websocket.dto.MessagePinEventDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

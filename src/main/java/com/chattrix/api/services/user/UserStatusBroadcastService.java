@@ -7,6 +7,7 @@ import com.chattrix.api.responses.UserResponse;
 import com.chattrix.api.services.cache.UserProfileCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
+import com.chattrix.api.websocket.dto.UserStatusEventDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
