@@ -1,12 +1,10 @@
 package com.chattrix.api.websocket;
 
-import com.chattrix.api.dto.MessageMetadata;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.mappers.MessageMapper;
-import com.chattrix.api.mappers.MessageMetadataMapper;
 import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
@@ -76,8 +74,6 @@ public class ChatServerEndpoint {
     private MessageMapper messageMapper;
     @Inject
     private UserProfileCache userProfileCache;
-    @Inject
-    private MessageMetadataMapper metadataMapper;
     @Inject
     private CacheManager cacheManager;
     @Inject
@@ -240,19 +236,17 @@ public class ChatServerEndpoint {
         }
         newMessage.setType(messageType);
 
-        // Build metadata using MessageMetadataMapper (type-safe)
-        MessageMetadata metadataDto = MessageMetadata.builder()
-                .mediaUrl(dto.getMediaUrl())
-                .thumbnailUrl(dto.getThumbnailUrl())
-                .fileName(dto.getFileName())
-                .fileSize(dto.getFileSize())
-                .duration(dto.getDuration())
-                .latitude(dto.getLatitude())
-                .longitude(dto.getLongitude())
-                .locationName(dto.getLocationName())
-                .build();
+        // Build metadata map directly
+        Map<String, Object> metadata = new HashMap<>();
+        if (dto.getMediaUrl() != null) metadata.put("mediaUrl", dto.getMediaUrl());
+        if (dto.getThumbnailUrl() != null) metadata.put("thumbnailUrl", dto.getThumbnailUrl());
+        if (dto.getFileName() != null) metadata.put("fileName", dto.getFileName());
+        if (dto.getFileSize() != null) metadata.put("fileSize", dto.getFileSize());
+        if (dto.getDuration() != null) metadata.put("duration", dto.getDuration());
+        if (dto.getLatitude() != null) metadata.put("latitude", dto.getLatitude());
+        if (dto.getLongitude() != null) metadata.put("longitude", dto.getLongitude());
+        if (dto.getLocationName() != null) metadata.put("locationName", dto.getLocationName());
         
-        Map<String, Object> metadata = metadataMapper.toMap(metadataDto);
         newMessage.setMetadata(metadata);
 
         // Set reply and mentions

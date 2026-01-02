@@ -11,27 +11,21 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class EventResponse {
-
-    private Long id;
-    private Long conversationId;
-    private UserResponse creator;
+    private Long messageId;
     private String title;
     private String description;
     private Instant startTime;
     private Instant endTime;
     private String location;
-    private Instant createdAt;
-    private Instant updatedAt;
-    
-    // RSVP statistics
+    private List<Long> goingUserIds;
+    private List<Long> maybeUserIds;
+    private List<Long> notGoingUserIds;
     private Integer goingCount;
     private Integer maybeCount;
     private Integer notGoingCount;
-    
-    // Current user's RSVP status
-    private String currentUserRsvpStatus;
-    
-    // List of RSVPs (optional, for detailed view)
-    private List<EventRsvpResponse> rsvps;
+    private String currentUserStatus;  // "GOING", "MAYBE", "NOT_GOING", or null
+    private Boolean isPast;
+    private Long createdBy;
+    private String createdByUsername;
+    private Instant createdAt;
 }
-

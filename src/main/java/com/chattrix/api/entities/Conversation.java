@@ -8,6 +8,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -70,4 +71,20 @@ public class Conversation {
         this.updatedAt = Instant.now();
     }
 
+    public boolean isUserParticipant(Long userId) {
+        return participants.stream()
+                .anyMatch(p -> p.hasUserId(userId));
+    }
+
+    public Optional<ConversationParticipant> getParticipant(Long userId) {
+        return participants.stream()
+                .filter(p -> p.hasUserId(userId))
+                .findFirst();
+    }
+
+    public Set<Long> getParticipantIds() {
+        return participants.stream()
+                .map(p -> p.getUser().getId())
+                .collect(Collectors.toSet());
+    }
 }

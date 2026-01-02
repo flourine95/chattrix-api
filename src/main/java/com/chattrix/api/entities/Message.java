@@ -123,10 +123,10 @@ public class Message {
 
     @Column(name = "sent_at")
     private Instant sentAt;
-    
+
     @Column(name = "created_at")
     private Instant createdAt;
-    
+
     @Column(name = "updated_at")
     private Instant updatedAt;
 
@@ -157,4 +157,129 @@ public class Message {
     protected void onPreUpdate() {
         this.updatedAt = Instant.now();
     }
+
+    // ==================== METADATA STRUCTURE DOCUMENTATION ====================
+
+    /*
+     * JSONB metadata structure for different message types.
+     *
+     * IMPORTANT: The metadata field is a Map<String, Object> stored as JSONB in PostgreSQL.
+     * The inner classes below are DOCUMENTATION ONLY - they describe the expected structure
+     * but are NOT used in the actual code. All metadata manipulation is done directly on
+     * the Map<String, Object> for simplicity and flexibility.
+     *
+     * Frontend should access metadata directly:
+     * - message.metadata.poll.options[0].votes
+     * - message.metadata.event.going
+     * - message.metadata.mediaUrl
+     * - message.metadata.latitude
+     *
+     * ==================== POLL METADATA ====================
+     * Stored in: metadata.poll (Map<String, Object>)
+     *
+     * Structure:
+     * {
+     *   "poll": {
+     *     "question": "What time works best?",
+     *     "options": [
+     *       {"id": 0, "text": "9 AM", "votes": [1, 2, 3]},
+     *       {"id": 1, "text": "2 PM", "votes": [4, 5]}
+     *     ],
+     *     "allowMultiple": false,
+     *     "anonymous": false,
+     *     "closesAt": "2026-01-31T23:59:59Z"
+     *   }
+     * }
+     *
+     * Fields:
+     * - question (String): The poll question
+     * - options (List<Map>): Poll options with id, text, and votes
+     *   - id (Long): Option index (0, 1, 2, ...)
+     *   - text (String): Option text
+     *   - votes (List<Long>): User IDs who voted for this option
+     * - allowMultiple (Boolean): Allow multiple votes per user
+     * - anonymous (Boolean): Hide voter identities
+     * - closesAt (String): ISO-8601 timestamp when poll closes (optional, e.g., "2026-01-31T23:59:59Z")
+     *
+     * Calculated at runtime (NOT stored):
+     * - totalVotes: Sum of all votes across options
+     * - isClosed: Whether current time > closesAt
+     *
+     * ==================== EVENT METADATA ====================
+     * Stored in: metadata.event (Map<String, Object>)
+     *
+     * Structure:
+     * {
+     *   "event": {
+     *     "title": "Team Lunch",
+     *     "description": "Monthly team lunch",
+     *     "startTime": 1736942400.000000000,  // Instant (Jackson serializes)
+     *     "endTime": 1736947800.000000000,    // Instant (Jackson serializes)
+     *     "location": "Restaurant ABC",
+     *     "going": [1, 2, 3],
+     *     "maybe": [4, 5],
+     *     "notGoing": [6]
+     *   }
+     * }
+     *
+     * Fields:
+     * - title (String): Event title
+     * - description (String): Event description
+     * - startTime (String): ISO-8601 timestamp (e.g., "2026-01-15T12:00:00Z")
+     * - endTime (String): ISO-8601 timestamp (e.g., "2026-01-15T13:30:00Z")
+     * - location (String): Event location
+     * - going (List<Long>): User IDs who are going
+     * - maybe (List<Long>): User IDs who might go
+     * - notGoing (List<Long>): User IDs who are not going
+     *
+     * Calculated at runtime (NOT stored):
+     * - isPast: Whether current time > endTime
+     * - goingCount, maybeCount, notGoingCount: List sizes
+     *
+     * ==================== MEDIA METADATA ====================
+     * Stored in: metadata (Map<String, Object>)
+     *
+     * For IMAGE, VIDEO, AUDIO, FILE messages:
+     * {
+     *   "mediaUrl": "https://example.com/file.jpg",
+     *   "thumbnailUrl": "https://example.com/thumb.jpg",
+     *   "fileName": "vacation.jpg",
+     *   "fileSize": 1024000,
+     *   "duration": 120  // seconds, for video/audio only
+     * }
+     *
+     * ==================== LOCATION METADATA ====================
+     * Stored in: metadata (Map<String, Object>)
+     *
+     * For LOCATION messages:
+     * {
+     *   "latitude": 21.028511,
+     *   "longitude": 105.804817,
+     *   "locationName": "Hanoi, Vietnam"
+     * }
+     *
+     * ==================== OTHER METADATA ====================
+     *
+     * Edit History:
+     * {
+     *   "editHistory": [
+     *     {
+     *       "oldContent": "Hello",
+     *       "newContent": "Hello World",
+     *       "editedAt": "2026-01-02T10:00:00Z",
+     *       "editedBy": 1
+     *     }
+     *   ]
+     * }
+     *
+     * Forward Info:
+     * {
+     *   "forwardedFrom": {
+     *     "conversationId": 1,
+     *     "messageId": 123,
+     *     "originalSenderId": 5,
+     *     "originalSenderUsername": "user5"
+     *   }
+     * }
+     */
 }

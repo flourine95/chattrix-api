@@ -58,7 +58,54 @@ public class ConversationResource {
     @DELETE
     @Path("/{conversationId}")
     public Response deleteConversation(@PathParam("conversationId") Long conversationId) {
-        conversationService.deleteConversation(userContext.getCurrentUserId(), conversationId);
-        return Response.ok(ApiResponse.success(null, "Conversation deleted successfully")).build();
+        conversationService.archiveConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation archived successfully")).build();
+    }
+
+    // Archive/Unarchive
+    @POST
+    @Path("/{conversationId}/archive")
+    public Response archiveConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.archiveConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation archived successfully")).build();
+    }
+
+    @POST
+    @Path("/{conversationId}/unarchive")
+    public Response unarchiveConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.unarchiveConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation unarchived successfully")).build();
+    }
+
+    // Mute/Unmute
+    @POST
+    @Path("/{conversationId}/mute")
+    public Response muteConversation(
+            @PathParam("conversationId") Long conversationId,
+            @QueryParam("duration") Long durationMinutes) {
+        conversationService.muteConversation(userContext.getCurrentUserId(), conversationId, durationMinutes);
+        return Response.ok(ApiResponse.success(null, "Conversation muted successfully")).build();
+    }
+
+    @POST
+    @Path("/{conversationId}/unmute")
+    public Response unmuteConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.unmuteConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation unmuted successfully")).build();
+    }
+
+    // Pin/Unpin
+    @POST
+    @Path("/{conversationId}/pin")
+    public Response pinConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.pinConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation pinned successfully")).build();
+    }
+
+    @POST
+    @Path("/{conversationId}/unpin")
+    public Response unpinConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.unpinConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Conversation unpinned successfully")).build();
     }
 }

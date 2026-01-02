@@ -3,16 +3,19 @@ package com.chattrix.api.resources.message;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.BulkCancelScheduledMessagesRequest;
 import com.chattrix.api.requests.ChatMessageRequest;
+import com.chattrix.api.requests.CreateEventRequest;
+import com.chattrix.api.requests.CreatePollRequest;
 import com.chattrix.api.requests.EditMessageRequest;
+import com.chattrix.api.requests.EventRsvpRequest;
 import com.chattrix.api.requests.ForwardMessageRequest;
 import com.chattrix.api.requests.ScheduleMessageRequest;
 import com.chattrix.api.requests.UpdateScheduledMessageRequest;
+import com.chattrix.api.requests.VotePollRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.BulkCancelResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.security.UserContext;
-import com.chattrix.api.services.message.MessageForwardService;
 import com.chattrix.api.services.message.MessageService;
 import com.chattrix.api.services.message.ScheduledMessageService;
 import jakarta.inject.Inject;
@@ -29,8 +32,6 @@ public class MessageResource {
 
     @Inject
     private MessageService messageService;
-    @Inject
-    private MessageForwardService messageForwardService;
     @Inject
     private ScheduledMessageService scheduledMessageService;
     @Inject
@@ -76,18 +77,15 @@ public class MessageResource {
         return Response.ok(ApiResponse.success(null, "Message deleted successfully")).build();
     }
 
-    // TODO: Re-enable after MessageEditHistory refactor
-    /*
     @PUT
     @Path("/{messageId}")
-    public Response editMessage(
+    public Response updateMessage(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId,
-            @Valid EditMessageRequest request) {
-
-        var response = messageEditService.editMessage(
+            @Valid com.chattrix.api.requests.UpdateMessageRequest request) {
+        var response = messageService.updateMessage(
                 userContext.getCurrentUserId(), conversationId, messageId, request);
-        return Response.ok(ApiResponse.success(response, "Message edited successfully")).build();
+        return Response.ok(ApiResponse.success(response, "Message updated successfully")).build();
     }
 
     @GET
@@ -95,20 +93,12 @@ public class MessageResource {
     public Response getEditHistory(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId) {
-        var history = messageEditService.getEditHistory(userContext.getCurrentUserId(), conversationId, messageId);
-        return Response.ok(ApiResponse.success(history, "Edit history retrieved")).build();
+        var history = messageService.getEditHistory(userContext.getCurrentUserId(), conversationId, messageId);
+        return Response.ok(ApiResponse.success(history, "Edit history retrieved successfully")).build();
     }
-    */
 
-    @POST
-    @Path("/forward")
-    public Response forwardMessage(
-            @PathParam("conversationId") Long conversationId,
-            @Valid ForwardMessageRequest request) {
-        var responses = messageForwardService.forwardMessage(userContext.getCurrentUserId(), request);
-        return Response.status(Response.Status.CREATED)
-                .entity(ApiResponse.success(responses, "Message forwarded successfully")).build();
-    }
+    // Forward message endpoint moved to MessageForwardResource
+    // Use /v1/messages/{messageId}/forward instead
 
     // Pinned messages endpoints moved to PinnedMessageResource
     // Use /v1/conversations/{conversationId}/messages/pinned instead
@@ -184,5 +174,68 @@ public class MessageResource {
         BulkCancelResponse response = scheduledMessageService.bulkCancelScheduledMessages(
                 userId, conversationId, request.scheduledMessageIds());
         return Response.ok(ApiResponse.success(response, "Scheduled messages cancelled successfully")).build();
+    }
+
+    // ============================================================================
+    // POLLS
+    // ============================================================================
+
+    @POST
+    @Path("/poll")
+    public Response createPoll(
+            @PathParam("conversationId") Long conversationId,
+            @Valid CreatePollRequest request) {
+        var response = messageService.createPoll(userContext.getCurrentUserId(), conversationId, request);
+        return Response.status(Response.Status.CREATED)
+                .entity(ApiResponse.success(response, "Poll created successfully")).build();
+    }
+
+    @POST
+    @Path("/{messageId}/poll/vote")
+    public Response votePoll(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("messageId") Long messageId,
+            @Valid VotePollRequest request) {
+        var response = messageService.votePoll(userContext.getCurrentUserId(), conversationId, messageId, request);
+        return Response.ok(ApiResponse.success(response, "Vote recorded successfully")).build();
+    }
+
+    // ============================================================================
+    // EVENTS
+    // ============================================================================
+
+    @POST
+    @Path("/event")
+    public Response createEvent(
+            @PathParam("conversationId") Long conversationId,
+            @Valid CreateEventRequest request) {
+        var response = messageService.createEvent(userContext.getCurrentUserId(), conversationId, request);
+        return Response.status(Response.Status.CREATED)
+                .entity(ApiResponse.success(response, "Event created successfully")).build();
+    }
+
+    @POST
+    @Path("/{messageId}/event/rsvp")
+    public Response respondToEvent(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("messageId") Long messageId,
+            @Valid EventRsvpRequest request) {
+        var response = messageService.respondToEvent(userContext.getCurrentUserId(), conversationId, messageId, request);
+        return Response.ok(ApiResponse.success(response, "RSVP recorded successfully")).build();
+    }
+
+    // ============================================================================
+    // FORWARD MESSAGE
+    // ============================================================================
+
+    @POST
+    @Path("/{messageId}/forward")
+    public Response forwardMessage(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("messageId") Long messageId,
+            @Valid ForwardMessageRequest request) {
+        var responses = messageService.forwardMessage(userContext.getCurrentUserId(), conversationId, messageId, request.conversationIds);
+        return Response.status(Response.Status.CREATED)
+                .entity(ApiResponse.success(responses, "Message forwarded successfully")).build();
     }
 }

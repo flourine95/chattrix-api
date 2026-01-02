@@ -19,29 +19,12 @@ public class MessageResponse {
     private String content;
     private String type;
 
-    // Rich media fields
-    private String mediaUrl;
-    private String thumbnailUrl;
-    private String fileName;
-    private Long fileSize;
-    private Integer duration;
-
-    // Location fields
-    private Double latitude;
-    private Double longitude;
-    private String locationName;
+    // Metadata as object (contains: mediaUrl, fileName, fileSize, duration, latitude, longitude, locationName, editHistory, failedReason, poll, event, etc.)
+    private Map<String, Object> metadata;
 
     // Reply context
     private Long replyToMessageId;
     private ReplyMessageResponse replyToMessage;
-
-    // Poll reference (for POLL message type)
-    private Long pollId;
-    private PollResponse poll;
-
-    // Event reference (for EVENT message type)
-    private Long eventId;
-    private EventResponse event;
 
     // Reactions: {"👍": [1, 2, 3], "❤️": [4, 5]}
     private Map<String, List<Long>> reactions;
@@ -70,16 +53,12 @@ public class MessageResponse {
     private String pinnedByUsername;
     private String pinnedByFullName;
 
-    // Read receipts
-    @JsonProperty("readCount")
     private Long readCount;
 
-    @JsonProperty("readBy")
     private List<ReadReceiptResponse> readBy;
 
     // Scheduled message fields
     private Boolean scheduled;
     private Instant scheduledTime;
     private String scheduledStatus;
-    private String failedReason;
 }

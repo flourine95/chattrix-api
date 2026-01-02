@@ -129,7 +129,7 @@ public class MessageRepository {
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
         String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
 
-        EntityGraph<?> entityGraph = em.getEntityGraph("Message.withSenderAndReply");
+        EntityGraph<?> entityGraph = em.getEntityGraph("Message.fullContext");
 
         StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
@@ -164,6 +164,18 @@ public class MessageRepository {
         } catch (Exception e) {
             return Optional.empty();
         }
+    }
+
+    public List<Message> findByConversationIdAndType(Long conversationId, MessageType type) {
+        return em.createQuery(
+                        "SELECT m FROM Message m LEFT JOIN FETCH m.sender " +
+                                "WHERE m.conversation.id = :conversationId AND m.type = :type " +
+                                "ORDER BY m.createdAt DESC",
+                        Message.class
+                )
+                .setParameter("conversationId", conversationId)
+                .setParameter("type", type)
+                .getResultList();
     }
 
     // ==================== CHAT INFO METHODS ====================

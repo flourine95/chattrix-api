@@ -68,8 +68,25 @@ public class ConversationService {
                     .findDirectConversationBetweenUsers(currentUserId, otherUserId);
             
             if (existingConversation.isPresent()) {
-                // Return existing conversation instead of creating duplicate
-                return enrichConversationResponse(existingConversation.get(), currentUserId);
+                Conversation conv = existingConversation.get();
+                
+                // Auto-unarchive for both users if archived
+                conv.getParticipants().forEach(participant -> {
+                    if (participant.isArchived()) {
+                        participant.setArchived(false);
+                        participant.setArchivedAt(null);
+                        participantRepository.save(participant);
+                    }
+                });
+                
+                // Invalidate cache for both users
+                Set<Long> participantIds = conv.getParticipants().stream()
+                        .map(p -> p.getUser().getId())
+                        .collect(java.util.stream.Collectors.toSet());
+                cacheManager.invalidateConversationCaches(conv.getId(), participantIds);
+                
+                // Return existing conversation with full history
+                return enrichConversationResponse(conv, currentUserId);
             }
         }
 
@@ -413,20 +430,114 @@ public class ConversationService {
 
     @Transactional
     public void deleteConversation(Long userId, Long conversationId) {
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+        // DELETE = Archive conversation for current user
+        archiveConversation(userId, conversationId);
+    }
 
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.badRequest("You do not have access to this conversation", "BAD_REQUEST");
-        }
-
+    @Transactional
+    public void archiveConversation(Long userId, Long conversationId) {
         ConversationParticipant participant = participantRepository
                 .findByConversationIdAndUserId(conversationId, userId)
-                .orElseThrow(() -> BusinessException.notFound("Participant not found", "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        participantRepository.delete(participant);
+        participant.setArchived(true);
+        participant.setArchivedAt(Instant.now());
+        participantRepository.save(participant);
+
+        // Invalidate cache
+        conversationCache.invalidate(userId, conversationId);
+    }
+
+    @Transactional
+    public void unarchiveConversation(Long userId, Long conversationId) {
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+
+        participant.setArchived(false);
+        participant.setArchivedAt(null);
+        participantRepository.save(participant);
+
+        // Invalidate cache
+        conversationCache.invalidate(userId, conversationId);
+    }
+
+    @Transactional
+    public void muteConversation(Long userId, Long conversationId, Long durationMinutes) {
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+
+        participant.setMuted(true);
+        participant.setMutedAt(Instant.now());
         
-        // Invalidate cache for user
+        // If duration is provided, set mutedUntil
+        if (durationMinutes != null && durationMinutes > 0) {
+            participant.setMutedUntil(Instant.now().plus(durationMinutes, java.time.temporal.ChronoUnit.MINUTES));
+        } else {
+            // Permanent mute
+            participant.setMutedUntil(null);
+        }
+        
+        participantRepository.save(participant);
+
+        // Invalidate cache
+        conversationCache.invalidate(userId, conversationId);
+    }
+
+    @Transactional
+    public void unmuteConversation(Long userId, Long conversationId) {
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+
+        participant.setMuted(false);
+        participant.setMutedAt(null);
+        participant.setMutedUntil(null);
+        participantRepository.save(participant);
+
+        // Invalidate cache
+        conversationCache.invalidate(userId, conversationId);
+    }
+
+    @Transactional
+    public void pinConversation(Long userId, Long conversationId) {
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+
+        if (participant.isPinned()) {
+            throw BusinessException.badRequest("Conversation is already pinned", "ALREADY_PINNED");
+        }
+
+        // Get max pin order for user
+        Integer maxPinOrder = participantRepository.getMaxPinOrder(userId);
+        
+        participant.setPinned(true);
+        participant.setPinnedAt(Instant.now());
+        participant.setPinOrder(maxPinOrder != null ? maxPinOrder + 1 : 1);
+        participantRepository.save(participant);
+
+        // Invalidate cache
+        conversationCache.invalidate(userId, conversationId);
+    }
+
+    @Transactional
+    public void unpinConversation(Long userId, Long conversationId) {
+        ConversationParticipant participant = participantRepository
+                .findByConversationIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+
+        if (!participant.isPinned()) {
+            throw BusinessException.badRequest("Conversation is not pinned", "NOT_PINNED");
+        }
+
+        participant.setPinned(false);
+        participant.setPinnedAt(null);
+        participant.setPinOrder(null);
+        participantRepository.save(participant);
+
+        // Invalidate cache
         conversationCache.invalidate(userId, conversationId);
     }
 

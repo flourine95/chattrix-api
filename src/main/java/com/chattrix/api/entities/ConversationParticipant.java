@@ -132,4 +132,8 @@ public class ConversationParticipant {
         ADMIN,
         MEMBER
     }
+
+    public boolean hasUserId(Long userId) {
+        return this.user != null && this.user.getId().equals(userId);
+    }
 }

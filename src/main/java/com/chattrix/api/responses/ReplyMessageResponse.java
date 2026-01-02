@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -14,7 +15,7 @@ public class ReplyMessageResponse {
     private String senderFullName;
     private String content;
     private String type;
-    private String mediaUrl;
+    private Map<String, Object> metadata;
     private Instant createdAt;
 }
 

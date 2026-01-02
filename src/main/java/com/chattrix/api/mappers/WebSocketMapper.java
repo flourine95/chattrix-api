@@ -7,7 +7,7 @@ import com.chattrix.api.websocket.dto.OutgoingMessageDto;
 import com.chattrix.api.websocket.dto.TypingUserDto;
 import org.mapstruct.*;
 
-@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI, uses = {MessageMapper.class})
+@Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface WebSocketMapper {
 
     @Mapping(target = "conversationId", source = "conversation.id")

@@ -13,6 +13,10 @@ public class BusinessException extends RuntimeException {
         this.httpStatus = httpStatus;
     }
 
+    public static BusinessException badRequest(String message) {
+        return new BusinessException(message, "BAD_REQUEST", 400);
+    }
+
     public static BusinessException badRequest(String message, String code) {
         return new BusinessException(message, code, 400);
     }
@@ -23,6 +27,10 @@ public class BusinessException extends RuntimeException {
 
     public static BusinessException forbidden(String message) {
         return new BusinessException(message, "FORBIDDEN", 403);
+    }
+
+    public static BusinessException notFound(String message) {
+        return new BusinessException(message, "RESOURCE_NOT_FOUND", 404);
     }
 
     public static BusinessException notFound(String message, String code) {

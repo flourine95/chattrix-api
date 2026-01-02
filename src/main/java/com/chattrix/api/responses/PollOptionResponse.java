@@ -11,9 +11,8 @@ import java.util.List;
 @Builder
 public class PollOptionResponse {
     private Long id;
-    private String optionText;
-    private Integer optionOrder;
+    private String text;
     private Integer voteCount;
-    private Double percentage;
-    private List<UserResponse> voters;
+    private List<Long> voterIds;  // Empty if anonymous
+    private Boolean hasVoted;     // Whether current user voted for this option
 }
