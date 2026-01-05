@@ -42,5 +42,6 @@ build/
 
 .docs
 .spec
+.kiro
 ### Docker ###
 docker-compose.override.yml
