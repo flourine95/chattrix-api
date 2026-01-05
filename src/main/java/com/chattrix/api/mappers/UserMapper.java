@@ -3,7 +3,6 @@ package com.chattrix.api.mappers;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.requests.RegisterRequest;
 import com.chattrix.api.responses.ConversationMemberResponse;
-import com.chattrix.api.responses.MentionedUserResponse;
 import com.chattrix.api.responses.UserResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -19,12 +18,6 @@ public interface UserMapper {
 
     @Mapping(target = "password", ignore = true)
     User toEntity(RegisterRequest request);
-
-    @Mapping(source = "id", target = "id")
-    @Mapping(source = "id", target = "userId")
-    MentionedUserResponse toMentionedUserResponse(User user);
-
-    List<MentionedUserResponse> toMentionedUserResponseList(List<User> users);
 
     ConversationMemberResponse toConversationMemberResponse(User user);
 

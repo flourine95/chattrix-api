@@ -13,6 +13,7 @@ import com.chattrix.api.responses.BulkCancelResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.utils.PaginationHelper;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.*;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -128,33 +129,14 @@ public class ScheduledMessageService {
     }
 
     public CursorPaginatedResponse<MessageResponse> getScheduledMessages(Long userId, Long conversationId, String status, Long cursor, int limit) {
-        if (limit < 1) {
-            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        }
-        if (limit > 100) {
-            limit = 100;
-        }
+        limit = PaginationHelper.validateLimit(limit);
 
         ScheduledStatus scheduledStatus = status != null ? parseStatus(status) : null;
 
         List<Message> messages = messageRepository.findScheduledMessagesByCursor(
                 userId, conversationId, scheduledStatus, cursor, limit);
 
-        boolean hasMore = messages.size() > limit;
-        if (hasMore) {
-            messages = messages.subList(0, limit);
-        }
-
-        List<MessageResponse> responses = messages.stream()
-                .map(messageMapper::toResponse)
-                .toList();
-
-        Long nextCursor = null;
-        if (hasMore && !responses.isEmpty()) {
-            nextCursor = responses.get(responses.size() - 1).getId();
-        }
-
-        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+        return PaginationHelper.buildResponse(messages, limit, messageMapper::toResponse, MessageResponse::getId);
     }
 
     public MessageResponse getScheduledMessage(Long userId, Long conversationId, Long messageId) {

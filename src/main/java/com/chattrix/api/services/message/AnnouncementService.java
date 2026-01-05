@@ -15,6 +15,7 @@ import com.chattrix.api.requests.CreateAnnouncementRequest;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.utils.PaginationHelper;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.AnnouncementDeleteEventDto;
 import com.chattrix.api.websocket.dto.AnnouncementEventDto;
@@ -105,40 +106,15 @@ public class AnnouncementService {
      * Get all announcements for a conversation with cursor-based pagination
      */
     public CursorPaginatedResponse<MessageResponse> getAnnouncements(Long userId, Long conversationId, Long cursor, int limit) {
-        // Validate limit
-        if (limit < 1) {
-            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        }
-        if (limit > 100) {
-            limit = 100; // Cap at 100
-        }
+        limit = PaginationHelper.validateLimit(limit);
         
         // Check if user is participant
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+        if (!participantRepository.isUserParticipant(conversationId, userId))
             throw BusinessException.forbidden("You are not a member of this group");
-        }
 
-        // Fetch limit + 1 to determine if there's a next page
         List<Message> announcements = messageRepository.findAnnouncementsByCursor(conversationId, cursor, limit);
         
-        // Determine if there's a next page
-        boolean hasMore = announcements.size() > limit;
-        if (hasMore) {
-            announcements = announcements.subList(0, limit); // Remove the extra item
-        }
-        
-        // Convert to responses
-        List<MessageResponse> responses = announcements.stream()
-                .map(messageMapper::toResponse)
-                .toList();
-        
-        // Get nextCursor (ID of last item, or null if no more pages)
-        Long nextCursor = null;
-        if (hasMore && !responses.isEmpty()) {
-            nextCursor = responses.get(responses.size() - 1).getId();
-        }
-        
-        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+        return PaginationHelper.buildResponse(announcements, limit, messageMapper::toResponse, MessageResponse::getId);
     }
 
     /**

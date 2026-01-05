@@ -158,6 +158,28 @@ public class Message {
         this.updatedAt = Instant.now();
     }
 
+    // ==================== HELPER METHODS ====================
+
+    public boolean belongsToConversation(Long conversationId) {
+        return this.conversation != null && this.conversation.getId().equals(conversationId);
+    }
+
+    public boolean isSentBy(Long userId) {
+        return this.sender != null && this.sender.hasId(userId);
+    }
+
+    public boolean isOwnedBy(Long userId) {
+        return isSentBy(userId);
+    }
+
+    public boolean isPollMessage() {
+        return this.type == MessageType.POLL;
+    }
+
+    public boolean isEventMessage() {
+        return this.type == MessageType.EVENT;
+    }
+
     // ==================== METADATA STRUCTURE DOCUMENTATION ====================
 
     /*

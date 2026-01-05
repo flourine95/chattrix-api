@@ -4,11 +4,9 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
-import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
-import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
@@ -16,12 +14,12 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.CursorPaginatedResponse;
-import com.chattrix.api.responses.MediaResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.cache.CacheManager;
 import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.conversation.GroupPermissionsService;
 import com.chattrix.api.services.notification.ChatSessionService;
+import com.chattrix.api.utils.PaginationHelper;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.*;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -39,75 +37,81 @@ public class MessageService {
 
     @Inject
     private MessageRepository messageRepository;
-
     @Inject
     private ConversationRepository conversationRepository;
-
-    @Inject
-    private MessageMapper messageMapper;
-
-    @Inject
-    private UserMapper userMapper;
-
     @Inject
     private UserRepository userRepository;
-
-    @Inject
-    private ChatSessionService chatSessionService;
-
-    @Inject
-    private WebSocketMapper webSocketMapper;
-
     @Inject
     private ConversationParticipantRepository participantRepository;
 
     @Inject
-    private MessageCache messageCache;
+    private MessageMapper messageMapper;
+    @Inject
+    private WebSocketMapper webSocketMapper;
 
     @Inject
+    private MessageCache messageCache;
+    @Inject
     private CacheManager cacheManager;
+    @Inject
+    private MessageBatchService messageBatchService;
 
+    @Inject
+    private ChatSessionService chatSessionService;
     @Inject
     private GroupPermissionsService groupPermissionsService;
 
+
     @Transactional
     public CursorPaginatedResponse<MessageResponse> getMessages(Long userId, Long conversationId, Long cursor, int limit, String sort) {
-        if (limit < 1) throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        if (limit > 100) limit = 100;
+        limit = PaginationHelper.validateLimit(limit);
 
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId).orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+        validateAndGetConversation(conversationId, userId);
 
-        if (!conversation.isUserParticipant(userId)) throw BusinessException.badRequest("You do not have access to this conversation");
-
-        List<Message> messages = messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
-
-        boolean hasMore = messages.size() > limit;
-        if (hasMore) messages = messages.subList(0, limit);
-
-        List<MessageResponse> responses = messages.stream()
-                .map(m -> mapMessageToResponse(m, userId))
+        // Write-Behind: Merge unflushed cache + flushed DB messages
+        
+        // 1. Get unflushed messages from cache (not yet in DB)
+        List<MessageResponse> unflushedMessages = messageCache.getUnflushed(conversationId);
+        
+        // 2. Get flushed messages from DB
+        List<Message> flushedMessages = messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
+        List<MessageResponse> flushedResponses = flushedMessages.stream()
+                .map(messageMapper::toResponse)
                 .toList();
-
-        Long nextCursor = hasMore && !responses.isEmpty() ? responses.get(responses.size() - 1).getId() : null;
-
-        return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+        
+        // 3. Merge: unflushed first (newest), then flushed
+        List<MessageResponse> allMessages = new ArrayList<>();
+        allMessages.addAll(unflushedMessages);
+        allMessages.addAll(flushedResponses);
+        
+        // 4. Sort by sentAt descending (newest first)
+        allMessages.sort(Comparator.comparing(MessageResponse::getSentAt).reversed());
+        
+        // 5. Apply cursor filter if provided
+        if (cursor != null) {
+            allMessages = allMessages.stream()
+                    .filter(msg -> msg.getId() < cursor)
+                    .toList();
+        }
+        
+        // 6. Apply limit + 1 to check hasMore
+        boolean hasMore = allMessages.size() > limit;
+        if (hasMore)
+            allMessages = allMessages.subList(0, limit);
+        
+        // 7. Calculate next cursor
+        Long nextCursor = hasMore && !allMessages.isEmpty() 
+                ? allMessages.get(allMessages.size() - 1).getId() 
+                : null;
+        
+        return new CursorPaginatedResponse<>(allMessages, nextCursor, limit);
     }
 
     @Transactional
     public MessageResponse getMessage(Long userId, Long conversationId, Long messageId) {
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-
-        if (!conversation.isUserParticipant(userId))
-            throw BusinessException.badRequest("You do not have access to this conversation");
-
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
-
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found");
-
-        return mapMessageToResponse(message, userId);
+        validateAndGetConversation(conversationId, userId);
+        Message message = validateAndGetMessage(messageId, conversationId);
+        return messageMapper.toResponse(message);
     }
 
     @Transactional
@@ -119,7 +123,7 @@ public class MessageService {
             throw BusinessException.badRequest("You do not have access to this conversation");
 
         // Check if user is muted (for group conversations)
-        if (conversation.getType() == ConversationType.GROUP) {
+        if (conversation.isGroupConversation()) {
             ConversationParticipant participant = conversation.getParticipant(userId).orElse(null);
             if (participant != null && participant.isCurrentlyMuted())
                 throw BusinessException.forbidden("You are muted in this conversation");
@@ -146,11 +150,12 @@ public class MessageService {
                     throw BusinessException.badRequest("Cannot mention user who is not in this conversation");
         }
 
-        // Create and save message
+        // Build message entity
         Message message = new Message();
         message.setContent(request.content());
         message.setSender(sender);
         message.setConversation(conversation);
+        message.setSentAt(Instant.now());  // Set timestamp immediately
 
         // Set message type
         MessageType messageType = MessageType.TEXT;
@@ -163,25 +168,33 @@ public class MessageService {
         }
         message.setType(messageType);
 
-        // Build metadata from request fields
-        Map<String, Object> metadata = new HashMap<>();
-        if (request.mediaUrl() != null) metadata.put("mediaUrl", request.mediaUrl());
-        if (request.thumbnailUrl() != null) metadata.put("thumbnailUrl", request.thumbnailUrl());
-        if (request.fileName() != null) metadata.put("fileName", request.fileName());
-        if (request.fileSize() != null) metadata.put("fileSize", request.fileSize());
-        if (request.duration() != null) metadata.put("duration", request.duration());
-        if (request.latitude() != null) metadata.put("latitude", request.latitude());
-        if (request.longitude() != null) metadata.put("longitude", request.longitude());
-        if (request.locationName() != null) metadata.put("locationName", request.locationName());
-        message.setMetadata(metadata);
+        // Use metadata from request directly
+        if (request.metadata() != null)
+            message.setMetadata(new HashMap<>(request.metadata()));
+        else
+            message.setMetadata(new HashMap<>());
 
         message.setReplyToMessage(replyToMessage);
         message.setMentions(request.mentions());
 
-        messageRepository.save(message);
+        // ⚡ Write-Behind: Buffer message instead of direct DB insert
+        Long tempId = messageBatchService.bufferMessage(message);
+        message.setId(tempId);  // Set temporary ID (negative)
+        
+        log.info("Message buffered with temp ID: {} for conversation: {}", tempId, conversationId);
 
-        // Update conversation's lastMessage and updatedAt
-        conversation.setLastMessage(message);
+        // Map to response immediately
+        MessageResponse response = messageMapper.toResponse(message);
+        
+        // Add to cache (unflushed messages)
+        messageCache.addUnflushed(conversationId, response);
+
+        // ⚠️ DO NOT update conversation.lastMessage here!
+        // It will be updated after batch flush when message has real ID
+        // Otherwise we get FK constraint violation (temp ID not in DB)
+        
+        // Just update conversation's updatedAt timestamp
+        conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
 
         // Auto-unarchive for all participants who have archived this conversation
@@ -193,8 +206,10 @@ public class MessageService {
             }
         });
 
-        // Increment unread count for all participants except the sender
-        participantRepository.incrementUnreadCountForOthers(conversationId, userId);
+        // ⚠️ DO NOT increment unread count here!
+        // It causes deadlock under high load
+        // Will be updated after batch flush
+        // participantRepository.incrementUnreadCountForOthers(conversationId, userId);
 
         // Invalidate caches
         invalidateCaches(conversationId, conversation.getParticipantIds());
@@ -203,19 +218,13 @@ public class MessageService {
         broadcastMessage(message, conversation);
         broadcastConversationUpdate(conversation);
 
-        return mapMessageToResponse(message, userId);
+        return messageMapper.toResponse(message);
     }
 
     @Transactional
     public MessageResponse updateMessage(Long userId, Long conversationId, Long messageId, UpdateMessageRequest request) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
-
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
-
-        if (!message.getSender().getId().equals(userId))
-            throw BusinessException.forbidden("You can only edit your own messages");
+        Message message = validateAndGetMessage(messageId, conversationId);
+        validateMessageOwnership(message, userId);
 
         String oldContent = message.getContent();
         String newContent = request.getContent();
@@ -255,15 +264,11 @@ public class MessageService {
         message.getConversation().getParticipants()
                 .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), wsMessage));
 
-        return mapMessageToResponse(message, userId);
+        return messageMapper.toResponse(message);
     }
 
     public List<Map<String, Object>> getEditHistory(Long userId, Long conversationId, Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
-
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
+        Message message = validateAndGetMessage(messageId, conversationId);
 
         if (!message.getConversation().isUserParticipant(userId))
             throw BusinessException.forbidden("You are not a participant of this conversation");
@@ -276,14 +281,8 @@ public class MessageService {
 
     @Transactional
     public void deleteMessage(Long userId, Long conversationId, Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
-
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
-
-        if (!message.getSender().getId().equals(userId))
-            throw BusinessException.forbidden("You can only delete your own messages");
+        Message message = validateAndGetMessage(messageId, conversationId);
+        validateMessageOwnership(message, userId);
 
         Conversation conversation = message.getConversation();
         boolean wasLastMessage = conversation.getLastMessage() != null &&
@@ -315,109 +314,23 @@ public class MessageService {
                 .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), wsMessage));
     }
 
-
-    private void invalidateCaches(Long conversationId, Set<Long> participantIds) {
-        messageCache.invalidate(conversationId);
-        cacheManager.invalidateConversationCaches(conversationId, participantIds);
-    }
-
-    private void broadcastMessage(Message message, Conversation conversation) {
-        OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(message);
-
-        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
-            List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
-            outgoingDto.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
-        }
-
-        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage =
-                new WebSocketMessage<>(WebSocketEventType.CHAT_MESSAGE, outgoingDto);
-
-        conversation.getParticipants()
-                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), outgoingWebSocketMessage));
-
-        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
-            for (Long mentionedUserId : message.getMentions()) {
-                MentionEventDto mentionEvent = new MentionEventDto();
-                mentionEvent.setMessageId(message.getId());
-                mentionEvent.setConversationId(conversation.getId());
-                mentionEvent.setSenderId(message.getSender().getId());
-                mentionEvent.setSenderName(message.getSender().getFullName());
-                mentionEvent.setContent(message.getContent());
-                mentionEvent.setMentionedUserId(mentionedUserId);
-                mentionEvent.setCreatedAt(message.getCreatedAt());
-
-                WebSocketMessage<MentionEventDto> mentionMessage =
-                        new WebSocketMessage<>(WebSocketEventType.MESSAGE_MENTION, mentionEvent);
-                chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
-            }
-        }
-    }
-
-    private void broadcastConversationUpdate(Conversation conversation) {
-        ConversationUpdateDto updateDto = new ConversationUpdateDto();
-        updateDto.setConversationId(conversation.getId());
-        updateDto.setUpdatedAt(conversation.getUpdatedAt());
-
-        if (conversation.getLastMessage() != null) {
-            Message lastMsg = conversation.getLastMessage();
-            ConversationUpdateDto.LastMessageDto lastMessageDto = new ConversationUpdateDto.LastMessageDto();
-            lastMessageDto.setId(lastMsg.getId());
-            lastMessageDto.setContent(lastMsg.getContent());
-            lastMessageDto.setSenderId(lastMsg.getSender().getId());
-            lastMessageDto.setSenderUsername(lastMsg.getSender().getUsername());
-            lastMessageDto.setSentAt(lastMsg.getSentAt());
-            lastMessageDto.setType(lastMsg.getType().name());
-            updateDto.setLastMessage(lastMessageDto);
-        }
-
-        WebSocketMessage<ConversationUpdateDto> message =
-                new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
-
-        conversation.getParticipants()
-                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), message));
-    }
-
-    private MessageResponse mapMessageToResponse(Message message, Long userId) {
-        MessageResponse response = messageMapper.toResponse(message);
-
-        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
-            List<User> mentionedUsers = userRepository.findByIds(message.getMentions());
-            response.setMentionedUsers(userMapper.toMentionedUserResponseList(mentionedUsers));
-        }
-
-        return response;
-    }
-
     // ==================== CHAT INFO METHODS ====================
 
     @Transactional
     public CursorPaginatedResponse<MessageResponse> searchMessages(Long userId, Long conversationId, String query, String type, Long senderId, Long cursor, int limit, String sort) {
-        if (limit < 1) throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        if (limit > 100) limit = 100;
+        limit = PaginationHelper.validateLimit(limit);
 
-        if (!participantRepository.isUserParticipant(conversationId, userId))
-            throw BusinessException.badRequest("You do not have access to this conversation");
+        validateUserIsParticipant(conversationId, userId);
 
         List<Message> messages = messageRepository.searchMessagesByCursor(conversationId, query, type, senderId, cursor, limit, sort);
 
-        boolean hasMore = messages.size() > limit;
-        if (hasMore) messages = messages.subList(0, limit);
-
-        List<MessageResponse> messageResponses = messages.stream()
-                .map(m -> mapMessageToResponse(m, userId))
-                .toList();
-
-        Long nextCursor = hasMore && !messageResponses.isEmpty() ? messageResponses.get(messageResponses.size() - 1).getId() : null;
-
-        return new CursorPaginatedResponse<>(messageResponses, nextCursor, limit);
+        return PaginationHelper.buildResponse(messages, limit, messageMapper::toResponse, MessageResponse::getId);
     }
 
-    public CursorPaginatedResponse<MediaResponse> getMediaFiles(Long userId, Long conversationId, String type, String startDate, String endDate, Long cursor, int limit) {
-        if (limit < 1) throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        if (limit > 100) limit = 100;
+    public CursorPaginatedResponse<MessageResponse> getMediaFiles(Long userId, Long conversationId, String type, String startDate, String endDate, Long cursor, int limit) {
+        limit = PaginationHelper.validateLimit(limit);
 
-        if (!participantRepository.isUserParticipant(conversationId, userId))
-            throw BusinessException.badRequest("You do not have access to this conversation");
+        validateUserIsParticipant(conversationId, userId);
 
         Instant start = null;
         Instant end = null;
@@ -430,26 +343,7 @@ public class MessageService {
 
         List<Message> messages = messageRepository.findMediaByCursor(conversationId, type, start, end, cursor, limit);
 
-        boolean hasMore = messages.size() > limit;
-        if (hasMore) messages = messages.subList(0, limit);
-
-        List<MediaResponse> mediaResponses = messages.stream()
-                .map(this::mapMessageToMediaResponse)
-                .toList();
-
-        Long nextCursor = hasMore && !mediaResponses.isEmpty() ? mediaResponses.get(mediaResponses.size() - 1).getId() : null;
-
-        return new CursorPaginatedResponse<>(mediaResponses, nextCursor, limit);
-    }
-
-    private MediaResponse mapMessageToMediaResponse(Message message) {
-        MediaResponse response = new MediaResponse();
-        response.setId(message.getId());
-        response.setType(message.getType().name());
-        response.setSenderId(message.getSender().getId());
-        response.setSenderUsername(message.getSender().getUsername());
-        response.setSentAt(message.getSentAt());
-        return response;
+        return PaginationHelper.buildResponse(messages, limit, messageMapper::toResponse, MessageResponse::getId);
     }
 
     // ==================== POLL METHODS ====================
@@ -458,15 +352,8 @@ public class MessageService {
     public MessageResponse createPoll(Long userId, Long conversationId, CreatePollRequest request) {
         log.debug("Creating poll in conversation {} by user {}", conversationId, userId);
 
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-
-        if (!conversation.isUserParticipant(userId))
-            throw BusinessException.forbidden("You are not a participant of this conversation");
-
-        if (conversation.getType() == ConversationType.GROUP)
-            if (!groupPermissionsService.hasPermission(conversationId, userId, "create_polls"))
-                throw BusinessException.forbidden("You don't have permission to create polls");
+        Conversation conversation = validateAndGetConversation(conversationId, userId);
+        validateGroupPermission(conversation, userId, "create_polls");
 
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
@@ -510,7 +397,7 @@ public class MessageService {
         participantRepository.incrementUnreadCountForOthers(conversationId, userId);
         invalidateCaches(conversationId, conversation.getParticipantIds());
 
-        MessageResponse response = mapMessageToResponse(message, userId);
+        MessageResponse response = messageMapper.toResponse(message);
         broadcastMessage(message, conversation);
         broadcastConversationUpdate(conversation);
 
@@ -521,17 +408,12 @@ public class MessageService {
     public MessageResponse votePoll(Long userId, Long conversationId, Long messageId, VotePollRequest request) {
         log.debug("User {} voting on poll {} with options {}", userId, messageId, request.getOptionIds());
 
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
+        Message message = validateAndGetMessage(messageId, conversationId);
 
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
-
-        if (message.getType() != MessageType.POLL)
+        if (!message.isPollMessage())
             throw BusinessException.badRequest("Message is not a poll", "INVALID_MESSAGE_TYPE");
 
-        if (!participantRepository.isUserParticipant(conversationId, userId))
-            throw BusinessException.forbidden("You are not a participant of this conversation");
+        validateUserIsParticipant(conversationId, userId);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> pollData = (Map<String, Object>) message.getMetadata().get("poll");
@@ -587,7 +469,7 @@ public class MessageService {
 
         messageCache.invalidate(conversationId);
 
-        MessageResponse response = mapMessageToResponse(message, userId);
+        MessageResponse response = messageMapper.toResponse(message);
         broadcastMessage(message, message.getConversation());
 
         return response;
@@ -599,15 +481,8 @@ public class MessageService {
     public MessageResponse createEvent(Long userId, Long conversationId, CreateEventRequest request) {
         log.debug("Creating event in conversation {} by user {}", conversationId, userId);
 
-        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-
-        if (!conversation.isUserParticipant(userId))
-            throw BusinessException.forbidden("You are not a participant of this conversation");
-
-        if (conversation.getType() == ConversationType.GROUP)
-            if (!groupPermissionsService.hasPermission(conversationId, userId, "create_events"))
-                throw BusinessException.forbidden("You don't have permission to create events");
+        Conversation conversation = validateAndGetConversation(conversationId, userId);
+        validateGroupPermission(conversation, userId, "create_events");
 
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
@@ -643,7 +518,7 @@ public class MessageService {
         participantRepository.incrementUnreadCountForOthers(conversationId, userId);
         invalidateCaches(conversationId, conversation.getParticipantIds());
 
-        MessageResponse response = mapMessageToResponse(message, userId);
+        MessageResponse response = messageMapper.toResponse(message);
         broadcastMessage(message, conversation);
         broadcastConversationUpdate(conversation);
 
@@ -654,17 +529,12 @@ public class MessageService {
     public MessageResponse respondToEvent(Long userId, Long conversationId, Long messageId, EventRsvpRequest request) {
         log.debug("User {} responding to event {} with status {}", userId, messageId, request.getStatus());
 
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
+        Message message = validateAndGetMessage(messageId, conversationId);
 
-        if (!message.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
-
-        if (message.getType() != MessageType.EVENT)
+        if (!message.isEventMessage())
             throw BusinessException.badRequest("Message is not an event", "INVALID_MESSAGE_TYPE");
 
-        if (!participantRepository.isUserParticipant(conversationId, userId))
-            throw BusinessException.forbidden("You are not a participant of this conversation");
+        validateUserIsParticipant(conversationId, userId);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> eventData = (Map<String, Object>) message.getMetadata().get("event");
@@ -704,7 +574,7 @@ public class MessageService {
 
         messageCache.invalidate(conversationId);
 
-        MessageResponse response = mapMessageToResponse(message, userId);
+        MessageResponse response = messageMapper.toResponse(message);
         broadcastMessage(message, message.getConversation());
 
         return response;
@@ -716,11 +586,7 @@ public class MessageService {
     public List<MessageResponse> forwardMessage(Long userId, Long conversationId, Long messageId, List<Long> conversationIds) {
         log.debug("User {} forwarding message {} to {} conversations", userId, messageId, conversationIds.size());
 
-        Message originalMessage = messageRepository.findById(messageId)
-                .orElseThrow(() -> BusinessException.notFound("Message not found"));
-
-        if (!originalMessage.getConversation().getId().equals(conversationId))
-            throw BusinessException.notFound("Message not found in this conversation");
+        Message originalMessage = validateAndGetMessage(messageId, conversationId);
 
         if (originalMessage.isDeleted())
             throw BusinessException.badRequest("Cannot forward deleted message");
@@ -734,8 +600,7 @@ public class MessageService {
             Conversation conversation = conversationRepository.findByIdWithParticipants(targetConversationId)
                     .orElseThrow(() -> BusinessException.notFound("Conversation not found: " + targetConversationId));
 
-            if (!participantRepository.isUserParticipant(targetConversationId, userId))
-                throw BusinessException.badRequest("You are not a participant in conversation: " + targetConversationId);
+            validateUserIsParticipant(targetConversationId, userId);
 
             // Copy metadata from original message
             Map<String, Object> metadata = new HashMap<>(originalMessage.getMetadata());
@@ -768,7 +633,7 @@ public class MessageService {
 
             invalidateCaches(targetConversationId, conversation.getParticipantIds());
 
-            MessageResponse response = mapMessageToResponse(forwardedMessage, userId);
+            MessageResponse response = messageMapper.toResponse(forwardedMessage);
             broadcastMessage(forwardedMessage, conversation);
             broadcastConversationUpdate(conversation);
 
@@ -784,5 +649,104 @@ public class MessageService {
         messageRepository.save(originalMessage);
 
         return forwardedMessages;
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    private Conversation validateAndGetConversation(Long conversationId, Long userId) {
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+
+        if (!conversation.isUserParticipant(userId))
+            throw BusinessException.forbidden("You are not a participant of this conversation");
+
+        return conversation;
+    }
+
+    private Message validateAndGetMessage(Long messageId, Long conversationId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> BusinessException.notFound("Message not found"));
+
+        if (!message.belongsToConversation(conversationId))
+            throw BusinessException.badRequest("Message does not belong to this conversation");
+
+        return message;
+    }
+
+    private void validateMessageOwnership(Message message, Long userId) {
+        if (!message.isOwnedBy(userId))
+            throw BusinessException.forbidden("You can only modify your own messages");
+    }
+
+    private void validateUserIsParticipant(Long conversationId, Long userId) {
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+
+        if (!conversation.isUserParticipant(userId))
+            throw BusinessException.forbidden("You are not a participant of this conversation");
+    }
+
+    private void validateGroupPermission(Conversation conversation, Long userId, String permission) {
+        if (!conversation.isGroupConversation())
+            return;
+
+        if (!groupPermissionsService.hasPermission(conversation.getId(), userId, permission))
+            throw BusinessException.forbidden("You do not have permission to " + permission.replace("_", " "));
+    }
+
+    private void invalidateCaches(Long conversationId, Set<Long> participantIds) {
+        messageCache.invalidate(conversationId);
+        cacheManager.invalidateConversationCaches(conversationId, participantIds);
+    }
+
+    private void broadcastMessage(Message message, Conversation conversation) {
+        OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(message);
+
+        WebSocketMessage<OutgoingMessageDto> outgoingWebSocketMessage =
+                new WebSocketMessage<>(WebSocketEventType.CHAT_MESSAGE, outgoingDto);
+
+        conversation.getParticipants()
+                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), outgoingWebSocketMessage));
+
+        if (message.getMentions() != null && !message.getMentions().isEmpty()) {
+            for (Long mentionedUserId : message.getMentions()) {
+                MentionEventDto mentionEvent = new MentionEventDto();
+                mentionEvent.setMessageId(message.getId());
+                mentionEvent.setConversationId(conversation.getId());
+                mentionEvent.setSenderId(message.getSender().getId());
+                mentionEvent.setSenderName(message.getSender().getFullName());
+                mentionEvent.setContent(message.getContent());
+                mentionEvent.setMentionedUserId(mentionedUserId);
+                mentionEvent.setCreatedAt(message.getCreatedAt());
+
+                WebSocketMessage<MentionEventDto> mentionMessage =
+                        new WebSocketMessage<>(WebSocketEventType.MESSAGE_MENTION, mentionEvent);
+                chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
+            }
+        }
+    }
+
+    private void broadcastConversationUpdate(Conversation conversation) {
+        ConversationUpdateDto updateDto = new ConversationUpdateDto();
+        updateDto.setConversationId(conversation.getId());
+        updateDto.setUpdatedAt(conversation.getUpdatedAt());
+
+        if (conversation.getLastMessage() != null) {
+            Message lastMsg = conversation.getLastMessage();
+            ConversationUpdateDto.LastMessageDto lastMessageDto = new ConversationUpdateDto.LastMessageDto();
+            lastMessageDto.setId(lastMsg.getId());
+            lastMessageDto.setContent(lastMsg.getContent());
+            lastMessageDto.setSenderId(lastMsg.getSender().getId());
+            lastMessageDto.setSenderUsername(lastMsg.getSender().getUsername());
+            lastMessageDto.setSentAt(lastMsg.getSentAt());
+            lastMessageDto.setType(lastMsg.getType().name());
+            updateDto.setLastMessage(lastMessageDto);
+        }
+
+        WebSocketMessage<ConversationUpdateDto> message =
+                new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
+
+        conversation.getParticipants()
+                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), message));
     }
 }

@@ -2,9 +2,7 @@ package com.chattrix.api.mappers;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.responses.MessageResponse;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
+import org.mapstruct.*;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface MessageMapper {
@@ -20,7 +18,6 @@ public interface MessageMapper {
     @Mapping(target = "pinnedByUsername", source = "pinnedBy.username")
     @Mapping(target = "pinnedByFullName", source = "pinnedBy.fullName")
     @Mapping(target = "scheduledStatus", expression = "java(message.getScheduledStatus() != null ? message.getScheduledStatus().name() : null)")
-    @Mapping(target = "mentionedUsers", ignore = true)
     @Mapping(target = "readCount", ignore = true)
     @Mapping(target = "readBy", ignore = true)
     MessageResponse toResponse(Message message);

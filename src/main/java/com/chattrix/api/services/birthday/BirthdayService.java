@@ -184,9 +184,8 @@ public class BirthdayService {
             ChatMessageRequest messageRequest = new ChatMessageRequest(
                     message,
                     "TEXT",
-                    null, null, null, null, null,
-                    null, null, null,
-                    null,
+                    null,  // metadata
+                    null,  // replyToMessageId
                     List.of(birthdayUser.getId())
             );
 
@@ -247,9 +246,8 @@ public class BirthdayService {
             ChatMessageRequest messageRequest = new ChatMessageRequest(
                     message,
                     "SYSTEM",
-                    null, null, null, null, null,
-                    null, null, null,
-                    null,
+                    null,  // metadata
+                    null,  // replyToMessageId
                     List.of(birthdayUser.getId())
             );
 

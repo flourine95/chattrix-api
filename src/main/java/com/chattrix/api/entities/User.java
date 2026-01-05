@@ -99,4 +99,8 @@ public class User {
     protected void onPreUpdate() {
         this.updatedAt = Instant.now();
     }
+
+    public boolean hasId(Long userId) {
+        return this.id != null && this.id.equals(userId);
+    }
 }

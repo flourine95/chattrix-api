@@ -269,41 +269,6 @@ public class ChatServerEndpoint {
         // 3. Broadcast
         OutgoingMessageDto outgoingDto = webSocketMapper.toOutgoingMessageResponse(newMessage);
 
-        // Populate mentioned users if mentions exist (use cache)
-        if (newMessage.getMentions() != null && !newMessage.getMentions().isEmpty()) {
-            List<Long> mentionIds = newMessage.getMentions();
-            Map<Long, UserResponse> cachedUsers = userProfileCache.getAll(new HashSet<>(mentionIds));
-
-            // Fetch missing users from DB and cache them
-            List<Long> missingIds = mentionIds.stream()
-                    .filter(id -> !cachedUsers.containsKey(id))
-                    .toList();
-
-            if (!missingIds.isEmpty()) {
-                List<User> missingUsers = userRepository.findByIds(missingIds);
-                Map<Long, UserResponse> newlyCached = missingUsers.stream()
-                        .collect(Collectors.toMap(User::getId, userMapper::toResponse));
-                userProfileCache.putAll(newlyCached);
-                cachedUsers.putAll(newlyCached);
-            }
-
-            // Convert to MentionedUserResponse
-            outgoingDto.setMentionedUsers(
-                    mentionIds.stream()
-                            .map(cachedUsers::get)
-                            .filter(Objects::nonNull)
-                            .map(ur -> {
-                                var mention = new com.chattrix.api.responses.MentionedUserResponse();
-                                mention.setId(ur.getId());
-                                mention.setUserId(ur.getId());
-                                mention.setUsername(ur.getUsername());
-                                mention.setFullName(ur.getFullName());
-                                return mention;
-                            })
-                            .toList()
-            );
-        }
-
         WebSocketMessage<OutgoingMessageDto> wsMsg = new WebSocketMessage<>(WebSocketEventType.CHAT_MESSAGE, outgoingDto);
 
         conv.getParticipants().forEach(p ->

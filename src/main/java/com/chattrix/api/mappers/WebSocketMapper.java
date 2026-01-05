@@ -8,14 +8,13 @@ import com.chattrix.api.websocket.dto.TypingUserDto;
 import org.mapstruct.*;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
-public interface WebSocketMapper {
+public abstract class WebSocketMapper {
 
     @Mapping(target = "conversationId", source = "conversation.id")
     @Mapping(target = "sender", source = "sender")
     @Mapping(target = "type", expression = "java(message.getType().name())")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "replyToMessage", source = "replyToMessage")
-    @Mapping(target = "mentionedUsers", ignore = true)
     @Mapping(target = "mediaUrl", expression = "java(extractMetadataString(message, \"mediaUrl\"))")
     @Mapping(target = "thumbnailUrl", expression = "java(extractMetadataString(message, \"thumbnailUrl\"))")
     @Mapping(target = "fileName", expression = "java(extractMetadataString(message, \"fileName\"))")
@@ -24,20 +23,20 @@ public interface WebSocketMapper {
     @Mapping(target = "latitude", expression = "java(extractMetadataDouble(message, \"latitude\"))")
     @Mapping(target = "longitude", expression = "java(extractMetadataDouble(message, \"longitude\"))")
     @Mapping(target = "locationName", expression = "java(extractMetadataString(message, \"locationName\"))")
-    OutgoingMessageDto toOutgoingMessageResponse(Message message);
+    public abstract OutgoingMessageDto toOutgoingMessageResponse(Message message);
 
     @Mapping(target = "userId", source = "id")
-    TypingUserDto toTypingUserResponse(User user);
+    public abstract TypingUserDto toTypingUserResponse(User user);
 
-    UserResponse toUserResponse(User user);
+    public abstract UserResponse toUserResponse(User user);
 
-    default String extractMetadataString(Message message, String key) {
+    protected String extractMetadataString(Message message, String key) {
         if (message.getMetadata() == null) return null;
         Object value = message.getMetadata().get(key);
         return value != null ? value.toString() : null;
     }
 
-    default Long extractMetadataLong(Message message, String key) {
+    protected Long extractMetadataLong(Message message, String key) {
         if (message.getMetadata() == null) return null;
         Object value = message.getMetadata().get(key);
         if (value == null) return null;
@@ -49,7 +48,7 @@ public interface WebSocketMapper {
         }
     }
 
-    default Integer extractMetadataInteger(Message message, String key) {
+    protected Integer extractMetadataInteger(Message message, String key) {
         if (message.getMetadata() == null) return null;
         Object value = message.getMetadata().get(key);
         if (value == null) return null;
@@ -61,7 +60,7 @@ public interface WebSocketMapper {
         }
     }
 
-    default Double extractMetadataDouble(Message message, String key) {
+    protected Double extractMetadataDouble(Message message, String key) {
         if (message.getMetadata() == null) return null;
         Object value = message.getMetadata().get(key);
         if (value == null) return null;

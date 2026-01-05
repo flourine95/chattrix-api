@@ -40,5 +40,7 @@ build/
 .env.local
 .env.*.local
 
+.docs
+.spec
 ### Docker ###
 docker-compose.override.yml

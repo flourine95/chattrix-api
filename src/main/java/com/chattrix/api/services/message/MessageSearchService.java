@@ -9,6 +9,7 @@ import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.GlobalSearchResultResponse;
 import com.chattrix.api.responses.MessageContextResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.utils.PaginationHelper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -31,34 +32,14 @@ public class MessageSearchService {
      * Global search - Search across all user's conversations with cursor-based pagination
      */
     public CursorPaginatedResponse<GlobalSearchResultResponse> globalSearch(Long userId, String query, String type, Long cursor, int limit) {
-        if (query == null || query.trim().isEmpty()) {
+        if (query == null || query.trim().isEmpty())
             throw BusinessException.badRequest("Search query is required", "INVALID_QUERY");
-        }
 
-        if (limit < 1) {
-            throw BusinessException.badRequest("Limit must be at least 1", "INVALID_LIMIT");
-        }
-        if (limit > 100) {
-            limit = 100;
-        }
+        limit = PaginationHelper.validateLimit(limit);
 
         List<Message> messages = messageRepository.globalSearchMessagesByCursor(userId, query, type, cursor, limit);
 
-        boolean hasMore = messages.size() > limit;
-        if (hasMore) {
-            messages = messages.subList(0, limit);
-        }
-
-        List<GlobalSearchResultResponse> results = messages.stream()
-                .map(this::toGlobalSearchResult)
-                .toList();
-
-        Long nextCursor = null;
-        if (hasMore && !results.isEmpty()) {
-            nextCursor = results.get(results.size() - 1).getMessageId();
-        }
-
-        return new CursorPaginatedResponse<>(results, nextCursor, limit);
+        return PaginationHelper.buildResponse(messages, limit, this::toGlobalSearchResult, GlobalSearchResultResponse::getMessageId);
     }
 
     /**

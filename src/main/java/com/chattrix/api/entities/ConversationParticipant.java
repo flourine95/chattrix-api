@@ -134,6 +134,6 @@ public class ConversationParticipant {
     }
 
     public boolean hasUserId(Long userId) {
-        return this.user != null && this.user.getId().equals(userId);
+        return this.user != null && this.user.hasId(userId);
     }
 }

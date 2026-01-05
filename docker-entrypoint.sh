@@ -19,4 +19,6 @@ else
 fi
 
 echo "Starting WildFly..."
+# Set JVM options via environment variable
+export JAVA_OPTS="$JAVA_OPTS -Xms1024m -Xmx2048m -XX:MetaspaceSize=256m -XX:MaxMetaspaceSize=512m"
 exec /opt/jboss/wildfly/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0

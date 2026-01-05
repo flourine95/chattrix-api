@@ -10,6 +10,7 @@ import com.chattrix.api.mappers.UserMapper;
 import com.chattrix.api.repositories.*;
 import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.*;
+import com.chattrix.api.utils.PaginationHelper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -220,32 +221,18 @@ public class ConversationService {
      */
     @Transactional
     public CursorPaginatedResponse<ConversationResponse> getConversationsWithCursor(Long userId, String filter, Long cursor, int limit) {
-        // Validate limit
-        if (limit < 1) {
-            limit = 1;
-        }
-        if (limit > 100) {
-            limit = 100;
-        }
+        limit = PaginationHelper.validateLimit(limit);
 
-        // Fetch limit + 1 to check if there are more items
         List<Conversation> conversations = conversationRepository.findByUserIdWithCursorAndFilter(userId, cursor, limit, filter);
 
-        // Check if there are more items
-        boolean hasMore = conversations.size() > limit;
-        if (hasMore) {
-            // Remove the extra item
-            conversations = conversations.subList(0, limit);
-        }
+        var result = PaginationHelper.processForPagination(conversations, limit);
 
-        // Map to response with cache
-        List<ConversationResponse> responses = conversations.stream()
+        List<ConversationResponse> responses = result.items().stream()
                 .map(conv -> {
                     // Try cache first
                     ConversationResponse cached = conversationCache.get(userId, conv.getId());
-                    if (cached != null) {
+                    if (cached != null)
                         return cached;
-                    }
                     
                     // Cache miss - enrich and cache
                     ConversationResponse response = enrichConversationResponse(conv, userId);
@@ -254,11 +241,9 @@ public class ConversationService {
                 })
                 .toList();
 
-        // Calculate next cursor (ID of last item in current page)
-        Long nextCursor = null;
-        if (hasMore && !responses.isEmpty()) {
-            nextCursor = responses.get(responses.size() - 1).getId();
-        }
+        Long nextCursor = result.hasMore() && !responses.isEmpty() 
+                ? responses.get(responses.size() - 1).getId() 
+                : null;
 
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
@@ -349,29 +334,23 @@ public class ConversationService {
     }
 
     public CursorPaginatedResponse<ConversationMemberResponse> getConversationMembersWithCursor(Long userId, Long conversationId, Long cursor, int limit) {
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+        if (!participantRepository.isUserParticipant(conversationId, userId))
             throw BusinessException.forbidden("You are not a participant of this conversation");
-        }
 
-        if (limit < 1) limit = 1;
-        if (limit > 100) limit = 100;
+        limit = PaginationHelper.validateLimit(limit);
 
         List<ConversationParticipant> participants = participantRepository.findByConversationIdWithCursor(conversationId, cursor, limit);
 
-        boolean hasMore = participants.size() > limit;
-        if (hasMore) {
-            participants = participants.subList(0, limit);
-        }
+        var result = PaginationHelper.processForPagination(participants, limit);
 
-        List<User> users = participants.stream()
+        List<User> users = result.items().stream()
                 .map(ConversationParticipant::getUser)
                 .toList();
         List<ConversationMemberResponse> responses = userMapper.toConversationMemberResponseList(users);
 
-        Long nextCursor = null;
-        if (hasMore && !responses.isEmpty()) {
-            nextCursor = responses.get(responses.size() - 1).getId();
-        }
+        Long nextCursor = result.hasMore() && !responses.isEmpty()
+                ? responses.get(responses.size() - 1).getId()
+                : null;
 
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }

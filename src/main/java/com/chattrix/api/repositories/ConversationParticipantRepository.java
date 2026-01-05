@@ -102,6 +102,18 @@ public class ConversationParticipantRepository {
                 .setParameter("excludeUserId", excludeUserId)
                 .executeUpdate();
     }
+    
+    @Transactional
+    public void incrementUnreadCountForOthersByAmount(Long conversationId, Long excludeUserId, Integer amount) {
+        em.createQuery(
+                        "UPDATE ConversationParticipant cp " +
+                                "SET cp.unreadCount = cp.unreadCount + :amount " +
+                                "WHERE cp.conversation.id = :conversationId AND cp.user.id != :excludeUserId")
+                .setParameter("conversationId", conversationId)
+                .setParameter("excludeUserId", excludeUserId)
+                .setParameter("amount", amount)
+                .executeUpdate();
+    }
 
     @Transactional
     public void resetUnreadCount(Long conversationId, Long userId, Long lastReadMessageId) {

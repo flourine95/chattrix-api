@@ -87,4 +87,8 @@ public class Conversation {
                 .map(p -> p.getUser().getId())
                 .collect(Collectors.toSet());
     }
+
+    public boolean isGroupConversation() {
+        return this.type == ConversationType.GROUP;
+    }
 }

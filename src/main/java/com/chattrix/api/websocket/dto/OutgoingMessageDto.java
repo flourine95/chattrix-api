@@ -1,6 +1,5 @@
 package com.chattrix.api.websocket.dto;
 
-import com.chattrix.api.responses.MentionedUserResponse;
 import com.chattrix.api.responses.ReplyMessageResponse;
 import com.chattrix.api.responses.UserResponse;
 import lombok.Getter;
@@ -39,8 +38,7 @@ public class OutgoingMessageDto {
     // Reactions
     private Map<String, List<Long>> reactions;
 
-    // Mentions
+    // Mentions: [1, 2, 3] - user IDs who were mentioned
     private List<Long> mentions;
-    private List<MentionedUserResponse> mentionedUsers;
 }
 

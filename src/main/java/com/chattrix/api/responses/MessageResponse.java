@@ -29,9 +29,8 @@ public class MessageResponse {
     // Reactions: {"👍": [1, 2, 3], "❤️": [4, 5]}
     private Map<String, List<Long>> reactions;
 
-    // Mentions
+    // Mentions: [1, 2, 3] - user IDs who were mentioned
     private List<Long> mentions;
-    private List<MentionedUserResponse> mentionedUsers;
 
     private Instant sentAt;
     private Instant createdAt;

@@ -8,6 +8,7 @@ public final class WebSocketEventType {
     public static final String MESSAGE_MENTION = "message.mention";
     public static final String MESSAGE_REACTION = "message.reaction";
     public static final String MESSAGE_PIN = "message.pin";
+    public static final String MESSAGE_ID_UPDATE = "message.id.update";  // Write-Behind: temp ID → real ID
 
     public static final String CONVERSATION_UPDATE = "conversation.update";
     public static final String TYPING_INDICATOR = "typing.indicator";

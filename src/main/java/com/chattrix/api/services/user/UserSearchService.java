@@ -9,6 +9,7 @@ import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.PaginatedResponse;
 import com.chattrix.api.responses.UserSearchResponse;
+import com.chattrix.api.utils.PaginationHelper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -72,33 +73,18 @@ public class UserSearchService {
      */
     @Transactional
     public CursorPaginatedResponse<UserSearchResponse> searchUsersWithCursor(Long currentUserId, String query, Long cursor, int limit) {
-        // Validate limit
-        if (limit < 1) {
-            limit = 1;
-        }
-        if (limit > 100) {
-            limit = 100;
-        }
+        limit = PaginationHelper.validateLimit(limit);
 
-        // Search users with cursor
         List<User> users = userRepository.searchUsersWithCursor(query, currentUserId, cursor, limit);
 
-        // Check if there are more items
-        boolean hasMore = users.size() > limit;
-        if (hasMore) {
-            users = users.subList(0, limit);
-        }
+        var result = PaginationHelper.processForPagination(users, limit);
 
-        // Convert to response and add additional info
-        List<UserSearchResponse> responses = userSearchMapper.toSearchResponseList(users);
+        List<UserSearchResponse> responses = userSearchMapper.toSearchResponseList(result.items());
 
         // Add contact and conversation info for each user
         for (UserSearchResponse response : responses) {
             // Check if user is a contact
-            boolean isContact = contactRepository.existsByUserIdAndContactUserId(
-                    currentUserId,
-                    response.getId()
-            );
+            boolean isContact = contactRepository.existsByUserIdAndContactUserId(currentUserId, response.getId());
             response.setContact(isContact);
 
             // Check if there's a direct conversation with this user
@@ -114,11 +100,9 @@ public class UserSearchService {
             }
         }
 
-        // Calculate next cursor
-        Long nextCursor = null;
-        if (hasMore && !responses.isEmpty()) {
-            nextCursor = responses.get(responses.size() - 1).getId();
-        }
+        Long nextCursor = result.hasMore() && !responses.isEmpty()
+                ? responses.get(responses.size() - 1).getId()
+                : null;
 
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }

@@ -7,7 +7,7 @@ import java.util.stream.Stream;
 
 public class MergeCode {
 
-    private static final String ROOT_DIR = "D:\\Projects\\chattrix\\chattrix-api\\src\\main\\java\\com\\chattrix\\api";
+    private static final String ROOT_DIR = "D:\\Projects\\chattrix\\chattrix-api\\src\\main\\java\\com\\chattrix\\api\\entities";
 
     private static final String OUTPUT_FILE = "D:\\Projects\\chattrix\\chattrix-api\\merged_code.txt";
 
