@@ -1,5 +1,5 @@
 # Multi-stage build for Chattrix API
-FROM maven:3.9-eclipse-temurin-17 AS builder
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
 # Set working directory
 WORKDIR /app
@@ -15,7 +15,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Production stage
-FROM quay.io/wildfly/wildfly:38.0.0.Final-jdk17
+FROM quay.io/wildfly/wildfly:38.0.0.Final-jdk21
 
 # Switch to root for setup
 USER root
