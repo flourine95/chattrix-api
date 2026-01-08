@@ -1,17 +1,24 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.entities.Conversation;
+import com.chattrix.api.entities.Message;
+import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.MessageType;
-import com.chattrix.api.entities.*;
 import com.chattrix.api.enums.ScheduledStatus;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
 import com.chattrix.api.mappers.WebSocketMapper;
-import com.chattrix.api.repositories.*;
+import com.chattrix.api.repositories.ConversationParticipantRepository;
+import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.MessageRepository;
+import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.ScheduleMessageRequest;
 import com.chattrix.api.requests.UpdateScheduledMessageRequest;
 import com.chattrix.api.responses.BulkCancelResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.utils.PaginationHelper;
 import com.chattrix.api.websocket.WebSocketEventType;
@@ -19,9 +26,15 @@ import com.chattrix.api.websocket.dto.*;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 @ApplicationScoped
 public class ScheduledMessageService {
 
@@ -45,15 +58,12 @@ public class ScheduledMessageService {
 
     @Inject
     private ChatSessionService chatSessionService;
-    
+
     @Inject
-    private com.chattrix.api.services.cache.ConversationCache conversationCache;
-    
+    private MessageCache messageCache;
+
     @Inject
-    private com.chattrix.api.services.cache.MessageCache messageCache;
-    
-    @Inject
-    private com.chattrix.api.services.cache.CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     @Transactional
     public MessageResponse scheduleMessage(Long userId, Long conversationId, ScheduleMessageRequest request) {
@@ -70,7 +80,7 @@ public class ScheduledMessageService {
 
         // Check if conversation exists and user is participant
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
 
         boolean isParticipant = conversation.getParticipants().stream()
                 .anyMatch(p -> p.getUser().getId().equals(userId));
@@ -81,7 +91,7 @@ public class ScheduledMessageService {
 
         // Get sender
         User sender = userRepository.findById(userId)
-                .orElseThrow(() -> BusinessException.notFound("User not found", "RESOURCE_NOT_FOUND"));
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
 
         // Validate reply to message if provided
         Message replyToMessage = null;
@@ -117,7 +127,7 @@ public class ScheduledMessageService {
         // message.setFileSize(request.fileSize());
         // message.setDuration(request.duration());
         message.setReplyToMessage(replyToMessage);
-        
+
         // Set scheduled fields
         message.setScheduled(true);
         message.setScheduledTime(request.scheduledTime());
@@ -328,7 +338,7 @@ public class ScheduledMessageService {
                 // Invalidate caches (CRITICAL - lastMessage changed)
                 Set<Long> participantIds = conversation.getParticipants().stream()
                         .map(p -> p.getUser().getId())
-                        .collect(java.util.stream.Collectors.toSet());
+                        .collect(Collectors.toSet());
                 cacheManager.invalidateConversationCaches(conversation.getId(), participantIds);
                 messageCache.invalidate(conversation.getId());
 

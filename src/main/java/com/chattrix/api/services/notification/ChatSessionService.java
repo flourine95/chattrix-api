@@ -22,13 +22,10 @@ public class ChatSessionService {
     @Inject
     private ConversationRepository conversationRepository;
 
-    // Lưu trữ các session đang hoạt động, map từ UserId sang List<Session>
-    // Hỗ trợ đa thiết bị: 1 user có thể có nhiều sessions
     private final Map<Long, Set<Session>> activeSessions = new ConcurrentHashMap<>();
 
     public void addSession(Long userId, Session session) {
-        activeSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet())
-                      .add(session);
+        activeSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
         log.info("User {} connected. Total devices: {}", userId, activeSessions.get(userId).size());
     }
 
@@ -44,53 +41,28 @@ public class ChatSessionService {
             if (sessions.isEmpty()) {
                 activeSessions.remove(userId);
             }
-            log.info("User {} disconnected one device. Remaining: {}", 
-                userId, sessions.size());
+            log.info("User {} disconnected one device. Remaining: {}", userId, sessions.size());
         }
     }
 
-    public void sendMessageToUser(Long userId, String message) {
-        Set<Session> sessions = activeSessions.get(userId);
-        if (sessions != null) {
-            sessions.removeIf(session -> {
-                if (session == null || !session.isOpen()) {
-                    return true; // Remove invalid session
-                }
-                
-                try {
-                    session.getBasicRemote().sendText(message);
-                    return false; // Keep valid session
-                } catch (IOException e) {
-                    log.error("Failed to send message to user {}: {}", userId, e.getMessage());
-                    return true; // Remove failed session
-                }
-            });
-            
-            // Remove user entry if no sessions left
-            if (sessions.isEmpty()) {
-                activeSessions.remove(userId);
-            }
-        }
-    }
 
     public <T> void sendMessageToUser(Long userId, WebSocketMessage<T> message) {
         Set<Session> sessions = activeSessions.get(userId);
         if (sessions != null) {
             sessions.removeIf(session -> {
                 if (session == null || !session.isOpen()) {
-                    return true; // Remove invalid session
+                    return true;
                 }
                 
                 try {
                     session.getBasicRemote().sendObject(message);
-                    return false; // Keep valid session
+                    return false;
                 } catch (IOException | EncodeException e) {
                     log.error("Failed to send message to user {}: {}", userId, e.getMessage());
-                    return true; // Remove failed session
+                    return true;
                 }
             });
             
-            // Remove user entry if no sessions left
             if (sessions.isEmpty()) {
                 activeSessions.remove(userId);
             }
@@ -126,27 +98,6 @@ public class ChatSessionService {
                 activeSessions.remove(userId);
             }
         }
-    }
-
-    public <T> void broadcastToAllUsers(WebSocketMessage<T> message) {
-        activeSessions.values().forEach(sessions -> {
-            sessions.removeIf(session -> {
-                if (session == null || !session.isOpen()) {
-                    return true; // Remove invalid session
-                }
-
-                try {
-                    session.getBasicRemote().sendObject(message);
-                    return false; // Keep valid session
-                } catch (IOException | EncodeException e) {
-                    log.error("Failed to broadcast: {}", e.getMessage());
-                    return true; // Remove failed session
-                }
-            });
-        });
-        
-        // Remove empty user entries
-        activeSessions.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 
     /**
@@ -200,16 +151,6 @@ public class ChatSessionService {
             conversation.getParticipants().size() - (successCount + failCount) / Math.max(1, totalDevices));
     }
 
-    public boolean isUserOnline(Long userId) {
-        Set<Session> sessions = activeSessions.get(userId);
-        if (sessions == null || sessions.isEmpty()) {
-            return false;
-        }
-        
-        // User is online if at least one session is open
-        return sessions.stream().anyMatch(session -> session != null && session.isOpen());
-    }
-
     /**
      * Get all active sessions for a user (supports multiple devices)
      * Returns empty set if user has no active sessions
@@ -220,40 +161,8 @@ public class ChatSessionService {
             return Set.of();
         }
         
-        // Filter out closed sessions
-        Set<Session> activeSessions = sessions.stream()
+        return sessions.stream()
             .filter(session -> session != null && session.isOpen())
             .collect(java.util.stream.Collectors.toSet());
-        
-        return activeSessions;
-    }
-
-    public Set<Long> getOnlineUserIds() {
-        // Clean up invalid sessions and return active user IDs
-        activeSessions.entrySet().removeIf(entry -> {
-            Set<Session> sessions = entry.getValue();
-            
-            // Remove closed sessions
-            sessions.removeIf(session -> session == null || !session.isOpen());
-            
-            // Remove user entry if no sessions left
-            return sessions.isEmpty();
-        });
-
-        return activeSessions.keySet();
-    }
-
-    public int getActiveSessionCount() {
-        return activeSessions.values().stream()
-            .mapToInt(Set::size)
-            .sum();
-    }
-    
-    /**
-     * Get number of devices for a specific user
-     */
-    public int getUserDeviceCount(Long userId) {
-        Set<Session> sessions = activeSessions.get(userId);
-        return sessions != null ? sessions.size() : 0;
     }
 }

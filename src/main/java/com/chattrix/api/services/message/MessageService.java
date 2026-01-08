@@ -69,41 +69,41 @@ public class MessageService {
         validateAndGetConversation(conversationId, userId);
 
         // Write-Behind: Merge unflushed cache + flushed DB messages
-        
+
         // 1. Get unflushed messages from cache (not yet in DB)
         List<MessageResponse> unflushedMessages = messageCache.getUnflushed(conversationId);
-        
+
         // 2. Get flushed messages from DB
         List<Message> flushedMessages = messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
         List<MessageResponse> flushedResponses = flushedMessages.stream()
                 .map(messageMapper::toResponse)
                 .toList();
-        
+
         // 3. Merge: unflushed first (newest), then flushed
         List<MessageResponse> allMessages = new ArrayList<>();
         allMessages.addAll(unflushedMessages);
         allMessages.addAll(flushedResponses);
-        
+
         // 4. Sort by sentAt descending (newest first)
         allMessages.sort(Comparator.comparing(MessageResponse::getSentAt).reversed());
-        
+
         // 5. Apply cursor filter if provided
         if (cursor != null) {
             allMessages = allMessages.stream()
                     .filter(msg -> msg.getId() < cursor)
                     .toList();
         }
-        
+
         // 6. Apply limit + 1 to check hasMore
         boolean hasMore = allMessages.size() > limit;
         if (hasMore)
             allMessages = allMessages.subList(0, limit);
-        
+
         // 7. Calculate next cursor
-        Long nextCursor = hasMore && !allMessages.isEmpty() 
-                ? allMessages.get(allMessages.size() - 1).getId() 
+        Long nextCursor = hasMore && !allMessages.isEmpty()
+                ? allMessages.get(allMessages.size() - 1).getId()
                 : null;
-        
+
         return new CursorPaginatedResponse<>(allMessages, nextCursor, limit);
     }
 
@@ -180,19 +180,19 @@ public class MessageService {
         // ⚡ Write-Behind: Buffer message instead of direct DB insert
         Long tempId = messageBatchService.bufferMessage(message);
         message.setId(tempId);  // Set temporary ID (negative)
-        
+
         log.info("Message buffered with temp ID: {} for conversation: {}", tempId, conversationId);
 
         // Map to response immediately
         MessageResponse response = messageMapper.toResponse(message);
-        
+
         // Add to cache (unflushed messages)
         messageCache.addUnflushed(conversationId, response);
 
         // ⚠️ DO NOT update conversation.lastMessage here!
         // It will be updated after batch flush when message has real ID
         // Otherwise we get FK constraint violation (temp ID not in DB)
-        
+
         // Just update conversation's updatedAt timestamp
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
