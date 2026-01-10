@@ -88,17 +88,6 @@ public class MessageResource {
         return Response.ok(ApiResponse.success(history, "Edit history retrieved successfully")).build();
     }
 
-    // Forward message endpoint moved to MessageForwardResource
-    // Use /v1/messages/{messageId}/forward instead
-
-    // Pinned messages endpoints moved to PinnedMessageResource
-    // Use /v1/conversations/{conversationId}/messages/pinned instead
-    // Use /v1/conversations/{conversationId}/messages/{messageId}/pin instead
-
-    // ============================================================================
-    // SCHEDULED MESSAGES
-    // ============================================================================
-
     @POST
     @Path("/schedule")
     public Response scheduleMessage(
@@ -167,10 +156,6 @@ public class MessageResource {
         return Response.ok(ApiResponse.success(response, "Scheduled messages cancelled successfully")).build();
     }
 
-    // ============================================================================
-    // POLLS
-    // ============================================================================
-
     @POST
     @Path("/poll")
     public Response createPoll(
@@ -191,9 +176,6 @@ public class MessageResource {
         return Response.ok(ApiResponse.success(response, "Vote recorded successfully")).build();
     }
 
-    // ============================================================================
-    // EVENTS
-    // ============================================================================
 
     @POST
     @Path("/event")
@@ -214,10 +196,6 @@ public class MessageResource {
         var response = messageService.respondToEvent(userContext.getCurrentUserId(), conversationId, messageId, request);
         return Response.ok(ApiResponse.success(response, "RSVP recorded successfully")).build();
     }
-
-    // ============================================================================
-    // FORWARD MESSAGE
-    // ============================================================================
 
     @POST
     @Path("/{messageId}/forward")

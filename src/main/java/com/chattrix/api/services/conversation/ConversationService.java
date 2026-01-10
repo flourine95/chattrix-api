@@ -55,6 +55,8 @@ public class ConversationService {
     private ConversationCache conversationCache;
     @Inject
     private CacheManager cacheManager;
+    @Inject
+    private ConversationBroadcastService conversationBroadcastService;
 
     @Transactional
     public ConversationResponse createConversation(Long currentUserId, CreateConversationRequest request) {
@@ -149,6 +151,13 @@ public class ConversationService {
         Conversation reloadedConv = conversationRepository.findById(currentUserId, savedConv.getId())
                 .orElseThrow(() -> BusinessException.notFound("Conversation created but not found"));
 
+        // Broadcast conversation created event
+        conversationBroadcastService.broadcastConversationCreated(
+                reloadedConv, 
+                currentUserId, 
+                currentUser.getUsername()
+        );
+
         return conversationMapper.toResponseWithUnreadCount(reloadedConv, currentUserId);
     }
 
@@ -158,6 +167,11 @@ public class ConversationService {
      */
     @Transactional
     public CursorPaginatedResponse<ConversationResponse> getConversations(Long userId, String filter, Long cursor, int limit) {
+        // Validate filter
+        if (filter != null && !filter.equals("all") && !filter.equals("direct") && !filter.equals("group")) {
+            throw BusinessException.badRequest("Invalid filter. Must be 'all', 'direct', or 'group'");
+        }
+        
         limit = PaginationHelper.validateLimit(limit);
 
         // Query entities
@@ -266,6 +280,15 @@ public class ConversationService {
         // Reload and map to response
         Conversation updatedConv = conversationRepository.findById(userId, conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+
+        // Broadcast conversation updated event
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        conversationBroadcastService.broadcastConversationUpdated(
+                updatedConv, 
+                userId, 
+                currentUser.getUsername()
+        );
 
         return conversationMapper.toResponseWithUnreadCount(updatedConv, userId);
     }
@@ -489,7 +512,20 @@ public class ConversationService {
 
         // If this is the last member, delete the conversation
         if (totalMembers == 1) {
+            // Get all participant IDs before deleting
+            List<Long> participantIds = conversation.getParticipants().stream()
+                    .map(p -> p.getUser().getId())
+                    .collect(Collectors.toList());
+            
             participantRepository.delete(participant);
+            
+            // Broadcast conversation deleted event
+            conversationBroadcastService.broadcastConversationDeleted(
+                    conversationId, 
+                    participantIds, 
+                    "Last member left the group"
+            );
+            
             // TODO: Add conversationRepository.delete() method or use EntityManager.remove()
             return;
         }
@@ -528,6 +564,11 @@ public class ConversationService {
         conversationRepository.save(conversation);
 
         systemMessageService.createUserLeftMessage(conversationId, userId);
+
+        // Broadcast member left event
+        User leftUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        conversationBroadcastService.broadcastMemberLeft(conversation, leftUser);
 
         // Invalidate cache for all participants
         Set<Long> participantIds = conversation.getParticipants().stream()
@@ -578,6 +619,22 @@ public class ConversationService {
         // Create ONE system message for all added members
         if (!newlyAddedUserIds.isEmpty()) {
             systemMessageService.createUserAddedMessage(conversationId, newlyAddedUserIds, userId);
+            
+            // Broadcast members added event
+            List<User> addedUsersList = addedMembers.stream()
+                    .map(m -> userRepository.findById(m.getUserId()).orElse(null))
+                    .filter(u -> u != null)
+                    .collect(Collectors.toList());
+            
+            User actionByUser = userRepository.findById(userId)
+                    .orElseThrow(() -> BusinessException.notFound("User not found"));
+            
+            conversationBroadcastService.broadcastMembersAdded(
+                    conversation, 
+                    addedUsersList, 
+                    userId, 
+                    actionByUser.getUsername()
+            );
         }
 
         // Invalidate cache for all participants (including new ones)
@@ -612,6 +669,19 @@ public class ConversationService {
 
         systemMessageService.createUserKickedMessage(conversationId, memberUserId, userId);
 
+        // Broadcast member removed event
+        User removedUser = userRepository.findById(memberUserId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        User actionByUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        
+        conversationBroadcastService.broadcastMemberRemoved(
+                conversation, 
+                removedUser, 
+                userId, 
+                actionByUser.getUsername()
+        );
+
         // Invalidate cache for all remaining participants
         Set<Long> participantIds = conversation.getParticipants().stream()
                 .map(p -> p.getUser().getId())
@@ -642,6 +712,20 @@ public class ConversationService {
         } else if (oldRole == ConversationParticipant.Role.ADMIN && newRole == ConversationParticipant.Role.MEMBER) {
             systemMessageService.createUserDemotedMessage(conversationId, memberUserId, userId);
         }
+
+        // Broadcast role updated event
+        User targetUser = participant.getUser();
+        User actionByUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        
+        conversationBroadcastService.broadcastRoleUpdated(
+                conversation, 
+                targetUser, 
+                oldRole.name(), 
+                newRole.name(), 
+                userId, 
+                actionByUser.getUsername()
+        );
 
         // Invalidate cache for all participants
         Set<Long> participantIds = conversation.getParticipants().stream()

@@ -27,6 +27,9 @@ public class GroupPermissionsService {
     @Inject
     private ConversationParticipantRepository participantRepository;
     
+    @Inject
+    private ConversationBroadcastService conversationBroadcastService;
+    
     /**
      * Get permissions for a group conversation
      */
@@ -97,6 +100,29 @@ public class GroupPermissionsService {
         }
         
         permissionsRepository.save(permissions);
+        
+        // Broadcast permissions updated event
+        java.util.Map<String, String> permissionsMap = new java.util.HashMap<>();
+        if (request.getSendMessages() != null) permissionsMap.put("sendMessages", request.getSendMessages());
+        if (request.getAddMembers() != null) permissionsMap.put("addMembers", request.getAddMembers());
+        if (request.getRemoveMembers() != null) permissionsMap.put("removeMembers", request.getRemoveMembers());
+        if (request.getEditGroupInfo() != null) permissionsMap.put("editGroupInfo", request.getEditGroupInfo());
+        if (request.getPinMessages() != null) permissionsMap.put("pinMessages", request.getPinMessages());
+        if (request.getDeleteMessages() != null) permissionsMap.put("deleteMessages", request.getDeleteMessages());
+        if (request.getCreatePolls() != null) permissionsMap.put("createPolls", request.getCreatePolls());
+        
+        com.chattrix.api.entities.User actionByUser = conversation.getParticipants().stream()
+                .filter(p -> p.getUser().getId().equals(userId))
+                .map(com.chattrix.api.entities.ConversationParticipant::getUser)
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+        
+        conversationBroadcastService.broadcastPermissionsUpdated(
+                conversation, 
+                permissionsMap, 
+                userId, 
+                actionByUser.getUsername()
+        );
         
         return toResponse(permissions);
     }

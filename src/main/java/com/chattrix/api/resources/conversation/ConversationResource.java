@@ -147,4 +147,12 @@ public class ConversationResource {
         );
         return Response.ok(ApiResponse.success(res, "Permissions updated successfully")).build();
     }
+
+    // Leave conversation
+    @POST
+    @Path("/{conversationId}/leave")
+    public Response leaveConversation(@PathParam("conversationId") Long conversationId) {
+        conversationService.leaveConversation(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(null, "Left conversation successfully")).build();
+    }
 }

@@ -1,7 +1,6 @@
 package com.chattrix.api.services.message;
 
 import com.chattrix.api.entities.Conversation;
-import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.MessageType;
@@ -54,8 +53,6 @@ public class MessageService {
     @Inject
     private CacheManager cacheManager;
     @Inject
-    private MessageBatchService messageBatchService;
-    @Inject
     private MessageCreationService messageCreationService;
 
     @Inject
@@ -76,8 +73,8 @@ public class MessageService {
         List<MessageResponse> unflushedMessages = messageCache.getUnflushed(conversationId);
 
         // 2. Get flushed messages from DB as entities
-        List<Message> flushedEntities = 
-            messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
+        List<Message> flushedEntities =
+                messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
 
         // 3. Map entities to DTOs using MapStruct
         List<MessageResponse> flushedResponses = flushedEntities.stream()
@@ -106,7 +103,7 @@ public class MessageService {
 
         // 8. Calculate next cursor
         Long nextCursor = hasMore && !allMessages.isEmpty()
-                ? allMessages.get(allMessages.size() - 1).getId()
+                ? allMessages.getLast().getId()
                 : null;
 
         return new CursorPaginatedResponse<>(allMessages, nextCursor, limit);
@@ -139,7 +136,7 @@ public class MessageService {
         // Broadcast outside transaction (async)
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-        
+
         // Reconstruct message entity for broadcasting (temp ID)
         Message message = new Message();
         message.setId(response.getId());
@@ -147,17 +144,17 @@ public class MessageService {
         message.setSentAt(response.getSentAt());
         message.setType(MessageType.valueOf(response.getType()));
         message.setConversation(conversation);
-        
+
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
         message.setSender(sender);
-        
+
         if (request.metadata() != null)
             message.setMetadata(new HashMap<>(request.metadata()));
-        
+
         messageCreationService.broadcastMessage(message, conversation);
         messageCreationService.broadcastConversationUpdate(conversation);
-        
+
         if (request.mentions() != null && !request.mentions().isEmpty()) {
             messageCreationService.sendMentionNotifications(message, request.mentions());
         }

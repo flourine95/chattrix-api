@@ -11,6 +11,15 @@ public final class WebSocketEventType {
     public static final String MESSAGE_ID_UPDATE = "message.id.update";  // Write-Behind: temp ID → real ID
 
     public static final String CONVERSATION_UPDATE = "conversation.update";
+    public static final String CONVERSATION_CREATED = "conversation.created";
+    public static final String CONVERSATION_UPDATED = "conversation.updated";
+    public static final String CONVERSATION_MEMBER_ADDED = "conversation.member_added";
+    public static final String CONVERSATION_MEMBER_REMOVED = "conversation.member_removed";
+    public static final String CONVERSATION_MEMBER_LEFT = "conversation.member_left";
+    public static final String CONVERSATION_ROLE_UPDATED = "conversation.role_updated";
+    public static final String CONVERSATION_PERMISSIONS_UPDATED = "conversation.permissions_updated";
+    public static final String CONVERSATION_DELETED = "conversation.deleted";
+    
     public static final String TYPING_INDICATOR = "typing.indicator";
 
     public static final String USER_STATUS = "user.status";
