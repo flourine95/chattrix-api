@@ -37,6 +37,25 @@ public class ContactRepository {
                 .getResultList();
     }
 
+    /**
+     * Find contacts by user ID - DTO Projection (optimized)
+     * Returns ContactResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.ContactResponse> findByUserIdAsDTO(Long userId) {
+        return em.createQuery(
+                        "SELECT new com.chattrix.api.responses.ContactResponse(" +
+                                "  c.id, cu.id, cu.username, cu.fullName, cu.avatarUrl, " +
+                                "  c.nickname, c.favorite, false, cu.lastSeen, c.createdAt" +
+                                ") " +
+                                "FROM Contact c " +
+                                "JOIN c.contactUser cu " +
+                                "WHERE c.user.id = :userId AND c.status = 'ACCEPTED' " +
+                                "ORDER BY c.favorite DESC, cu.fullName ASC",
+                        com.chattrix.api.responses.ContactResponse.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
     public List<Contact> findFavoritesByUserId(Long userId) {
         return em.createQuery(
                         "SELECT c FROM Contact c " +
@@ -44,6 +63,25 @@ public class ContactRepository {
                                 "WHERE c.user.id = :userId AND c.favorite = true AND c.status = 'ACCEPTED' " +
                                 "ORDER BY c.contactUser.fullName ASC",
                         Contact.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    /**
+     * Find favorite contacts by user ID - DTO Projection (optimized)
+     * Returns ContactResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.ContactResponse> findFavoritesByUserIdAsDTO(Long userId) {
+        return em.createQuery(
+                        "SELECT new com.chattrix.api.responses.ContactResponse(" +
+                                "  c.id, cu.id, cu.username, cu.fullName, cu.avatarUrl, " +
+                                "  c.nickname, c.favorite, false, cu.lastSeen, c.createdAt" +
+                                ") " +
+                                "FROM Contact c " +
+                                "JOIN c.contactUser cu " +
+                                "WHERE c.user.id = :userId AND c.favorite = true AND c.status = 'ACCEPTED' " +
+                                "ORDER BY cu.fullName ASC",
+                        com.chattrix.api.responses.ContactResponse.class)
                 .setParameter("userId", userId)
                 .getResultList();
     }

@@ -2,6 +2,7 @@ package com.chattrix.api.resources.conversation;
 
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.CreateConversationRequest;
+import com.chattrix.api.requests.ReorderPinRequest;
 import com.chattrix.api.requests.UpdateConversationRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
@@ -35,7 +36,7 @@ public class ConversationResource {
             @QueryParam("filter") @DefaultValue("all") String filter,
             @QueryParam("cursor") Long cursor,
             @QueryParam("limit") @DefaultValue("20") int limit) {
-        var result = conversationService.getConversationsWithCursor(userContext.getCurrentUserId(), filter, cursor, limit);
+        var result = conversationService.getConversations(userContext.getCurrentUserId(), filter, cursor, limit);
         return Response.ok(ApiResponse.success(result, "Conversations retrieved successfully")).build();
     }
 
@@ -107,5 +108,18 @@ public class ConversationResource {
     public Response unpinConversation(@PathParam("conversationId") Long conversationId) {
         conversationService.unpinConversation(userContext.getCurrentUserId(), conversationId);
         return Response.ok(ApiResponse.success(null, "Conversation unpinned successfully")).build();
+    }
+
+    @POST
+    @Path("/{conversationId}/reorder")
+    public Response reorderPinnedConversation(
+            @PathParam("conversationId") Long conversationId,
+            @Valid ReorderPinRequest request) {
+        conversationService.reorderPinnedConversation(
+                userContext.getCurrentUserId(), 
+                conversationId, 
+                request.getNewPinOrder()
+        );
+        return Response.ok(ApiResponse.success(null, "Conversation reordered successfully")).build();
     }
 }

@@ -8,6 +8,8 @@ import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ReactionResponse;
+import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.ReactionEventDto;
@@ -34,17 +36,14 @@ public class ReactionService {
     private ChatSessionService chatSessionService;
     
     @Inject
-    private com.chattrix.api.services.cache.MessageCache messageCache;
+    private MessageCache messageCache;
     
     @Inject
-    private com.chattrix.api.services.cache.CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     @Transactional
     public ReactionResponse addReaction(Long userId, Long messageId, String emoji) {
-        // Validate emoji (basic validation)
-        if (emoji == null || emoji.trim().isEmpty()) {
-            throw BusinessException.badRequest("Emoji is required", "BAD_REQUEST");
-        }
+        // Bean Validation already checked: emoji is not blank
 
         // Get message
         Message message = messageRepository.findByIdSimple(messageId)

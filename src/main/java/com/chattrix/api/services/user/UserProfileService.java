@@ -4,6 +4,8 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.UpdateUserProfileRequest;
+import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.UserProfileCache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -15,9 +17,10 @@ public class UserProfileService {
     private UserRepository userRepository;
     
     @Inject
-    private com.chattrix.api.services.cache.UserProfileCache userProfileCache;
+    private UserProfileCache userProfileCache;
+    
     @Inject
-    private com.chattrix.api.services.cache.CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     public User getUserProfile(Long userId) {
         return userRepository.findById(userId)

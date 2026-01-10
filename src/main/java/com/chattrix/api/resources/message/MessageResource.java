@@ -1,16 +1,7 @@
 package com.chattrix.api.resources.message;
 
 import com.chattrix.api.filters.Secured;
-import com.chattrix.api.requests.BulkCancelScheduledMessagesRequest;
-import com.chattrix.api.requests.ChatMessageRequest;
-import com.chattrix.api.requests.CreateEventRequest;
-import com.chattrix.api.requests.CreatePollRequest;
-import com.chattrix.api.requests.EditMessageRequest;
-import com.chattrix.api.requests.EventRsvpRequest;
-import com.chattrix.api.requests.ForwardMessageRequest;
-import com.chattrix.api.requests.ScheduleMessageRequest;
-import com.chattrix.api.requests.UpdateScheduledMessageRequest;
-import com.chattrix.api.requests.VotePollRequest;
+import com.chattrix.api.requests.*;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.BulkCancelResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;

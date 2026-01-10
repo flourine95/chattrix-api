@@ -14,6 +14,8 @@ import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.CreateAnnouncementRequest;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.utils.PaginationHelper;
 import com.chattrix.api.websocket.WebSocketEventType;
@@ -49,10 +51,10 @@ public class AnnouncementService {
     private ChatSessionService chatSessionService;
     
     @Inject
-    private com.chattrix.api.services.cache.MessageCache messageCache;
+    private MessageCache messageCache;
     
     @Inject
-    private com.chattrix.api.services.cache.CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     /**
      * Create announcement (admin only)
@@ -104,6 +106,7 @@ public class AnnouncementService {
 
     /**
      * Get all announcements for a conversation with cursor-based pagination
+     * OPTIMIZED: Uses DTO projection - no entity mapping needed
      */
     public CursorPaginatedResponse<MessageResponse> getAnnouncements(Long userId, Long conversationId, Long cursor, int limit) {
         limit = PaginationHelper.validateLimit(limit);
@@ -112,9 +115,16 @@ public class AnnouncementService {
         if (!participantRepository.isUserParticipant(conversationId, userId))
             throw BusinessException.forbidden("You are not a member of this group");
 
-        List<Message> announcements = messageRepository.findAnnouncementsByCursor(conversationId, cursor, limit);
+        // Query DTO directly - no mapping needed
+        List<MessageResponse> announcements = messageRepository.findAnnouncementsByCursorAsDTO(conversationId, cursor, limit);
         
-        return PaginationHelper.buildResponse(announcements, limit, messageMapper::toResponse, MessageResponse::getId);
+        var result = PaginationHelper.processForPagination(announcements, limit);
+        
+        Long nextCursor = result.hasMore() && !result.items().isEmpty()
+                ? result.items().getLast().getId()
+                : null;
+        
+        return new CursorPaginatedResponse<>(result.items(), nextCursor, limit);
     }
 
     /**

@@ -11,6 +11,8 @@ import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.services.cache.MessageCache;
+import com.chattrix.api.services.conversation.GroupPermissionsService;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.MessagePinEventDto;
@@ -48,10 +50,10 @@ public class PinnedMessageService {
     private ChatSessionService chatSessionService;
     
     @Inject
-    private com.chattrix.api.services.conversation.GroupPermissionsService groupPermissionsService;
+    private GroupPermissionsService groupPermissionsService;
     
     @Inject
-    private com.chattrix.api.services.cache.MessageCache messageCache;
+    private MessageCache messageCache;
     
     @Transactional
     public MessageResponse pinMessage(Long userId, Long conversationId, Long messageId) {
@@ -158,6 +160,10 @@ public class PinnedMessageService {
         return response;
     }
     
+    /**
+     * Get pinned messages for a conversation
+     * OPTIMIZED: Uses DTO projection - no entity mapping needed
+     */
     public List<MessageResponse> getPinnedMessages(Long userId, Long conversationId) {
         // Validate conversation exists
         conversationRepository.findById(conversationId)
@@ -168,12 +174,8 @@ public class PinnedMessageService {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
         
-        // Get pinned messages
-        List<Message> pinnedMessages = messageRepository.findPinnedMessages(conversationId);
-        
-        return pinnedMessages.stream()
-                .map(messageMapper::toResponse)
-                .toList();
+        // Query DTO directly - no mapping needed
+        return messageRepository.findPinnedMessagesAsDTO(conversationId);
     }
     
     private void sendPinNotification(Long conversationId, String eventType, MessageResponse messageResponse) {

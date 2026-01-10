@@ -4,6 +4,7 @@ import com.chattrix.api.entities.Message;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.services.cache.MessageCache;
+import com.chattrix.api.services.cache.UnreadCountCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
 import com.chattrix.api.websocket.dto.MessageIdUpdateDto;
@@ -45,6 +46,9 @@ public class MessageBatchService {
 
     @Inject
     private MessageCache messageCache;
+
+    @Inject
+    private UnreadCountCache unreadCountCache;
 
     @Inject
     private ChatSessionService chatSessionService;
@@ -285,7 +289,7 @@ public class MessageBatchService {
 
     /**
      * Batch update unread counts for all conversations
-     * This prevents deadlock by grouping updates per conversation
+     * Uses UnreadCountCache to prevent deadlock (Write-Behind pattern)
      */
     private void batchUpdateUnreadCounts(List<Message> savedMessages) {
         // Group messages by conversation and sender
@@ -300,7 +304,7 @@ public class MessageBatchService {
                     .merge(senderId, 1, Integer::sum);
         }
 
-        // Update unread count for each conversation
+        // Increment unread count in cache (fast, no DB lock)
         for (Map.Entry<Long, Map<Long, Integer>> entry : conversationSenderCounts.entrySet()) {
             Long conversationId = entry.getKey();
             Map<Long, Integer> senderCounts = entry.getValue();
@@ -310,15 +314,23 @@ public class MessageBatchService {
                 Integer messageCount = senderEntry.getValue();
 
                 try {
-                    // Batch increment unread count
-                    participantRepository.incrementUnreadCountForOthersByAmount(
-                            conversationId, senderId, messageCount
-                    );
+                    // Get all participants in conversation
+                    // Increment unread count for all participants EXCEPT sender
+                    var conversation = entityManager.find(com.chattrix.api.entities.Conversation.class, conversationId);
+                    if (conversation != null) {
+                        conversation.getParticipants().forEach(participant -> {
+                            Long participantUserId = participant.getUser().getId();
+                            if (!participantUserId.equals(senderId)) {
+                                // Increment in cache (will be synced to DB by UnreadCountSyncService)
+                                unreadCountCache.incrementBy(conversationId, participantUserId, messageCount);
+                            }
+                        });
+                    }
 
-                    log.debug("Updated unread count for conversation {}: +{} messages from user {}",
+                    log.debug("Updated unread count cache for conversation {}: +{} messages from user {}",
                             conversationId, messageCount, senderId);
                 } catch (Exception e) {
-                    log.error("Failed to update unread count for conversation {}: {}",
+                    log.error("Failed to update unread count cache for conversation {}: {}",
                             conversationId, e.getMessage());
                     // Continue with other conversations
                 }

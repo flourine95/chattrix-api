@@ -8,6 +8,7 @@ import com.chattrix.api.responses.MessageContextResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.message.MessageSearchService;
 import jakarta.inject.Inject;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -30,7 +31,7 @@ public class MessageSearchResource {
     @Path("/messages")
     @Secured
     public Response globalSearch(
-            @QueryParam("query") String query,
+            @QueryParam("query") @NotBlank(message = "Search query is required") String query,
             @QueryParam("type") String type,
             @QueryParam("cursor") Long cursor,
             @QueryParam("limit") @DefaultValue("20") int limit) {

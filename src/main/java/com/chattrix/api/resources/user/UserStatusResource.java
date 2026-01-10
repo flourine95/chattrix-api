@@ -38,8 +38,7 @@ public class UserStatusResource {
     @Path("/online")
     public Response getOnlineUsers(@Context SecurityContext securityContext) {
         Set<Long> onlineUserIds = onlineStatusCache.getOnlineUserIds();
-        List<User> onlineUsers = userRepository.findByIds(List.copyOf(onlineUserIds));
-        List<UserResponse> userDtos = userMapper.toResponseList(onlineUsers);
+        List<UserResponse> userDtos = userRepository.findByIdsAsDTO(onlineUserIds);
         return Response.ok(ApiResponse.success(userDtos, "Online users retrieved successfully")).build();
     }
 

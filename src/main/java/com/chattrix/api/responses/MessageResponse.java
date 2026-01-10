@@ -1,7 +1,9 @@
 package com.chattrix.api.responses;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -10,12 +12,15 @@ import java.util.Map;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class MessageResponse {
     private Long id;
     private Long conversationId;
     private Long senderId;
     private String senderUsername;
     private String senderFullName;
+    private String senderAvatarUrl;
     private String content;
     private String type;
 

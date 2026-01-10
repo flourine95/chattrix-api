@@ -7,7 +7,11 @@ import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ConversationParticipantRepository {
@@ -128,6 +132,22 @@ public class ConversationParticipantRepository {
                 .setParameter("lastReadMessageId", lastReadMessageId)
                 .executeUpdate();
     }
+    
+    /**
+     * Set unread count to specific value (used by UnreadCountSyncService)
+     * This is the Write-Behind sync from cache to DB
+     */
+    @Transactional
+    public void setUnreadCount(Long conversationId, Long userId, int count) {
+        em.createQuery(
+                        "UPDATE ConversationParticipant cp " +
+                                "SET cp.unreadCount = :count " +
+                                "WHERE cp.conversation.id = :conversationId AND cp.user.id = :userId")
+                .setParameter("conversationId", conversationId)
+                .setParameter("userId", userId)
+                .setParameter("count", count)
+                .executeUpdate();
+    }
 
     public Long getTotalUnreadCount(Long userId) {
         Long total = em.createQuery(
@@ -139,7 +159,7 @@ public class ConversationParticipantRepository {
         return total != null ? total : 0L;
     }
 
-    public java.util.List<ConversationParticipant> findByConversationId(Long conversationId) {
+    public List<ConversationParticipant> findByConversationId(Long conversationId) {
         return em.createQuery(
                         "SELECT cp FROM ConversationParticipant cp " +
                                 "WHERE cp.conversation.id = :conversationId",
@@ -148,7 +168,7 @@ public class ConversationParticipantRepository {
                 .getResultList();
     }
 
-    public java.util.List<ConversationParticipant> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {
+    public List<ConversationParticipant> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit) {
         StringBuilder jpql = new StringBuilder(
                 "SELECT cp FROM ConversationParticipant cp " +
                 "LEFT JOIN FETCH cp.user " +
@@ -206,6 +226,54 @@ public class ConversationParticipantRepository {
                 .setParameter("userId", userId)
                 .getSingleResult();
         return maxOrder != null ? maxOrder : 0;
+    }
+
+    /**
+     * Get all pinned conversations for a user (for reordering)
+     */
+    public List<ConversationParticipant> findPinnedByUserId(Long userId) {
+        return em.createQuery(
+                        "SELECT cp FROM ConversationParticipant cp " +
+                                "LEFT JOIN FETCH cp.conversation " +
+                                "WHERE cp.user.id = :userId AND cp.pinned = true " +
+                                "ORDER BY cp.pinOrder ASC",
+                        ConversationParticipant.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
+
+    /**
+     * Batch query to get unread counts for multiple conversations for a specific user.
+     * Returns Map<ConversationId, UnreadCount> for efficient lookup.
+     * 
+     * This eliminates N+1 loop problem when enriching multiple conversation responses.
+     */
+    public Map<Long, Integer> getUnreadCountMap(Long userId, List<Long> conversationIds) {
+        if (conversationIds == null || conversationIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Object[]> results = em.createQuery(
+                        "SELECT cp.conversation.id, cp.unreadCount " +
+                                "FROM ConversationParticipant cp " +
+                                "WHERE cp.user.id = :userId " +
+                                "AND cp.conversation.id IN :conversationIds",
+                        Object[].class)
+                .setParameter("userId", userId)
+                .setParameter("conversationIds", conversationIds)
+                .getResultList();
+
+        return results.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Integer) row[1]
+                ));
+    }
+
+    public void saveAll(List<ConversationParticipant> participantsToUpdate) {
+        for (ConversationParticipant participant : participantsToUpdate) {
+            em.merge(participant);
+        }
     }
 }
 

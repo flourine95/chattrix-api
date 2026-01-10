@@ -6,6 +6,9 @@ import java.time.Instant;
 import java.util.List;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ConversationResponse {
     private Long id;
     private String type;
@@ -19,10 +22,8 @@ public class ConversationResponse {
 
     private MessageResponse lastMessage;
 
-    // Unread count for current user
     private Integer unreadCount;
 
-    // Settings for current user
     private ConversationSettingsResponse settings;
 
     @Getter

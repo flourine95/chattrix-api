@@ -91,6 +91,27 @@ public class UserRepository {
     }
 
     /**
+     * Find users by IDs - DTO Projection (optimized)
+     * Returns UserResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.UserResponse> findByIdsAsDTO(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery(
+                        "SELECT new com.chattrix.api.responses.UserResponse(" +
+                                "  u.id, u.username, u.email, u.emailVerified, u.phone, " +
+                                "  u.fullName, u.avatarUrl, u.bio, u.gender, u.dateOfBirth, " +
+                                "  u.location, u.profileVisibility, u.lastSeen, u.createdAt, u.updatedAt" +
+                                ") " +
+                                "FROM User u " +
+                                "WHERE u.id IN :ids",
+                        com.chattrix.api.responses.UserResponse.class)
+                .setParameter("ids", ids)
+                .getResultList();
+    }
+
+    /**
      * Find online users - now uses in-memory tracking via UserStatusService
      * This method is deprecated and returns empty list
      * @deprecated Use UserStatusService.isUserOnline() instead
@@ -256,6 +277,22 @@ public class UserRepository {
     }
 
     /**
+     * Find all users - DTO Projection (optimized)
+     * Returns UserResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.UserResponse> findAllAsDTO() {
+        return em.createQuery(
+                        "SELECT new com.chattrix.api.responses.UserResponse(" +
+                                "  u.id, u.username, u.email, u.emailVerified, u.phone, " +
+                                "  u.fullName, u.avatarUrl, u.bio, u.gender, u.dateOfBirth, " +
+                                "  u.location, u.profileVisibility, u.lastSeen, u.createdAt, u.updatedAt" +
+                                ") " +
+                                "FROM User u",
+                        com.chattrix.api.responses.UserResponse.class)
+                .getResultList();
+    }
+
+    /**
      * Find all users who should receive status updates for a given user
      * (users who have this user as a contact OR share a conversation with them)
      */
@@ -384,6 +421,15 @@ public class UserRepository {
             System.out.println("Warning: Batch update expected " + updates.size() + 
                 " users but updated " + updatedCount);
         }
+    }
+
+    public List<User> findAllById(Set<Long> allUserIds) {
+        if (allUserIds == null || allUserIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("SELECT u FROM User u WHERE u.id IN :allUserIds", User.class)
+                .setParameter("allUserIds", allUserIds)
+                .getResultList();
     }
 }
 

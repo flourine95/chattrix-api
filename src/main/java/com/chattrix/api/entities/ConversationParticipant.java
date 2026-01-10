@@ -128,6 +128,15 @@ public class ConversationParticipant {
         return unreadMarkerId != null ? unreadMarkerId : lastReadMessageId;
     }
 
+    public boolean unarchive() {
+        if (this.archived) {
+            this.archived = false;
+            this.archivedAt = null;
+            return true;
+        }
+        return false;
+    }
+
     public enum Role {
         ADMIN,
         MEMBER

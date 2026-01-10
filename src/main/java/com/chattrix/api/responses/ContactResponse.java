@@ -1,9 +1,13 @@
 package com.chattrix.api.responses;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
+@NoArgsConstructor
+@AllArgsConstructor
 public class ContactResponse {
     public Long id;
     public Long contactUserId;

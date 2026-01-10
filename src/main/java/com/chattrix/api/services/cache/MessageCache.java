@@ -4,6 +4,7 @@ import com.chattrix.api.responses.MessageResponse;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
  * Cache structure: conversationId → List of MessageResponse (unflushed messages)
  */
 @ApplicationScoped
+@Slf4j
 public class MessageCache {
     
     private static final int CACHE_EXPIRY_MINUTES = 5;
@@ -95,6 +97,7 @@ public class MessageCache {
     
     /**
      * Update message in cache (for edit/update operations)
+     * Incremental update instead of full invalidation
      */
     public void updateMessage(Long conversationId, MessageResponse updatedMessage) {
         List<MessageResponse> messages = cache.getIfPresent(conversationId);
@@ -107,7 +110,31 @@ public class MessageCache {
                     updatedMessages.add(msg);
             }
             cache.put(conversationId, updatedMessages);
+            log.debug("Updated message in cache: conversationId={}, messageId={}", conversationId, updatedMessage.getId());
         }
+    }
+    
+    /**
+     * Add new message to cache (incremental update)
+     * More efficient than invalidating entire cache
+     */
+    public void addMessage(Long conversationId, MessageResponse message) {
+        List<MessageResponse> messages = cache.getIfPresent(conversationId);
+        if (messages == null) {
+            messages = new ArrayList<>();
+        } else {
+            messages = new ArrayList<>(messages); // Create mutable copy
+        }
+        
+        // Prepend new message (most recent first)
+        messages.add(0, message);
+        
+        // Keep only MAX_MESSAGES_PER_CONVERSATION
+        if (messages.size() > MAX_MESSAGES_PER_CONVERSATION)
+            messages = messages.subList(0, MAX_MESSAGES_PER_CONVERSATION);
+        
+        cache.put(conversationId, messages);
+        log.debug("Added message to cache: conversationId={}, messageId={}", conversationId, message.getId());
     }
     
     /**

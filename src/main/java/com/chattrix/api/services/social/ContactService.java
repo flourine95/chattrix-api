@@ -27,14 +27,20 @@ public class ContactService {
     @Inject
     private ContactMapper contactMapper;
 
+    /**
+     * Get contacts for user - Optimized with DTO projection
+     * No entity mapping, no MapStruct needed
+     */
     public List<ContactResponse> getContacts(Long userId) {
-        List<Contact> contacts = contactRepository.findByUserId(userId);
-        return contactMapper.toResponseList(contacts);
+        return contactRepository.findByUserIdAsDTO(userId);
     }
 
+    /**
+     * Get favorite contacts for user - Optimized with DTO projection
+     * No entity mapping, no MapStruct needed
+     */
     public List<ContactResponse> getFavoriteContacts(Long userId) {
-        List<Contact> contacts = contactRepository.findFavoritesByUserId(userId);
-        return contactMapper.toResponseList(contacts);
+        return contactRepository.findFavoritesByUserIdAsDTO(userId);
     }
 
     @Transactional

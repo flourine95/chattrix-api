@@ -55,6 +55,8 @@ public class MessageService {
     private CacheManager cacheManager;
     @Inject
     private MessageBatchService messageBatchService;
+    @Inject
+    private MessageCreationService messageCreationService;
 
     @Inject
     private ChatSessionService chatSessionService;
@@ -73,11 +75,9 @@ public class MessageService {
         // 1. Get unflushed messages from cache (not yet in DB)
         List<MessageResponse> unflushedMessages = messageCache.getUnflushed(conversationId);
 
-        // 2. Get flushed messages from DB
-        List<Message> flushedMessages = messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
-        List<MessageResponse> flushedResponses = flushedMessages.stream()
-                .map(messageMapper::toResponse)
-                .toList();
+        // 2. Get flushed messages from DB - DTO Projection (optimized, no entity mapping)
+        List<MessageResponse> flushedResponses = 
+            messageRepository.findByConversationIdWithCursorAsDTO(conversationId, cursor, limit, sort);
 
         // 3. Merge: unflushed first (newest), then flushed
         List<MessageResponse> allMessages = new ArrayList<>();
@@ -116,109 +116,47 @@ public class MessageService {
 
     @Transactional
     public MessageResponse sendMessage(Long userId, Long conversationId, ChatMessageRequest request) {
+        log.debug("REST API: Sending message from user {} to conversation {}", userId, conversationId);
+
+        // Use centralized MessageCreationService with Write-Behind pattern
+        MessageResponse response = messageCreationService.createMessage(
+                userId,
+                conversationId,
+                request.content(),
+                request.type(),
+                request.metadata(),
+                request.replyToMessageId(),
+                request.mentions(),
+                true  // Use Write-Behind for REST API
+        );
+
+        // Broadcast outside transaction (async)
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-
-        if (!conversation.isUserParticipant(userId))
-            throw BusinessException.badRequest("You do not have access to this conversation");
-
-        // Check if user is muted (for group conversations)
-        if (conversation.isGroupConversation()) {
-            ConversationParticipant participant = conversation.getParticipant(userId).orElse(null);
-            if (participant != null && participant.isCurrentlyMuted())
-                throw BusinessException.forbidden("You are muted in this conversation");
-        }
-
+        
+        // Reconstruct message entity for broadcasting (temp ID)
+        Message message = new Message();
+        message.setId(response.getId());
+        message.setContent(response.getContent());
+        message.setSentAt(response.getSentAt());
+        message.setType(MessageType.valueOf(response.getType()));
+        message.setConversation(conversation);
+        
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
-
-        // Validate reply to message if provided
-        Message replyToMessage = null;
-        if (request.replyToMessageId() != null) {
-            replyToMessage = messageRepository.findByIdSimple(request.replyToMessageId())
-                    .orElseThrow(() -> BusinessException.notFound("Reply to message not found"));
-
-            if (!replyToMessage.getConversation().getId().equals(conversationId))
-                throw BusinessException.badRequest("Cannot reply to message from different conversation");
-        }
-
-        // Validate mentions if provided
-        if (request.mentions() != null && !request.mentions().isEmpty()) {
-            Set<Long> participantIds = conversation.getParticipantIds();
-            for (Long mentionedUserId : request.mentions())
-                if (!participantIds.contains(mentionedUserId))
-                    throw BusinessException.badRequest("Cannot mention user who is not in this conversation");
-        }
-
-        // Build message entity
-        Message message = new Message();
-        message.setContent(request.content());
         message.setSender(sender);
-        message.setConversation(conversation);
-        message.setSentAt(Instant.now());  // Set timestamp immediately
-
-        // Set message type
-        MessageType messageType = MessageType.TEXT;
-        if (request.type() != null) {
-            try {
-                messageType = MessageType.valueOf(request.type().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw BusinessException.badRequest("Invalid message type: " + request.type());
-            }
-        }
-        message.setType(messageType);
-
-        // Use metadata from request directly
+        
         if (request.metadata() != null)
             message.setMetadata(new HashMap<>(request.metadata()));
-        else
-            message.setMetadata(new HashMap<>());
+        
+        messageCreationService.broadcastMessage(message, conversation);
+        messageCreationService.broadcastConversationUpdate(conversation);
+        
+        if (request.mentions() != null && !request.mentions().isEmpty()) {
+            messageCreationService.sendMentionNotifications(message, request.mentions());
+        }
 
-        message.setReplyToMessage(replyToMessage);
-        message.setMentions(request.mentions());
-
-        // ⚡ Write-Behind: Buffer message instead of direct DB insert
-        Long tempId = messageBatchService.bufferMessage(message);
-        message.setId(tempId);  // Set temporary ID (negative)
-
-        log.info("Message buffered with temp ID: {} for conversation: {}", tempId, conversationId);
-
-        // Map to response immediately
-        MessageResponse response = messageMapper.toResponse(message);
-
-        // Add to cache (unflushed messages)
-        messageCache.addUnflushed(conversationId, response);
-
-        // ⚠️ DO NOT update conversation.lastMessage here!
-        // It will be updated after batch flush when message has real ID
-        // Otherwise we get FK constraint violation (temp ID not in DB)
-
-        // Just update conversation's updatedAt timestamp
-        conversation.setUpdatedAt(Instant.now());
-        conversationRepository.save(conversation);
-
-        // Auto-unarchive for all participants who have archived this conversation
-        conversation.getParticipants().forEach(participant -> {
-            if (participant.isArchived()) {
-                participant.setArchived(false);
-                participant.setArchivedAt(null);
-                participantRepository.save(participant);
-            }
-        });
-
-        // ⚠️ DO NOT increment unread count here!
-        // It causes deadlock under high load
-        // Will be updated after batch flush
-        // participantRepository.incrementUnreadCountForOthers(conversationId, userId);
-
-        // Invalidate caches
-        invalidateCaches(conversationId, conversation.getParticipantIds());
-
-        // Broadcast message to all participants via WebSocket
-        broadcastMessage(message, conversation);
-        broadcastConversationUpdate(conversation);
-
-        return messageMapper.toResponse(message);
+        return response;
     }
 
     @Transactional

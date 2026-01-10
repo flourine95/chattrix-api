@@ -32,8 +32,7 @@ public class MessageSearchService {
      * Global search - Search across all user's conversations with cursor-based pagination
      */
     public CursorPaginatedResponse<GlobalSearchResultResponse> globalSearch(Long userId, String query, String type, Long cursor, int limit) {
-        if (query == null || query.trim().isEmpty())
-            throw BusinessException.badRequest("Search query is required", "INVALID_QUERY");
+        // Bean Validation already checked: query is not blank
 
         limit = PaginationHelper.validateLimit(limit);
 

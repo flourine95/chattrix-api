@@ -157,6 +157,54 @@ public class MessageRepository {
         return query.getResultList();
     }
 
+    /**
+     * Find messages by conversation with cursor - DTO Projection (optimized)
+     * Returns MessageResponse directly without entity mapping
+     * Note: Nested objects (replyToMessage, readBy) will be null - populate separately if needed
+     */
+    public List<com.chattrix.api.responses.MessageResponse> findByConversationIdWithCursorAsDTO(
+            Long conversationId, Long cursor, int limit, String sortDirection) {
+        
+        String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
+        String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
+
+        StringBuilder jpql = new StringBuilder(
+                "SELECT new com.chattrix.api.responses.MessageResponse(" +
+                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
+                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +  // replyToMessage = null
+                "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
+                "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
+                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
+                "  m.pinnedBy, null, null, " +  // pinnedByUsername, pinnedByFullName = null
+                "  null, null, " +  // readCount, readBy = null
+                "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
+                ") " +
+                "FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) "
+        );
+
+        if (cursor != null) {
+            jpql.append("AND ").append(cursorCondition).append(" ");
+        }
+
+        jpql.append("ORDER BY m.id ").append(orderClause);
+
+        TypedQuery<com.chattrix.api.responses.MessageResponse> query = 
+            em.createQuery(jpql.toString(), com.chattrix.api.responses.MessageResponse.class);
+        
+        query.setParameter("conversationId", conversationId);
+        query.setParameter("sentStatus", ScheduledStatus.SENT);
+
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+
+        query.setMaxResults(limit + 1);
+
+        return query.getResultList();
+    }
+
     public Optional<Message> findByIdSimple(Long messageId) {
         try {
             Message message = em.find(Message.class, messageId);
@@ -508,6 +556,32 @@ public class MessageRepository {
         .setParameter("conversationId", conversationId)
         .getResultList();
     }
+
+    /**
+     * Find pinned messages - DTO Projection (optimized)
+     * Returns MessageResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.MessageResponse> findPinnedMessagesAsDTO(Long conversationId) {
+        return em.createQuery(
+                "SELECT new com.chattrix.api.responses.MessageResponse(" +
+                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
+                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +
+                "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
+                "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
+                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
+                "  m.pinnedBy.id, m.pinnedBy.username, m.pinnedBy.fullName, " +
+                "  null, null, " +
+                "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
+                ") " +
+                "FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.pinned = true " +
+                "ORDER BY m.pinnedAt DESC",
+                com.chattrix.api.responses.MessageResponse.class
+        )
+        .setParameter("conversationId", conversationId)
+        .getResultList();
+    }
     
     public long countPinnedMessages(Long conversationId) {
         return em.createQuery(
@@ -548,6 +622,50 @@ public class MessageRepository {
         }
         
         query.setMaxResults(limit + 1); // Fetch one extra to determine hasNextPage
+        
+        return query.getResultList();
+    }
+
+    /**
+     * Find announcements with cursor - DTO Projection (optimized)
+     * Returns MessageResponse directly without entity mapping
+     */
+    public List<com.chattrix.api.responses.MessageResponse> findAnnouncementsByCursorAsDTO(
+            Long conversationId, Long cursor, int limit) {
+        
+        StringBuilder jpql = new StringBuilder(
+                "SELECT new com.chattrix.api.responses.MessageResponse(" +
+                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
+                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +
+                "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
+                "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
+                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
+                "  m.pinnedBy, null, null, " +
+                "  null, null, " +
+                "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
+                ") " +
+                "FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.type = :announcementType "
+        );
+        
+        if (cursor != null) {
+            jpql.append("AND m.id < :cursor ");
+        }
+        
+        jpql.append("ORDER BY m.id DESC");
+        
+        TypedQuery<com.chattrix.api.responses.MessageResponse> query = 
+            em.createQuery(jpql.toString(), com.chattrix.api.responses.MessageResponse.class);
+        
+        query.setParameter("conversationId", conversationId);
+        query.setParameter("announcementType", MessageType.ANNOUNCEMENT);
+        
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+        
+        query.setMaxResults(limit + 1);
         
         return query.getResultList();
     }

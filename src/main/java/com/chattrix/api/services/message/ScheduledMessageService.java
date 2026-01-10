@@ -58,10 +58,10 @@ public class ScheduledMessageService {
 
     @Inject
     private ChatSessionService chatSessionService;
-
+    
     @Inject
     private MessageCache messageCache;
-
+    
     @Inject
     private CacheManager cacheManager;
 

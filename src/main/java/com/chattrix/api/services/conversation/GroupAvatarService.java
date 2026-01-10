@@ -31,6 +31,8 @@ public class GroupAvatarService {
      */
     @Transactional
     public ConversationResponse updateAvatar(Long userId, Long conversationId, UpdateGroupAvatarRequest request) {
+        // Bean Validation already checked: avatarUrl is not blank
+        
         // Verify conversation exists and is a group
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
@@ -42,11 +44,6 @@ public class GroupAvatarService {
         // Check permission
         if (!groupPermissionsService.hasPermission(conversationId, userId, "edit_group_info")) {
             throw BusinessException.forbidden("You don't have permission to edit group avatar");
-        }
-
-        // Validate avatar URL
-        if (request.getAvatarUrl() == null || request.getAvatarUrl().trim().isEmpty()) {
-            throw BusinessException.badRequest("Avatar URL is required", "BAD_REQUEST");
         }
 
         // Update conversation avatar URL

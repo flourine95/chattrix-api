@@ -1,6 +1,7 @@
 package com.chattrix.api.mappers;
 
 import com.chattrix.api.entities.Message;
+import com.chattrix.api.entities.User;
 import com.chattrix.api.responses.MessageResponse;
 import org.mapstruct.*;
 
@@ -11,6 +12,7 @@ public interface MessageMapper {
     @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderUsername", source = "sender.username")
     @Mapping(target = "senderFullName", source = "sender.fullName")
+    @Mapping(target = "senderAvatarUrl", source = "sender.avatarUrl")
     @Mapping(target = "type", expression = "java(message.getType().name())")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "originalMessageId", source = "originalMessage.id")
@@ -21,4 +23,26 @@ public interface MessageMapper {
     @Mapping(target = "readCount", ignore = true)
     @Mapping(target = "readBy", ignore = true)
     MessageResponse toResponse(Message message);
+    
+    /**
+     * Helper method to map User fields with a prefix.
+     * This demonstrates how to create reusable mapping logic.
+     */
+    default void mapUserWithPrefix(User user, String prefix, MessageResponse target) {
+        if (user == null) return;
+        
+        switch (prefix) {
+            case "sender":
+                target.setSenderId(user.getId());
+                target.setSenderUsername(user.getUsername());
+                target.setSenderFullName(user.getFullName());
+                target.setSenderAvatarUrl(user.getAvatarUrl());
+                break;
+            case "pinnedBy":
+                target.setPinnedBy(user.getId());
+                target.setPinnedByUsername(user.getUsername());
+                target.setPinnedByFullName(user.getFullName());
+                break;
+        }
+    }
 }

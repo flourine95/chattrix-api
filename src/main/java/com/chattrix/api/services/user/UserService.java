@@ -15,7 +15,11 @@ public class UserService {
     @Inject
     private UserRepository userRepository;
 
+    /**
+     * Get all users - Optimized with DTO projection
+     * No entity mapping, no MapStruct needed
+     */
     public List<UserResponse> findAllUsers() {
-        return userMapper.toResponseList(userRepository.findAll());
+        return userRepository.findAllAsDTO();
     }
 }

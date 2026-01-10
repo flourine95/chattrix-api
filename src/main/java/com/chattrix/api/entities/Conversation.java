@@ -91,4 +91,14 @@ public class Conversation {
     public boolean isGroupConversation() {
         return this.type == ConversationType.GROUP;
     }
+
+    public void addParticipant(User user, ConversationParticipant.Role role) {
+        ConversationParticipant participant = ConversationParticipant.builder()
+                .user(user)
+                .conversation(this)
+                .role(role)
+                .build();
+
+        this.participants.add(participant);
+    }
 }

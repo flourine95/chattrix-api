@@ -23,7 +23,12 @@ import java.util.Map;
 @Table(name = "messages", indexes = {
         @Index(name = "idx_messages_conversation", columnList = "conversation_id"),
         @Index(name = "idx_messages_sender", columnList = "sender_id"),
-        @Index(name = "idx_messages_created_at", columnList = "created_at")
+        @Index(name = "idx_messages_created_at", columnList = "created_at"),
+        // Composite indexes for common queries
+        @Index(name = "idx_messages_conv_sent", columnList = "conversation_id, sent_at"),
+        @Index(name = "idx_messages_conv_type", columnList = "conversation_id, type"),
+        @Index(name = "idx_messages_sender_scheduled", columnList = "sender_id, scheduled_status, scheduled_time"),
+        @Index(name = "idx_messages_conv_pinned", columnList = "conversation_id, pinned, pinned_at")
 })
 @SQLDelete(sql = "UPDATE messages SET deleted = true, deleted_at = NOW() WHERE id = ?")
 @SQLRestriction("deleted = false")
