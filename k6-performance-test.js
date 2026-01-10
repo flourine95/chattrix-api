@@ -201,9 +201,7 @@ function sendMessage(headers) {
         errorRate.add(0);
     } else {
         successRate.add(0);
-        messagesF
-
-ailed.add(1);
+        messagesFailed.add(1);
         errorRate.add(1);
         
         if (res.status !== 201) {
