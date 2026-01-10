@@ -1,12 +1,13 @@
 package com.chattrix.api.services.message;
 
+import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
-import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.cache.UnreadCountCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
+import com.chattrix.api.websocket.dto.ConversationUpdateDto;
 import com.chattrix.api.websocket.dto.MessageIdUpdateDto;
 import com.chattrix.api.websocket.dto.WebSocketMessage;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -34,7 +35,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 public class MessageBatchService {
 
-    // Configuration
     private static final int BATCH_SIZE = 3_000;
     private static final int FLUSH_INTERVAL_SECONDS = 30;
     private static final int MAX_BUFFER_SIZE = 10_000;
@@ -52,9 +52,6 @@ public class MessageBatchService {
 
     @Inject
     private ChatSessionService chatSessionService;
-
-    @Inject
-    private ConversationParticipantRepository participantRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -316,7 +313,7 @@ public class MessageBatchService {
                 try {
                     // Get all participants in conversation
                     // Increment unread count for all participants EXCEPT sender
-                    var conversation = entityManager.find(com.chattrix.api.entities.Conversation.class, conversationId);
+                    var conversation = entityManager.find(Conversation.class, conversationId);
                     if (conversation != null) {
                         conversation.getParticipants().forEach(participant -> {
                             Long participantUserId = participant.getUser().getId();
@@ -355,15 +352,28 @@ public class MessageBatchService {
             }
         }
 
-        // Update each conversation's lastMessage
+        // Update each conversation's lastMessage in DB
         for (Map.Entry<Long, Message> entry : latestMessagePerConversation.entrySet()) {
             Long conversationId = entry.getKey();
             Message latestMessage = entry.getValue();
 
-            // Note: We need to fetch conversation again because it might be detached
-            // This is done in a separate transaction context
-            log.debug("Updating lastMessage for conversation {} to message {}",
-                    conversationId, latestMessage.getId());
+            try {
+                // Fetch fresh conversation entity
+                var conversation = entityManager.find(Conversation.class, conversationId);
+                if (conversation != null) {
+                    conversation.setLastMessage(latestMessage);
+                    entityManager.merge(conversation);
+
+                    log.debug("Updated lastMessage for conversation {} to message {}",
+                            conversationId, latestMessage.getId());
+
+                    // Broadcast conversation update to all participants
+                    broadcastConversationUpdate(conversation, latestMessage);
+                }
+            } catch (Exception e) {
+                log.error("Failed to update lastMessage for conversation {}: {}",
+                        conversationId, e.getMessage());
+            }
         }
     }
 
@@ -464,6 +474,41 @@ public class MessageBatchService {
 
         log.debug("ID update broadcasted: {} → {} for conversation {}",
                 tempId, realId, conversationId);
+    }
+
+    /**
+     * Broadcast conversation update after lastMessage is updated
+     */
+    private void broadcastConversationUpdate(Conversation conversation, Message lastMessage) {
+        try {
+            ConversationUpdateDto updateDto =
+                    new ConversationUpdateDto();
+            updateDto.setConversationId(conversation.getId());
+            updateDto.setUpdatedAt(conversation.getUpdatedAt());
+
+            if (lastMessage != null) {
+                ConversationUpdateDto.LastMessageDto lastMessageDto =
+                        new ConversationUpdateDto.LastMessageDto();
+                lastMessageDto.setId(lastMessage.getId());
+                lastMessageDto.setContent(lastMessage.getContent());
+                lastMessageDto.setSenderId(lastMessage.getSender().getId());
+                lastMessageDto.setSenderUsername(lastMessage.getSender().getUsername());
+                lastMessageDto.setSentAt(lastMessage.getSentAt());
+                lastMessageDto.setType(lastMessage.getType().name());
+                updateDto.setLastMessage(lastMessageDto);
+            }
+
+            WebSocketMessage<ConversationUpdateDto> message =
+                    new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
+
+            chatSessionService.broadcastToConversation(conversation.getId(), message);
+
+            log.debug("Conversation update broadcasted: conversationId={}, lastMessageId={}",
+                    conversation.getId(), lastMessage != null ? lastMessage.getId() : null);
+        } catch (Exception e) {
+            log.error("Failed to broadcast conversation update for conversation {}: {}",
+                    conversation.getId(), e.getMessage());
+        }
     }
 
     /**

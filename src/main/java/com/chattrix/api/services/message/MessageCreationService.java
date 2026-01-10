@@ -253,6 +253,37 @@ public class MessageCreationService {
     }
 
     /**
+     * Broadcast conversation update with temporary message (before DB flush)
+     * This allows clients to see lastMessage immediately with temp ID
+     * Will be updated again after flush with real ID
+     */
+    public void broadcastConversationUpdateWithTempMessage(Conversation conversation, Message tempMessage) {
+        log.debug("Broadcasting conversation update with temp message: conversationId={}, tempMessageId={}", 
+                conversation.getId(), tempMessage.getId());
+
+        ConversationUpdateDto updateDto = new ConversationUpdateDto();
+        updateDto.setConversationId(conversation.getId());
+        updateDto.setUpdatedAt(conversation.getUpdatedAt());
+
+        // Use temp message as lastMessage
+        ConversationUpdateDto.LastMessageDto lastMessageDto = new ConversationUpdateDto.LastMessageDto();
+        lastMessageDto.setId(tempMessage.getId());  // Temp ID (negative)
+        lastMessageDto.setContent(tempMessage.getContent());
+        lastMessageDto.setSenderId(tempMessage.getSender().getId());
+        lastMessageDto.setSenderUsername(tempMessage.getSender().getUsername());
+        lastMessageDto.setSentAt(tempMessage.getSentAt());
+        lastMessageDto.setType(tempMessage.getType().name());
+        updateDto.setLastMessage(lastMessageDto);
+
+        WebSocketMessage<ConversationUpdateDto> message =
+                new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATE, updateDto);
+
+        conversation.getParticipants().forEach(participant ->
+                chatSessionService.sendMessageToUser(participant.getUser().getId(), message)
+        );
+    }
+
+    /**
      * Send mention notifications to mentioned users
      * Should be called OUTSIDE transaction
      */

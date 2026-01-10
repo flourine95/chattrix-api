@@ -120,8 +120,8 @@ public class MessageService {
     public MessageResponse sendMessage(Long userId, Long conversationId, ChatMessageRequest request) {
         log.debug("REST API: Sending message from user {} to conversation {}", userId, conversationId);
 
-        // Use centralized MessageCreationService without Write-Behind for REST API
-        // Write-Behind is only for WebSocket to improve performance
+        // Use centralized MessageCreationService with Write-Behind for performance
+        // Write-Behind improves throughput by batching database writes
         MessageResponse response = messageCreationService.createMessage(
                 userId,
                 conversationId,
@@ -130,16 +130,16 @@ public class MessageService {
                 request.metadata(),
                 request.replyToMessageId(),
                 request.mentions(),
-                false  // Disable Write-Behind for REST API to ensure immediate persistence
+                true  // Enable Write-Behind for better performance in load testing
         );
 
         // Broadcast outside transaction (async)
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
 
-        // Reconstruct message entity for broadcasting (temp ID)
+        // Reconstruct message entity for broadcasting (with temp ID)
         Message message = new Message();
-        message.setId(response.getId());
+        message.setId(response.getId());  // This is temp ID (negative)
         message.setContent(response.getContent());
         message.setSentAt(response.getSentAt());
         message.setType(MessageType.valueOf(response.getType()));
@@ -153,7 +153,11 @@ public class MessageService {
             message.setMetadata(new HashMap<>(request.metadata()));
 
         messageCreationService.broadcastMessage(message, conversation);
-        messageCreationService.broadcastConversationUpdate(conversation);
+        
+        // Broadcast conversation update with temp lastMessage immediately
+        // This allows clients to see lastMessage right away (with temp ID)
+        // Will be updated again after flush with real ID
+        messageCreationService.broadcastConversationUpdateWithTempMessage(conversation, message);
 
         if (request.mentions() != null && !request.mentions().isEmpty()) {
             messageCreationService.sendMentionNotifications(message, request.mentions());
