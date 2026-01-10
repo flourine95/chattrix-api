@@ -120,16 +120,13 @@ public class MessageRepository {
     }
 
     /**
-     * Find messages by conversation with cursor-based pagination
-     * @param cursor The ID of the last message from previous page (null for first page)
-     * @param limit Number of items to fetch (will fetch limit + 1 to determine hasNextPage)
-     * @param sortDirection ASC or DESC
+     * Find messages by conversation with cursor - Returns entities for MapStruct mapping
      */
-    public List<Message> findByConversationIdWithCursor(Long conversationId, Long cursor, int limit, String sortDirection) {
+    public List<Message> findByConversationIdWithCursor(
+            Long conversationId, Long cursor, int limit, String sortDirection) {
+        
         String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
         String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
-
-        EntityGraph<?> entityGraph = em.getEntityGraph("Message.fullContext");
 
         StringBuilder jpql = new StringBuilder(
                 "SELECT m FROM Message m " +
@@ -144,54 +141,6 @@ public class MessageRepository {
         jpql.append("ORDER BY m.id ").append(orderClause);
 
         TypedQuery<Message> query = em.createQuery(jpql.toString(), Message.class);
-        query.setHint("jakarta.persistence.fetchgraph", entityGraph);
-        query.setParameter("conversationId", conversationId);
-        query.setParameter("sentStatus", ScheduledStatus.SENT);
-
-        if (cursor != null) {
-            query.setParameter("cursor", cursor);
-        }
-
-        query.setMaxResults(limit + 1);
-
-        return query.getResultList();
-    }
-
-    /**
-     * Find messages by conversation with cursor - DTO Projection (optimized)
-     * Returns MessageResponse directly without entity mapping
-     * Note: Nested objects (replyToMessage, readBy) will be null - populate separately if needed
-     */
-    public List<com.chattrix.api.responses.MessageResponse> findByConversationIdWithCursorAsDTO(
-            Long conversationId, Long cursor, int limit, String sortDirection) {
-        
-        String orderClause = "ASC".equalsIgnoreCase(sortDirection) ? "ASC" : "DESC";
-        String cursorCondition = "ASC".equalsIgnoreCase(sortDirection) ? "m.id > :cursor" : "m.id < :cursor";
-
-        StringBuilder jpql = new StringBuilder(
-                "SELECT new com.chattrix.api.responses.MessageResponse(" +
-                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
-                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +  // replyToMessage = null
-                "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
-                "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
-                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
-                "  m.pinnedBy, null, null, " +  // pinnedByUsername, pinnedByFullName = null
-                "  null, null, " +  // readCount, readBy = null
-                "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
-                ") " +
-                "FROM Message m " +
-                "WHERE m.conversation.id = :conversationId " +
-                "AND (m.sentAt IS NOT NULL OR (m.scheduled = true AND m.scheduledStatus = :sentStatus)) "
-        );
-
-        if (cursor != null) {
-            jpql.append("AND ").append(cursorCondition).append(" ");
-        }
-
-        jpql.append("ORDER BY m.id ").append(orderClause);
-
-        TypedQuery<com.chattrix.api.responses.MessageResponse> query = 
-            em.createQuery(jpql.toString(), com.chattrix.api.responses.MessageResponse.class);
         
         query.setParameter("conversationId", conversationId);
         query.setParameter("sentStatus", ScheduledStatus.SENT);
@@ -564,11 +513,12 @@ public class MessageRepository {
     public List<com.chattrix.api.responses.MessageResponse> findPinnedMessagesAsDTO(Long conversationId) {
         return em.createQuery(
                 "SELECT new com.chattrix.api.responses.MessageResponse(" +
-                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
-                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +
+                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, m.sender.avatarUrl, " +
+                "  m.content, m.type, m.metadata, " +
+                "  CASE WHEN m.replyToMessage IS NOT NULL THEN m.replyToMessage.id ELSE null END, null, " +
                 "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
                 "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
-                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
+                "  CASE WHEN m.originalMessage IS NOT NULL THEN m.originalMessage.id ELSE null END, m.forwardCount, m.pinned, m.pinnedAt, " +
                 "  m.pinnedBy.id, m.pinnedBy.username, m.pinnedBy.fullName, " +
                 "  null, null, " +
                 "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
@@ -635,12 +585,13 @@ public class MessageRepository {
         
         StringBuilder jpql = new StringBuilder(
                 "SELECT new com.chattrix.api.responses.MessageResponse(" +
-                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, " +
-                "  m.content, m.type, m.metadata, m.replyToMessageId, null, " +
+                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, m.sender.avatarUrl, " +
+                "  m.content, m.type, m.metadata, " +
+                "  CASE WHEN m.replyToMessage IS NOT NULL THEN m.replyToMessage.id ELSE null END, null, " +
                 "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
                 "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
-                "  m.originalMessageId, m.forwardCount, m.pinned, m.pinnedAt, " +
-                "  m.pinnedBy, null, null, " +
+                "  CASE WHEN m.originalMessage IS NOT NULL THEN m.originalMessage.id ELSE null END, m.forwardCount, m.pinned, m.pinnedAt, " +
+                "  CASE WHEN m.pinnedBy IS NOT NULL THEN m.pinnedBy.id ELSE null END, null, null, " +
                 "  null, null, " +
                 "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
                 ") " +

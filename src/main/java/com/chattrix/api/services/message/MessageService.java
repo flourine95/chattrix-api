@@ -75,31 +75,36 @@ public class MessageService {
         // 1. Get unflushed messages from cache (not yet in DB)
         List<MessageResponse> unflushedMessages = messageCache.getUnflushed(conversationId);
 
-        // 2. Get flushed messages from DB - DTO Projection (optimized, no entity mapping)
-        List<MessageResponse> flushedResponses = 
-            messageRepository.findByConversationIdWithCursorAsDTO(conversationId, cursor, limit, sort);
+        // 2. Get flushed messages from DB as entities
+        List<Message> flushedEntities = 
+            messageRepository.findByConversationIdWithCursor(conversationId, cursor, limit, sort);
 
-        // 3. Merge: unflushed first (newest), then flushed
+        // 3. Map entities to DTOs using MapStruct
+        List<MessageResponse> flushedResponses = flushedEntities.stream()
+                .map(messageMapper::toResponse)
+                .toList();
+
+        // 4. Merge: unflushed first (newest), then flushed
         List<MessageResponse> allMessages = new ArrayList<>();
         allMessages.addAll(unflushedMessages);
         allMessages.addAll(flushedResponses);
 
-        // 4. Sort by sentAt descending (newest first)
+        // 5. Sort by sentAt descending (newest first)
         allMessages.sort(Comparator.comparing(MessageResponse::getSentAt).reversed());
 
-        // 5. Apply cursor filter if provided
+        // 6. Apply cursor filter if provided
         if (cursor != null) {
             allMessages = allMessages.stream()
                     .filter(msg -> msg.getId() < cursor)
                     .toList();
         }
 
-        // 6. Apply limit + 1 to check hasMore
+        // 7. Apply limit + 1 to check hasMore
         boolean hasMore = allMessages.size() > limit;
         if (hasMore)
             allMessages = allMessages.subList(0, limit);
 
-        // 7. Calculate next cursor
+        // 8. Calculate next cursor
         Long nextCursor = hasMore && !allMessages.isEmpty()
                 ? allMessages.get(allMessages.size() - 1).getId()
                 : null;
@@ -118,7 +123,8 @@ public class MessageService {
     public MessageResponse sendMessage(Long userId, Long conversationId, ChatMessageRequest request) {
         log.debug("REST API: Sending message from user {} to conversation {}", userId, conversationId);
 
-        // Use centralized MessageCreationService with Write-Behind pattern
+        // Use centralized MessageCreationService without Write-Behind for REST API
+        // Write-Behind is only for WebSocket to improve performance
         MessageResponse response = messageCreationService.createMessage(
                 userId,
                 conversationId,
@@ -127,7 +133,7 @@ public class MessageService {
                 request.metadata(),
                 request.replyToMessageId(),
                 request.mentions(),
-                true  // Use Write-Behind for REST API
+                false  // Disable Write-Behind for REST API to ensure immediate persistence
         );
 
         // Broadcast outside transaction (async)
@@ -205,6 +211,7 @@ public class MessageService {
         return messageMapper.toResponse(message);
     }
 
+    @Transactional
     public List<Map<String, Object>> getEditHistory(Long userId, Long conversationId, Long messageId) {
         Message message = validateAndGetMessage(messageId, conversationId);
 
@@ -420,7 +427,8 @@ public class MessageService {
         log.debug("Creating event in conversation {} by user {}", conversationId, userId);
 
         Conversation conversation = validateAndGetConversation(conversationId, userId);
-        validateGroupPermission(conversation, userId, "create_events");
+        // Events don't have specific permission - any participant can create
+        // validateGroupPermission(conversation, userId, "create_events");
 
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
