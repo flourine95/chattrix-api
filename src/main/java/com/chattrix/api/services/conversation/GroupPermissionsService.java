@@ -12,6 +12,7 @@ import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.GroupPermissionsRepository;
 import com.chattrix.api.requests.UpdateGroupPermissionsRequest;
 import com.chattrix.api.responses.GroupPermissionsResponse;
+import com.chattrix.api.services.conversation.ConversationBroadcastService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;

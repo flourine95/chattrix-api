@@ -20,6 +20,7 @@ import com.chattrix.api.responses.ConversationResponse;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.services.cache.CacheManager;
 import com.chattrix.api.services.cache.ConversationCache;
+import com.chattrix.api.services.conversation.ConversationBroadcastService;
 import com.chattrix.api.services.message.SystemMessageService;
 import com.chattrix.api.utils.PaginationHelper;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -153,8 +154,8 @@ public class ConversationService {
 
         // Broadcast conversation created event
         conversationBroadcastService.broadcastConversationCreated(
-                reloadedConv, 
-                currentUserId, 
+                reloadedConv,
+                currentUserId,
                 currentUser.getUsername()
         );
 
@@ -171,7 +172,7 @@ public class ConversationService {
         if (filter != null && !filter.equals("all") && !filter.equals("direct") && !filter.equals("group")) {
             throw BusinessException.badRequest("Invalid filter. Must be 'all', 'direct', or 'group'");
         }
-        
+
         limit = PaginationHelper.validateLimit(limit);
 
         // Query entities
@@ -285,8 +286,8 @@ public class ConversationService {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
         conversationBroadcastService.broadcastConversationUpdated(
-                updatedConv, 
-                userId, 
+                updatedConv,
+                userId,
                 currentUser.getUsername()
         );
 
@@ -317,7 +318,7 @@ public class ConversationService {
         // Use includeArchived=true to find archived conversations
         Conversation conversation = conversationRepository.findById(userId, conversationId, true)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-        
+
         ConversationParticipant participant = conversation.getParticipants().stream()
                 .filter(p -> p.getUser().getId().equals(userId))
                 .findFirst()
@@ -427,7 +428,7 @@ public class ConversationService {
         }
 
         Integer oldPinOrder = participant.getPinOrder();
-        
+
         if (oldPinOrder != null && oldPinOrder.equals(newPinOrder)) {
             // No change needed
             return;
@@ -474,7 +475,7 @@ public class ConversationService {
         participantRepository.save(participant);
 
         conversationCache.invalidate(userId, conversationId);
-        log.info("Reordered pinned conversation {} for user {} from {} to {}", 
+        log.info("Reordered pinned conversation {} for user {} from {} to {}",
                 conversationId, userId, oldPinOrder, newPinOrder);
     }
 
@@ -516,16 +517,16 @@ public class ConversationService {
             List<Long> participantIds = conversation.getParticipants().stream()
                     .map(p -> p.getUser().getId())
                     .collect(Collectors.toList());
-            
+
             participantRepository.delete(participant);
-            
+
             // Broadcast conversation deleted event
             conversationBroadcastService.broadcastConversationDeleted(
-                    conversationId, 
-                    participantIds, 
+                    conversationId,
+                    participantIds,
                     "Last member left the group"
             );
-            
+
             // TODO: Add conversationRepository.delete() method or use EntityManager.remove()
             return;
         }
@@ -619,20 +620,20 @@ public class ConversationService {
         // Create ONE system message for all added members
         if (!newlyAddedUserIds.isEmpty()) {
             systemMessageService.createUserAddedMessage(conversationId, newlyAddedUserIds, userId);
-            
+
             // Broadcast members added event
             List<User> addedUsersList = addedMembers.stream()
                     .map(m -> userRepository.findById(m.getUserId()).orElse(null))
                     .filter(u -> u != null)
                     .collect(Collectors.toList());
-            
+
             User actionByUser = userRepository.findById(userId)
                     .orElseThrow(() -> BusinessException.notFound("User not found"));
-            
+
             conversationBroadcastService.broadcastMembersAdded(
-                    conversation, 
-                    addedUsersList, 
-                    userId, 
+                    conversation,
+                    addedUsersList,
+                    userId,
                     actionByUser.getUsername()
             );
         }
@@ -674,11 +675,11 @@ public class ConversationService {
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
         User actionByUser = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
-        
+
         conversationBroadcastService.broadcastMemberRemoved(
-                conversation, 
-                removedUser, 
-                userId, 
+                conversation,
+                removedUser,
+                userId,
                 actionByUser.getUsername()
         );
 
@@ -717,13 +718,13 @@ public class ConversationService {
         User targetUser = participant.getUser();
         User actionByUser = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
-        
+
         conversationBroadcastService.broadcastRoleUpdated(
-                conversation, 
-                targetUser, 
-                oldRole.name(), 
-                newRole.name(), 
-                userId, 
+                conversation,
+                targetUser,
+                oldRole.name(),
+                newRole.name(),
+                userId,
                 actionByUser.getUsername()
         );
 
