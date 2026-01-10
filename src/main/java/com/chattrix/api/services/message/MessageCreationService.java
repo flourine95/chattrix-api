@@ -101,6 +101,10 @@ public class MessageCreationService {
             ConversationParticipant participant = conversation.getParticipant(senderId).orElse(null);
             if (participant != null && participant.isCurrentlyMuted())
                 throw BusinessException.forbidden("You are muted in this conversation");
+            
+            // Check send_messages permission
+            if (!groupPermissionsService.hasPermission(conversationId, senderId, "send_messages"))
+                throw BusinessException.forbidden("You don't have permission to send messages in this group");
         }
 
         User sender = userRepository.findById(senderId)

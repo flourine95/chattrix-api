@@ -4,9 +4,11 @@ import com.chattrix.api.filters.Secured;
 import com.chattrix.api.requests.CreateConversationRequest;
 import com.chattrix.api.requests.ReorderPinRequest;
 import com.chattrix.api.requests.UpdateConversationRequest;
+import com.chattrix.api.requests.UpdateGroupPermissionsRequest;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.security.UserContext;
 import com.chattrix.api.services.conversation.ConversationService;
+import com.chattrix.api.services.conversation.GroupPermissionsService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -23,6 +25,8 @@ public class ConversationResource {
     private ConversationService conversationService;
     @Inject
     private UserContext userContext;
+    @Inject
+    private GroupPermissionsService groupPermissionsService;
 
     @POST
     public Response createConversation(@Valid CreateConversationRequest request) {
@@ -121,5 +125,26 @@ public class ConversationResource {
                 request.getNewPinOrder()
         );
         return Response.ok(ApiResponse.success(null, "Conversation reordered successfully")).build();
+    }
+
+    // Group Permissions
+    @GET
+    @Path("/{conversationId}/permissions")
+    public Response getGroupPermissions(@PathParam("conversationId") Long conversationId) {
+        var res = groupPermissionsService.getGroupPermissions(userContext.getCurrentUserId(), conversationId);
+        return Response.ok(ApiResponse.success(res, "Permissions retrieved successfully")).build();
+    }
+
+    @PUT
+    @Path("/{conversationId}/permissions")
+    public Response updateGroupPermissions(
+            @PathParam("conversationId") Long conversationId,
+            @Valid UpdateGroupPermissionsRequest request) {
+        var res = groupPermissionsService.updateGroupPermissions(
+                userContext.getCurrentUserId(), 
+                conversationId, 
+                request
+        );
+        return Response.ok(ApiResponse.success(res, "Permissions updated successfully")).build();
     }
 }

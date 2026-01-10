@@ -222,9 +222,7 @@ public class ConversationService {
         Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
-        validateGroupAdmin(conversationId, userId);
-
-        // Check permission
+        // Check permission (this handles both admin and ALL permission cases)
         if (!groupPermissionsService.hasPermission(conversationId, userId, "edit_group_info")) {
             throw BusinessException.forbidden("You don't have permission to edit group info");
         }
