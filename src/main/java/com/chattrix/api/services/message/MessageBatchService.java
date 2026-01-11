@@ -161,7 +161,7 @@ public class MessageBatchService {
         // Store in buffer
         messageBuffer.put(tempId, bufferedMessage);
 
-        log.info("Message buffered with temp ID: {}. Buffer size: {}",
+        log.debug("Message buffered with temp ID: {}. Buffer size: {}",
                 tempId, messageBuffer.estimatedSize());
 
         // Check if buffer reached threshold, flush immediately

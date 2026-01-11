@@ -198,7 +198,7 @@ public class MessageCreationService {
         Set<Long> participantIds = conversation.getParticipantIds();
         cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
-        log.info("Message created successfully: messageId={}, conversationId={}, senderId={}", 
+        log.debug("Message created successfully: messageId={}, conversationId={}, senderId={}", 
                 message.getId(), conversationId, senderId);
 
         return response;
