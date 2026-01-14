@@ -25,6 +25,12 @@ public abstract class WebSocketMapper {
     @Mapping(target = "locationName", expression = "java(extractMetadataString(message, \"locationName\"))")
     public abstract OutgoingMessageDto toOutgoingMessageResponse(Message message);
 
+    @Mapping(target = "senderId", source = "sender.id")
+    @Mapping(target = "senderUsername", source = "sender.username")
+    @Mapping(target = "senderFullName", source = "sender.fullName")
+    @Mapping(target = "type", expression = "java(message.getType().name())")
+    public abstract com.chattrix.api.responses.ReplyMessageResponse toReplyMessageResponse(Message message);
+
     @Mapping(target = "userId", source = "id")
     public abstract TypingUserDto toTypingUserResponse(User user);
 

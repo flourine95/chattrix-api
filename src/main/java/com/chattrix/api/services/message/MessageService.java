@@ -151,6 +151,24 @@ public class MessageService {
 
         if (request.metadata() != null)
             message.setMetadata(new HashMap<>(request.metadata()));
+        
+        message.setMentions(request.mentions());
+        
+        // Set reply to message if provided
+        if (request.replyToMessageId() != null && response.getReplyToMessage() != null) {
+            Message replyToMessage = new Message();
+            replyToMessage.setId(response.getReplyToMessage().getId());
+            replyToMessage.setContent(response.getReplyToMessage().getContent());
+            replyToMessage.setType(MessageType.valueOf(response.getReplyToMessage().getType()));
+            
+            User replySender = new User();
+            replySender.setId(response.getReplyToMessage().getSenderId());
+            replySender.setUsername(response.getReplyToMessage().getSenderUsername());
+            replySender.setFullName(response.getReplyToMessage().getSenderFullName());
+            replyToMessage.setSender(replySender);
+            
+            message.setReplyToMessage(replyToMessage);
+        }
 
         messageCreationService.broadcastMessage(message, conversation);
         

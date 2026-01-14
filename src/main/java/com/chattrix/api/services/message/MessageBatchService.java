@@ -4,6 +4,7 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.services.cache.MessageCache;
+import com.chattrix.api.services.cache.MessageIdMappingCache;
 import com.chattrix.api.services.cache.UnreadCountCache;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
@@ -52,6 +53,9 @@ public class MessageBatchService {
 
     @Inject
     private ChatSessionService chatSessionService;
+
+    @Inject
+    private MessageIdMappingCache idMappingCache;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -155,7 +159,15 @@ public class MessageBatchService {
         // Set entity references (these will be managed entities when flushed)
         bufferedMessage.setSender(message.getSender());
         bufferedMessage.setConversation(message.getConversation());
-        bufferedMessage.setReplyToMessage(message.getReplyToMessage());
+
+        // DON'T set replyToMessage entity - it will be loaded during flush from metadata
+        // This prevents OptimisticLockException when flushing
+        if (message.getReplyToMessage() != null) {
+            // Store replyToMessageId in metadata instead
+            bufferedMessage.getMetadata().put("_replyToMessageId", message.getReplyToMessage().getId());
+            log.debug("Stored replyToMessageId {} in buffered message metadata", message.getReplyToMessage().getId());
+        }
+
         bufferedMessage.setOriginalMessage(message.getOriginalMessage());
 
         // Store in buffer
@@ -183,6 +195,23 @@ public class MessageBatchService {
         }
 
         return tempId;
+    }
+
+    /**
+     * Get buffered message by temporary ID
+     * Used for reply validation when message hasn't been flushed yet
+     */
+    public Message getBufferedMessage(Long tempId) {
+        if (tempId >= 0) {
+            log.warn("Attempted to get buffered message with non-temporary ID: {}", tempId);
+            return null;
+        }
+
+        Message message = messageBuffer.getIfPresent(tempId);
+        if (message != null) {
+            log.debug("Retrieved buffered message with temp ID: {}", tempId);
+        }
+        return message;
     }
 
     /**
@@ -228,9 +257,10 @@ public class MessageBatchService {
                 if (message.getConversation() != null) {
                     managedMessage.setConversation(entityManager.merge(message.getConversation()));
                 }
-                if (message.getReplyToMessage() != null) {
-                    managedMessage.setReplyToMessage(entityManager.merge(message.getReplyToMessage()));
-                }
+
+                // DON'T set replyToMessage here - will be resolved after building temp ID map
+                // This prevents issues when reply and original message are in same batch
+
                 if (message.getOriginalMessage() != null) {
                     managedMessage.setOriginalMessage(entityManager.merge(message.getOriginalMessage()));
                 }
@@ -238,10 +268,62 @@ public class MessageBatchService {
                 managedMessages.add(managedMessage);
             }
 
-            // 2. Batch insert to DB
+            // 2. Build temp ID → real ID mapping BEFORE saving
+            // This is needed to resolve reply relationships within the same batch
+            Map<Long, Message> tempIdToManagedMessage = new HashMap<>();
+            for (int i = 0; i < messagesToFlush.size(); i++) {
+                Message original = messagesToFlush.get(i);
+                Message managed = managedMessages.get(i);
+                tempIdToManagedMessage.put(original.getId(), managed);
+            }
+
+            // 3. Resolve reply relationships within the batch
+            for (Message managedMessage : managedMessages) {
+                if (managedMessage.getMetadata() != null &&
+                        managedMessage.getMetadata().containsKey("_replyToMessageId")) {
+
+                    Long replyToMessageId = ((Number) managedMessage.getMetadata().get("_replyToMessageId")).longValue();
+                    log.debug("Resolving replyToMessage with ID {} for message", replyToMessageId);
+
+                    // Check if replyToMessage is in the same batch (temp ID)
+                    if (replyToMessageId < 0 && tempIdToManagedMessage.containsKey(replyToMessageId)) {
+                        Message replyToMessage = tempIdToManagedMessage.get(replyToMessageId);
+                        managedMessage.setReplyToMessage(replyToMessage);
+                        log.debug("Resolved replyToMessage from same batch: temp ID {}", replyToMessageId);
+                    }
+                    // Check if it was already flushed (check mapping cache)
+                    else if (replyToMessageId < 0) {
+                        Long realId = idMappingCache.getRealId(managedMessage.getConversation().getId(), replyToMessageId);
+                        if (realId != null) {
+                            Message replyToMessage = entityManager.find(Message.class, realId);
+                            if (replyToMessage != null) {
+                                managedMessage.setReplyToMessage(replyToMessage);
+                                log.debug("Resolved replyToMessage from mapping cache: {} → {}", replyToMessageId, realId);
+                            }
+                        } else {
+                            log.warn("ReplyToMessage with temp ID {} not found in batch or mapping cache", replyToMessageId);
+                        }
+                    }
+                    // Real ID - load from DB
+                    else if (replyToMessageId > 0) {
+                        Message replyToMessage = entityManager.find(Message.class, replyToMessageId);
+                        if (replyToMessage != null) {
+                            managedMessage.setReplyToMessage(replyToMessage);
+                            log.debug("Loaded replyToMessage from DB with ID {}", replyToMessageId);
+                        } else {
+                            log.warn("ReplyToMessage with ID {} not found in DB", replyToMessageId);
+                        }
+                    }
+
+                    // Clean up metadata
+                    managedMessage.getMetadata().remove("_replyToMessageId");
+                }
+            }
+
+            // 4. Batch insert to DB
             List<Message> savedMessages = messageRepository.saveAll(managedMessages);
 
-            // 3. Build temp ID → real ID mapping
+            // 5. Build temp ID → real ID mapping
             Map<Long, MessageIdMapping> idMappings = new HashMap<>();
             for (int i = 0; i < messagesToFlush.size(); i++) {
                 Message original = messagesToFlush.get(i);
@@ -254,25 +336,32 @@ public class MessageBatchService {
                 ));
             }
 
-            // 4. Update cache: temp ID → real ID
+            // 6. Update cache: temp ID → real ID
             for (MessageIdMapping mapping : idMappings.values()) {
                 messageCache.updateMessageId(
                         mapping.conversationId,
                         mapping.tempId,
                         mapping.realId
                 );
+
+                // Store ID mapping for future lookups
+                idMappingCache.addMapping(
+                        mapping.conversationId,
+                        mapping.tempId,
+                        mapping.realId
+                );
             }
 
-            // 5. Update conversation.lastMessage for each conversation
+            // 7. Update conversation.lastMessage for each conversation
             updateConversationLastMessages(savedMessages);
 
-            // 6. Batch update unread counts (prevents deadlock)
+            // 8. Batch update unread counts (prevents deadlock)
             batchUpdateUnreadCounts(savedMessages);
 
-            // 7. Broadcast ID updates via WebSocket
+            // 9. Broadcast ID updates via WebSocket
             broadcastIdUpdates(idMappings);
 
-            // 8. Clear buffer for successfully saved messages
+            // 10. Clear buffer for successfully saved messages
             for (Long tempId : idMappings.keySet())
                 messageBuffer.invalidate(tempId);
 

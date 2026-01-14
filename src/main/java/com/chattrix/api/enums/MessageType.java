@@ -6,6 +6,7 @@ public enum MessageType {
     VIDEO,
     AUDIO,      // Dùng chung cho cả Voice và Music tệp tin
     FILE,       // Thay cho DOCUMENT để bao quát hơn (pdf, docx, zip...)
+    LINK,       // Tin nhắn chứa URL/link (với link preview)
     STICKER,    // Tin nhắn nhãn dán
     LOCATION,   // Chia sẻ vị trí
 

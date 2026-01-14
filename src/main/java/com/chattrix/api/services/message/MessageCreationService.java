@@ -54,6 +54,8 @@ public class MessageCreationService {
     @Inject
     private MessageCache messageCache;
     @Inject
+    private com.chattrix.api.services.cache.ConversationCache conversationCache;
+    @Inject
     private CacheManager cacheManager;
     @Inject
     private MessageBatchService messageBatchService;
@@ -61,6 +63,8 @@ public class MessageCreationService {
     private ChatSessionService chatSessionService;
     @Inject
     private GroupPermissionsService groupPermissionsService;
+    @Inject
+    private com.chattrix.api.services.cache.MessageIdMappingCache idMappingCache;
 
     /**
      * Create and send a message (used by both REST and WebSocket)
@@ -113,11 +117,79 @@ public class MessageCreationService {
         // 2. Validate reply to message if provided
         Message replyToMessage = null;
         if (replyToMessageId != null) {
-            replyToMessage = messageRepository.findByIdSimple(replyToMessageId)
-                    .orElseThrow(() -> BusinessException.notFound("Reply to message not found"));
+            log.debug("Validating reply to message ID: {}", replyToMessageId);
+            
+            // Check if it's a temporary ID (negative) - look in cache first
+            if (replyToMessageId < 0) {
+                // Step 1: Check if temp ID has been mapped to real ID
+                Long realId = idMappingCache.getRealId(conversationId, replyToMessageId);
+                if (realId != null) {
+                    log.debug("Found ID mapping: temp {} -> real {}", replyToMessageId, realId);
+                    // Use the real ID to fetch from database
+                    replyToMessage = messageRepository.findByIdSimple(realId)
+                            .orElse(null);
+                    
+                    if (replyToMessage != null) {
+                        log.debug("Successfully loaded reply message from DB using mapped ID: {}", realId);
+                    }
+                }
+                
+                // Step 2: If not mapped yet, check in unflushed cache (O(1) lookup)
+                if (replyToMessage == null) {
+                    MessageResponse cachedReply = messageCache.getUnflushedById(conversationId, replyToMessageId);
+                    
+                    if (cachedReply != null) {
+                        // Create a temporary Message entity from cached response
+                        replyToMessage = new Message();
+                        replyToMessage.setId(cachedReply.getId());
+                        replyToMessage.setContent(cachedReply.getContent());
+                        replyToMessage.setType(MessageType.valueOf(cachedReply.getType()));
+                        replyToMessage.setConversation(conversation);
+                        replyToMessage.setCreatedAt(cachedReply.getCreatedAt());
+                        
+                        // Set sender from cached response
+                        User replySender = userRepository.findById(cachedReply.getSenderId())
+                                .orElse(sender); // Fallback to current sender if not found
+                        replyToMessage.setSender(replySender);
+                        
+                        log.debug("Found reply message in cache with temp ID: {}", replyToMessageId);
+                    } else {
+                        log.warn("Reply message with temp ID {} not found in unflushed cache", replyToMessageId);
+                    }
+                }
+                
+                // Step 3: If still not found, check in message buffer (last resort)
+                if (replyToMessage == null) {
+                    log.debug("Checking message buffer for temp ID: {}", replyToMessageId);
+                    Message bufferedMessage = messageBatchService.getBufferedMessage(replyToMessageId);
+                    if (bufferedMessage != null) {
+                        // Create a detached copy to avoid OptimisticLockException
+                        // Don't use the buffered entity directly as it may cause conflicts during flush
+                        replyToMessage = new Message();
+                        replyToMessage.setId(bufferedMessage.getId());
+                        replyToMessage.setContent(bufferedMessage.getContent());
+                        replyToMessage.setType(bufferedMessage.getType());
+                        replyToMessage.setConversation(bufferedMessage.getConversation());
+                        replyToMessage.setCreatedAt(bufferedMessage.getCreatedAt());
+                        replyToMessage.setSender(bufferedMessage.getSender());
+                        
+                        log.debug("Found reply message in buffer with temp ID: {} (created detached copy)", replyToMessageId);
+                    }
+                }
+                
+                // Step 4: If still not found, throw error
+                if (replyToMessage == null) {
+                    log.error("Reply message with temp ID {} not found in cache, mappings, or buffer", replyToMessageId);
+                    throw BusinessException.notFound("Reply to message not found - message may have been deleted");
+                }
+            } else {
+                // For real IDs, look in database
+                replyToMessage = messageRepository.findByIdSimple(replyToMessageId)
+                        .orElseThrow(() -> BusinessException.notFound("Reply to message not found"));
 
-            if (!replyToMessage.getConversation().getId().equals(conversationId))
-                throw BusinessException.badRequest("Cannot reply to message from different conversation");
+                if (!replyToMessage.getConversation().getId().equals(conversationId))
+                    throw BusinessException.badRequest("Cannot reply to message from different conversation");
+            }
         }
 
         // 3. Validate mentions if provided
@@ -136,7 +208,7 @@ public class MessageCreationService {
         message.setConversation(conversation);
         message.setSentAt(Instant.now());
 
-        // Set message type
+        // Set message type with auto-detection
         MessageType messageType = MessageType.TEXT;
         if (type != null) {
             try {
@@ -145,6 +217,13 @@ public class MessageCreationService {
                 log.warn("Invalid message type: {}, defaulting to TEXT", type);
             }
         }
+        
+        // Auto-detect type from metadata and content if not explicitly set or set as TEXT
+        if ((type == null || messageType == MessageType.TEXT) && (metadata != null || content != null)) {
+            messageType = detectMessageType(metadata, content);
+            log.debug("Auto-detected message type: {}", messageType);
+        }
+        
         message.setType(messageType);
 
         // Set metadata
@@ -153,7 +232,16 @@ public class MessageCreationService {
         else
             message.setMetadata(new HashMap<>());
 
-        message.setReplyToMessage(replyToMessage);
+        // For write-behind: Don't set replyToMessage entity (causes OptimisticLockException)
+        // Instead, store replyToMessageId in metadata and set entity during flush
+        if (useWriteBehind && replyToMessage != null) {
+            message.getMetadata().put("_replyToMessageId", replyToMessage.getId());
+            log.debug("Stored replyToMessageId {} in metadata for write-behind", replyToMessage.getId());
+        } else {
+            // For direct save: Set entity normally
+            message.setReplyToMessage(replyToMessage);
+        }
+        
         message.setMentions(mentions);
 
         // 5. Save message (Write-Behind or Direct)
@@ -170,10 +258,20 @@ public class MessageCreationService {
 
         // 6. Map to response
         MessageResponse response = messageMapper.toResponse(message);
+        
+        // For write-behind: Manually set reply data from metadata (since entity wasn't set)
+        if (useWriteBehind && replyToMessage != null) {
+            response.setReplyToMessageId(replyToMessage.getId());
+            // Map replyToMessage entity to ReplyMessageResponse
+            response.setReplyToMessage(messageMapper.toReplyMessageResponse(replyToMessage));
+            log.debug("Manually set replyToMessage data in response for write-behind");
+        }
 
         // 7. Update cache
         if (useWriteBehind) {
+            log.debug("Adding message {} to unflushed cache for conversation {}", message.getId(), conversationId);
             messageCache.addUnflushed(conversationId, response);
+            log.debug("Message {} added to unflushed cache successfully", message.getId());
         } else {
             messageCache.invalidate(conversationId);
         }
@@ -194,9 +292,11 @@ public class MessageCreationService {
             }
         });
 
-        // 10. Invalidate caches
+        // 10. Invalidate caches (but NOT message cache for write-behind)
         Set<Long> participantIds = conversation.getParticipantIds();
-        cacheManager.invalidateConversationCaches(conversationId, participantIds);
+        conversationCache.invalidateForAllParticipants(conversationId, participantIds);
+        // Note: messageCache is NOT invalidated for write-behind pattern
+        // Messages are in unflushed cache and will be synced after flush
 
         log.debug("Message created successfully: messageId={}, conversationId={}, senderId={}", 
                 message.getId(), conversationId, senderId);
@@ -309,5 +409,133 @@ public class MessageCreationService {
                     new WebSocketMessage<>(WebSocketEventType.MESSAGE_MENTION, mentionEvent);
             chatSessionService.sendMessageToUser(mentionedUserId, mentionMessage);
         }
+    }
+    
+    /**
+     * Auto-detect message type from metadata and content
+     * Handles all MessageType enum values with proper priority
+     * 
+     * Priority order:
+     * 1. POLL - has poll data
+     * 2. EVENT - has event data
+     * 3. LOCATION - has coordinates
+     * 4. AUDIO - has duration + mediaUrl
+     * 5. STICKER - has sticker data
+     * 6. Media types - detect from mediaUrl extension
+     * 7. FILE - has mediaUrl but unknown type
+     * 8. LINK - has URL in content or linkPreview in metadata
+     * 9. TEXT - default
+     * 
+     * Note: CALL, SYSTEM, ANNOUNCEMENT should be set explicitly by backend
+     */
+    private MessageType detectMessageType(Map<String, Object> metadata, String content) {
+        if (metadata == null) {
+            metadata = new HashMap<>();
+        }
+        
+        // Priority 1: POLL (has poll data)
+        if (metadata.containsKey("poll") || metadata.containsKey("pollId") || 
+            metadata.containsKey("options") || metadata.containsKey("pollQuestion")) {
+            log.debug("Detected POLL type from poll data");
+            return MessageType.POLL;
+        }
+        
+        // Priority 2: EVENT (has event data)
+        if (metadata.containsKey("event") || metadata.containsKey("eventId") ||
+            metadata.containsKey("eventTitle") || metadata.containsKey("eventDate")) {
+            log.debug("Detected EVENT type from event data");
+            return MessageType.EVENT;
+        }
+        
+        // Priority 3: LOCATION (has coordinates)
+        if (metadata.containsKey("latitude") && metadata.containsKey("longitude")) {
+            log.debug("Detected LOCATION type from coordinates");
+            return MessageType.LOCATION;
+        }
+        
+        // Priority 4: AUDIO (has duration + mediaUrl - voice/audio messages)
+        if (metadata.containsKey("duration") && metadata.containsKey("mediaUrl")) {
+            log.debug("Detected AUDIO type from duration + mediaUrl");
+            return MessageType.AUDIO;
+        }
+        
+        // Priority 5: STICKER (has sticker data)
+        if (metadata.containsKey("stickerId") || metadata.containsKey("stickerUrl") ||
+            metadata.containsKey("stickerPackId")) {
+            log.debug("Detected STICKER type from sticker data");
+            return MessageType.STICKER;
+        }
+        
+        // Priority 6: Detect from mediaUrl extension
+        if (metadata.containsKey("mediaUrl")) {
+            String mediaUrl = metadata.get("mediaUrl").toString().toLowerCase();
+            
+            // Audio extensions (music files, voice recordings)
+            if (mediaUrl.contains(".mp3") || mediaUrl.contains(".m4a") || 
+                mediaUrl.contains(".wav") || mediaUrl.contains(".aac") ||
+                mediaUrl.contains(".ogg") || mediaUrl.contains(".flac") ||
+                mediaUrl.contains(".wma") || mediaUrl.contains("/audio/")) {
+                log.debug("Detected AUDIO type from mediaUrl extension");
+                return MessageType.AUDIO;
+            }
+            
+            // Video extensions
+            if (mediaUrl.contains(".mp4") || mediaUrl.contains(".mov") || 
+                mediaUrl.contains(".avi") || mediaUrl.contains(".mkv") ||
+                mediaUrl.contains(".webm") || mediaUrl.contains(".flv") ||
+                mediaUrl.contains(".wmv") || mediaUrl.contains("/video/")) {
+                log.debug("Detected VIDEO type from mediaUrl extension");
+                return MessageType.VIDEO;
+            }
+            
+            // Image extensions
+            if (mediaUrl.contains(".jpg") || mediaUrl.contains(".jpeg") || 
+                mediaUrl.contains(".png") || mediaUrl.contains(".gif") ||
+                mediaUrl.contains(".webp") || mediaUrl.contains(".bmp") ||
+                mediaUrl.contains(".svg") || mediaUrl.contains("/image/")) {
+                log.debug("Detected IMAGE type from mediaUrl extension");
+                return MessageType.IMAGE;
+            }
+            
+            // Document/File extensions
+            if (mediaUrl.contains(".pdf") || mediaUrl.contains(".doc") || 
+                mediaUrl.contains(".docx") || mediaUrl.contains(".xls") ||
+                mediaUrl.contains(".xlsx") || mediaUrl.contains(".ppt") ||
+                mediaUrl.contains(".pptx") || mediaUrl.contains(".txt") ||
+                mediaUrl.contains(".zip") || mediaUrl.contains(".rar") ||
+                mediaUrl.contains(".7z") || mediaUrl.contains("/file/") ||
+                mediaUrl.contains("/document/")) {
+                log.debug("Detected FILE type from document extension");
+                return MessageType.FILE;
+            }
+            
+            // Generic file (has mediaUrl but unknown extension)
+            log.debug("Detected FILE type from mediaUrl (unknown extension)");
+            return MessageType.FILE;
+        }
+        
+        // Priority 7: LINK (has linkPreview in metadata or URL in content)
+        if (metadata.containsKey("linkPreview") || metadata.containsKey("url") ||
+            (content != null && containsUrl(content))) {
+            log.debug("Detected LINK type from URL in content or linkPreview");
+            return MessageType.LINK;
+        }
+        
+        // Default to TEXT
+        return MessageType.TEXT;
+    }
+    
+    /**
+     * Check if content contains URL
+     * Simple regex to detect http/https URLs
+     */
+    private boolean containsUrl(String content) {
+        if (content == null || content.isEmpty()) {
+            return false;
+        }
+        
+        // Simple URL pattern: http(s)://... or www....
+        String urlPattern = "(?i)\\b(https?://|www\\.)\\S+";
+        return content.matches(".*" + urlPattern + ".*");
     }
 }

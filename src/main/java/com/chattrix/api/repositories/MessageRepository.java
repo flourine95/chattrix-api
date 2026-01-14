@@ -318,6 +318,22 @@ public class MessageRepository {
         }
     }
 
+    public Optional<Long> findLatestMessageId(Long conversationId) {
+        try {
+            Long messageId = em.createQuery(
+                            "SELECT m.id FROM Message m " +
+                                    "WHERE m.conversation.id = :conversationId " +
+                                    "ORDER BY m.sentAt DESC",
+                            Long.class)
+                    .setParameter("conversationId", conversationId)
+                    .setMaxResults(1)
+                    .getSingleResult();
+            return Optional.of(messageId);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
     /**
      * Find messages that are replies to a specific note
      */
@@ -492,42 +508,20 @@ public class MessageRepository {
     }
     
     // Pinned messages methods
+    /**
+     * Find pinned messages - Returns entities for MapStruct mapping
+     */
     public List<Message> findPinnedMessages(Long conversationId) {
         return em.createQuery(
                 "SELECT m FROM Message m " +
                 "LEFT JOIN FETCH m.sender " +
+                "LEFT JOIN FETCH m.conversation " +
+                "LEFT JOIN FETCH m.replyToMessage " +
                 "LEFT JOIN FETCH m.pinnedBy " +
                 "WHERE m.conversation.id = :conversationId " +
                 "AND m.pinned = true " +
                 "ORDER BY m.pinnedAt DESC",
                 Message.class
-        )
-        .setParameter("conversationId", conversationId)
-        .getResultList();
-    }
-
-    /**
-     * Find pinned messages - DTO Projection (optimized)
-     * Returns MessageResponse directly without entity mapping
-     */
-    public List<com.chattrix.api.responses.MessageResponse> findPinnedMessagesAsDTO(Long conversationId) {
-        return em.createQuery(
-                "SELECT new com.chattrix.api.responses.MessageResponse(" +
-                "  m.id, m.conversation.id, m.sender.id, m.sender.username, m.sender.fullName, m.sender.avatarUrl, " +
-                "  m.content, m.type, m.metadata, " +
-                "  CASE WHEN m.replyToMessage IS NOT NULL THEN m.replyToMessage.id ELSE null END, null, " +
-                "  m.reactions, m.mentions, m.sentAt, m.createdAt, m.updatedAt, " +
-                "  m.edited, m.editedAt, m.deleted, m.deletedAt, m.forwarded, " +
-                "  CASE WHEN m.originalMessage IS NOT NULL THEN m.originalMessage.id ELSE null END, m.forwardCount, m.pinned, m.pinnedAt, " +
-                "  m.pinnedBy.id, m.pinnedBy.username, m.pinnedBy.fullName, " +
-                "  null, null, " +
-                "  m.scheduled, m.scheduledTime, m.scheduledStatus" +
-                ") " +
-                "FROM Message m " +
-                "WHERE m.conversation.id = :conversationId " +
-                "AND m.pinned = true " +
-                "ORDER BY m.pinnedAt DESC",
-                com.chattrix.api.responses.MessageResponse.class
         )
         .setParameter("conversationId", conversationId)
         .getResultList();

@@ -174,8 +174,11 @@ public class PinnedMessageService {
             throw BusinessException.forbidden("You are not a participant of this conversation");
         }
         
-        // Query DTO directly - no mapping needed
-        return messageRepository.findPinnedMessagesAsDTO(conversationId);
+        // Query entities and map with MapStruct
+        List<Message> messages = messageRepository.findPinnedMessages(conversationId);
+        return messages.stream()
+                .map(messageMapper::toResponse)
+                .toList();
     }
     
     private void sendPinNotification(Long conversationId, String eventType, MessageResponse messageResponse) {

@@ -47,8 +47,8 @@ public class MessageHandler {
         if (dto.getLongitude() != null) metadata.put("longitude", dto.getLongitude());
         if (dto.getLocationName() != null) metadata.put("locationName", dto.getLocationName());
 
-        // Use centralized MessageCreationService WITHOUT Write-Behind
-        // WebSocket needs immediate DB insert for real-time consistency
+        // Use centralized MessageCreationService WITH Write-Behind
+        // Write-Behind improves performance by batching database writes
         MessageResponse response = messageCreationService.createMessage(
                 senderId,
                 dto.getConversationId(),
@@ -57,7 +57,7 @@ public class MessageHandler {
                 metadata.isEmpty() ? null : metadata,
                 dto.getReplyToMessageId(),
                 dto.getMentions(),
-                false  // Direct DB insert for WebSocket (no Write-Behind)
+                true  // Enable Write-Behind for better performance
         );
 
         // Broadcast outside transaction
@@ -67,9 +67,9 @@ public class MessageHandler {
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> BusinessException.notFound("User not found"));
         
-        // Reconstruct message entity for broadcasting
+        // Reconstruct message entity for broadcasting (with temp ID)
         Message message = new Message();
-        message.setId(response.getId());
+        message.setId(response.getId());  // This is temp ID (negative) when Write-Behind enabled
         message.setContent(response.getContent());
         message.setSentAt(response.getSentAt());
         message.setType(MessageType.valueOf(response.getType()));
@@ -78,8 +78,28 @@ public class MessageHandler {
         message.setMetadata(metadata);
         message.setMentions(dto.getMentions());
         
+        // Set reply to message if provided
+        if (dto.getReplyToMessageId() != null && response.getReplyToMessage() != null) {
+            Message replyToMessage = new Message();
+            replyToMessage.setId(response.getReplyToMessage().getId());
+            replyToMessage.setContent(response.getReplyToMessage().getContent());
+            replyToMessage.setType(MessageType.valueOf(response.getReplyToMessage().getType()));
+            
+            User replySender = new User();
+            replySender.setId(response.getReplyToMessage().getSenderId());
+            replySender.setUsername(response.getReplyToMessage().getSenderUsername());
+            replySender.setFullName(response.getReplyToMessage().getSenderFullName());
+            replyToMessage.setSender(replySender);
+            
+            message.setReplyToMessage(replyToMessage);
+        }
+        
         messageCreationService.broadcastMessage(message, conversation);
-        messageCreationService.broadcastConversationUpdate(conversation);
+        
+        // Broadcast conversation update with temp lastMessage immediately
+        // This allows clients to see lastMessage right away (with temp ID)
+        // Will be updated again after flush with real ID
+        messageCreationService.broadcastConversationUpdateWithTempMessage(conversation, message);
         
         if (dto.getMentions() != null && !dto.getMentions().isEmpty()) {
             messageCreationService.sendMentionNotifications(message, dto.getMentions());

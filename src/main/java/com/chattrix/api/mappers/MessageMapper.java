@@ -15,6 +15,7 @@ public interface MessageMapper {
     @Mapping(target = "senderAvatarUrl", source = "sender.avatarUrl")
     @Mapping(target = "type", expression = "java(message.getType().name())")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
+    @Mapping(target = "replyToMessage", source = "replyToMessage")
     @Mapping(target = "originalMessageId", source = "originalMessage.id")
     @Mapping(target = "pinnedBy", source = "pinnedBy.id")
     @Mapping(target = "pinnedByUsername", source = "pinnedBy.username")
@@ -23,6 +24,12 @@ public interface MessageMapper {
     @Mapping(target = "readCount", ignore = true)
     @Mapping(target = "readBy", ignore = true)
     MessageResponse toResponse(Message message);
+    
+    @Mapping(target = "senderId", source = "sender.id")
+    @Mapping(target = "senderUsername", source = "sender.username")
+    @Mapping(target = "senderFullName", source = "sender.fullName")
+    @Mapping(target = "type", expression = "java(message.getType().name())")
+    com.chattrix.api.responses.ReplyMessageResponse toReplyMessageResponse(Message message);
     
     /**
      * Helper method to map User fields with a prefix.
