@@ -175,6 +175,34 @@ public class MessageRepository {
                 .getResultList();
     }
 
+    public List<Message> findByConversationAndType(Long conversationId, MessageType type, int limit) {
+        return em.createQuery(
+                        "SELECT m FROM Message m LEFT JOIN FETCH m.sender " +
+                                "WHERE m.conversation.id = :conversationId AND m.type = :type " +
+                                "ORDER BY m.id DESC",
+                        Message.class
+                )
+                .setParameter("conversationId", conversationId)
+                .setParameter("type", type)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    public List<Message> findByConversationAndTypeWithCursor(Long conversationId, MessageType type, Long cursor, int limit) {
+        return em.createQuery(
+                        "SELECT m FROM Message m LEFT JOIN FETCH m.sender " +
+                                "WHERE m.conversation.id = :conversationId AND m.type = :type " +
+                                "AND m.id < :cursor " +
+                                "ORDER BY m.id DESC",
+                        Message.class
+                )
+                .setParameter("conversationId", conversationId)
+                .setParameter("type", type)
+                .setParameter("cursor", cursor)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
     // ==================== CHAT INFO METHODS ====================
 
     /**

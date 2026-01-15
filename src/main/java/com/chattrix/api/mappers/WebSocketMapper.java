@@ -13,6 +13,7 @@ public abstract class WebSocketMapper {
     @Mapping(target = "conversationId", source = "conversation.id")
     @Mapping(target = "sender", source = "sender")
     @Mapping(target = "type", expression = "java(message.getType().name())")
+    @Mapping(target = "metadata", source = "metadata")
     @Mapping(target = "replyToMessageId", source = "replyToMessage.id")
     @Mapping(target = "replyToMessage", source = "replyToMessage")
     @Mapping(target = "mediaUrl", expression = "java(extractMetadataString(message, \"mediaUrl\"))")

@@ -19,14 +19,17 @@ public class OutgoingMessageDto {
     private String type;
     private Instant createdAt;
 
-    // Rich media fields
+    // Metadata (contains poll, event, and other data)
+    private Map<String, Object> metadata;
+
+    // Rich media fields (deprecated - use metadata instead)
     private String mediaUrl;
     private String thumbnailUrl;
     private String fileName;
     private Long fileSize;
     private Integer duration;
 
-    // Location fields
+    // Location fields (deprecated - use metadata instead)
     private Double latitude;
     private Double longitude;
     private String locationName;

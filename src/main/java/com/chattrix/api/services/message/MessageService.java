@@ -409,11 +409,18 @@ public class MessageService {
         if (!Boolean.TRUE.equals(allowMultiple) && request.getOptionIds().size() > 1)
             throw BusinessException.badRequest("Multiple votes not allowed", "MULTIPLE_VOTES_NOT_ALLOWED");
 
-        // Remove user's previous votes
+        // Remove user's previous votes from ALL options
         for (Map<String, Object> option : options) {
             @SuppressWarnings("unchecked")
-            List<Long> votes = (List<Long>) option.get("votes");
-            votes.remove(userId);
+            List<Object> votes = (List<Object>) option.get("votes");
+            // Remove ALL occurrences of userId (in case of duplicates)
+            // Handle both Integer and Long types from JSON deserialization
+            votes.removeIf(id -> {
+                if (id instanceof Number) {
+                    return ((Number) id).longValue() == userId;
+                }
+                return false;
+            });
         }
 
         // Add new votes
@@ -421,9 +428,15 @@ public class MessageService {
             for (Map<String, Object> option : options) {
                 if (((Number) option.get("id")).longValue() == optionId) {
                     @SuppressWarnings("unchecked")
-                    List<Long> votes = (List<Long>) option.get("votes");
-                    if (!votes.contains(userId))
+                    List<Object> votes = (List<Object>) option.get("votes");
+                    // Check if userId already exists (handle both Integer and Long)
+                    boolean alreadyVoted = votes.stream()
+                            .anyMatch(id -> id instanceof Number && ((Number) id).longValue() == userId);
+                    
+                    if (!alreadyVoted) {
                         votes.add(userId);
+                    }
+                    break; // Found the option, no need to continue
                 }
             }
         }
@@ -508,27 +521,35 @@ public class MessageService {
             throw BusinessException.badRequest("Event data not found", "INVALID_EVENT");
 
         @SuppressWarnings("unchecked")
-        List<Long> going = (List<Long>) eventData.get("going");
+        List<Object> going = (List<Object>) eventData.get("going");
         @SuppressWarnings("unchecked")
-        List<Long> maybe = (List<Long>) eventData.get("maybe");
+        List<Object> maybe = (List<Object>) eventData.get("maybe");
         @SuppressWarnings("unchecked")
-        List<Long> notGoing = (List<Long>) eventData.get("notGoing");
+        List<Object> notGoing = (List<Object>) eventData.get("notGoing");
 
-        // Remove user from all lists
-        going.remove(userId);
-        maybe.remove(userId);
-        notGoing.remove(userId);
+        // Remove user from all lists (remove ALL occurrences in case of duplicates)
+        // Handle both Integer and Long types from JSON deserialization
+        going.removeIf(id -> id instanceof Number && ((Number) id).longValue() == userId);
+        maybe.removeIf(id -> id instanceof Number && ((Number) id).longValue() == userId);
+        notGoing.removeIf(id -> id instanceof Number && ((Number) id).longValue() == userId);
 
         // Add user to appropriate list
         switch (request.getStatus()) {
             case "GOING":
-                if (!going.contains(userId)) going.add(userId);
+                // Check if already exists
+                boolean alreadyGoing = going.stream()
+                        .anyMatch(id -> id instanceof Number && ((Number) id).longValue() == userId);
+                if (!alreadyGoing) going.add(userId);
                 break;
             case "MAYBE":
-                if (!maybe.contains(userId)) maybe.add(userId);
+                boolean alreadyMaybe = maybe.stream()
+                        .anyMatch(id -> id instanceof Number && ((Number) id).longValue() == userId);
+                if (!alreadyMaybe) maybe.add(userId);
                 break;
             case "NOT_GOING":
-                if (!notGoing.contains(userId)) notGoing.add(userId);
+                boolean alreadyNotGoing = notGoing.stream()
+                        .anyMatch(id -> id instanceof Number && ((Number) id).longValue() == userId);
+                if (!alreadyNotGoing) notGoing.add(userId);
                 break;
             default:
                 throw BusinessException.badRequest("Invalid RSVP status", "INVALID_STATUS");

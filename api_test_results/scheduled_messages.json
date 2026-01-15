@@ -1,0 +1,47 @@
+{
+  "category": "scheduled_messages",
+  "total_tests": 2,
+  "tests": [
+    {
+      "name": "Schedule Message",
+      "method": "POST",
+      "endpoint": "/conversations/11/messages/schedule",
+      "request_body": {
+        "content": "This is a scheduled message",
+        "type": "TEXT",
+        "scheduledTime": "2026-01-10T15:02:05.906610"
+      },
+      "request_params": null,
+      "status_code": 400,
+      "response": {
+        "raw": "Not able to deserialize data provided."
+      },
+      "timestamp": "2026-01-10T14:02:05.916512"
+    },
+    {
+      "name": "Get Scheduled Messages (PENDING)",
+      "method": "GET",
+      "endpoint": "/conversations/11/messages/scheduled",
+      "request_body": null,
+      "request_params": {
+        "status": "PENDING",
+        "limit": 10
+      },
+      "status_code": 200,
+      "response": {
+        "success": true,
+        "message": "Scheduled messages retrieved successfully",
+        "data": {
+          "items": [],
+          "meta": {
+            "nextCursor": null,
+            "hasNextPage": false,
+            "itemsPerPage": 10
+          }
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.926780"
+    }
+  ],
+  "generated_at": "2026-01-10T14:02:05.979942"
+}

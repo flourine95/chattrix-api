@@ -1,0 +1,518 @@
+{
+  "category": "messages",
+  "total_tests": 7,
+  "tests": [
+    {
+      "name": "Get Messages (DESC)",
+      "method": "GET",
+      "endpoint": "/conversations/11/messages",
+      "request_body": null,
+      "request_params": {
+        "limit": 10,
+        "sort": "DESC"
+      },
+      "status_code": 200,
+      "response": {
+        "success": true,
+        "message": "Messages retrieved successfully",
+        "data": {
+          "items": [
+            {
+              "id": 399061,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Updated message content",
+              "type": "TEXT",
+              "metadata": {
+                "editHistory": [
+                  {
+                    "editedAt": "2026-01-10T06:56:32.099192870Z",
+                    "editedBy": 1,
+                    "newContent": "Updated message content",
+                    "oldContent": "Test message from REST API"
+                  }
+                ],
+                "forwardedFrom": {
+                  "messageId": 399058,
+                  "conversationId": 11,
+                  "originalSenderId": 1,
+                  "originalSenderUsername": "user1"
+                }
+              },
+              "reactions": {},
+              "sentAt": "2026-01-10T06:56:32.184299Z",
+              "createdAt": "2026-01-10T06:56:32.184297Z",
+              "updatedAt": "2026-01-10T06:56:32.189723Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": true,
+              "originalMessageId": 399058,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399060,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "@user2 check this out!",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "mentions": [
+                2
+              ],
+              "sentAt": "2026-01-10T06:56:32.061908Z",
+              "createdAt": "2026-01-10T06:56:32.062057Z",
+              "updatedAt": "2026-01-10T06:56:32.062057Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399059,
+              "conversationId": 11,
+              "senderId": 2,
+              "senderUsername": "user2",
+              "senderFullName": "Tran Van Binh",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711397/avatars/user2.png",
+              "content": "This is a reply!",
+              "type": "TEXT",
+              "metadata": {},
+              "replyToMessageId": 399058,
+              "replyToMessage": {
+                "id": 399058,
+                "content": "Updated message content",
+                "type": "TEXT",
+                "metadata": {
+                  "editHistory": [
+                    {
+                      "editedAt": "2026-01-10T06:56:32.099192870Z",
+                      "editedBy": 1,
+                      "newContent": "Updated message content",
+                      "oldContent": "Test message from REST API"
+                    }
+                  ]
+                },
+                "createdAt": "2026-01-10T06:56:32.016188Z"
+              },
+              "reactions": {},
+              "sentAt": "2026-01-10T06:56:32.039803Z",
+              "createdAt": "2026-01-10T06:56:32.039880Z",
+              "updatedAt": "2026-01-10T06:56:32.039880Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399058,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Updated message content",
+              "type": "TEXT",
+              "metadata": {
+                "editHistory": [
+                  {
+                    "editedAt": "2026-01-10T06:56:32.099192870Z",
+                    "editedBy": 1,
+                    "newContent": "Updated message content",
+                    "oldContent": "Test message from REST API"
+                  }
+                ]
+              },
+              "reactions": {},
+              "sentAt": "2026-01-10T06:56:32.016095Z",
+              "createdAt": "2026-01-10T06:56:32.016188Z",
+              "updatedAt": "2026-01-10T06:56:32.189614Z",
+              "edited": true,
+              "editedAt": "2026-01-10T06:56:32.099269Z",
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 1,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399057,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Long message: Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum Lorem ipsum ",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "sentAt": "2026-01-10T06:49:13.991272Z",
+              "createdAt": "2026-01-10T06:49:13.991359Z",
+              "updatedAt": "2026-01-10T06:49:13.991359Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399056,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Message with emoji 😀🎉",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "sentAt": "2026-01-10T06:49:12.983820Z",
+              "createdAt": "2026-01-10T06:49:12.984089Z",
+              "updatedAt": "2026-01-10T06:49:12.984089Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399055,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Plain text message",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "sentAt": "2026-01-10T06:49:11.973716Z",
+              "createdAt": "2026-01-10T06:49:11.973779Z",
+              "updatedAt": "2026-01-10T06:49:11.973779Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399054,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "@user2 check this out!",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "mentions": [
+                2
+              ],
+              "sentAt": "2026-01-10T06:49:06.918829Z",
+              "createdAt": "2026-01-10T06:49:06.918918Z",
+              "updatedAt": "2026-01-10T06:49:06.918918Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399053,
+              "conversationId": 11,
+              "senderId": 2,
+              "senderUsername": "user2",
+              "senderFullName": "Tran Van Binh",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711397/avatars/user2.png",
+              "content": "Hi User 1, this is User 2!",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "sentAt": "2026-01-10T06:49:04.913078Z",
+              "createdAt": "2026-01-10T06:49:04.913348Z",
+              "updatedAt": "2026-01-10T06:49:04.913348Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            },
+            {
+              "id": 399052,
+              "conversationId": 11,
+              "senderId": 1,
+              "senderUsername": "user1",
+              "senderFullName": "Nguyen Linh La",
+              "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+              "content": "Hello from User 1!",
+              "type": "TEXT",
+              "metadata": {},
+              "reactions": {},
+              "sentAt": "2026-01-10T06:49:02.897790Z",
+              "createdAt": "2026-01-10T06:49:02.897860Z",
+              "updatedAt": "2026-01-10T06:49:02.897860Z",
+              "edited": false,
+              "deleted": false,
+              "forwarded": false,
+              "forwardCount": 0,
+              "pinned": false,
+              "scheduled": false
+            }
+          ],
+          "meta": {
+            "nextCursor": 399052,
+            "hasNextPage": true,
+            "itemsPerPage": 10
+          }
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.779806"
+    },
+    {
+      "name": "Send Text Message",
+      "method": "POST",
+      "endpoint": "/conversations/11/messages",
+      "request_body": {
+        "content": "Test message from REST API",
+        "type": "TEXT"
+      },
+      "request_params": null,
+      "status_code": 201,
+      "response": {
+        "success": true,
+        "message": "Message sent successfully",
+        "data": {
+          "id": 399062,
+          "conversationId": 11,
+          "senderId": 1,
+          "senderUsername": "user1",
+          "senderFullName": "Nguyen Linh La",
+          "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+          "content": "Test message from REST API",
+          "type": "TEXT",
+          "metadata": {},
+          "reactions": {},
+          "sentAt": "2026-01-10T07:02:05.790685550Z",
+          "createdAt": "2026-01-10T07:02:05.790784528Z",
+          "updatedAt": "2026-01-10T07:02:05.790784528Z",
+          "edited": false,
+          "deleted": false,
+          "forwarded": false,
+          "forwardCount": 0,
+          "pinned": false,
+          "scheduled": false
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.801246"
+    },
+    {
+      "name": "Send Reply Message",
+      "method": "POST",
+      "endpoint": "/conversations/11/messages",
+      "request_body": {
+        "content": "This is a reply!",
+        "type": "TEXT",
+        "replyToMessageId": 399062
+      },
+      "request_params": null,
+      "status_code": 201,
+      "response": {
+        "success": true,
+        "message": "Message sent successfully",
+        "data": {
+          "id": 399063,
+          "conversationId": 11,
+          "senderId": 2,
+          "senderUsername": "user2",
+          "senderFullName": "Tran Van Binh",
+          "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711397/avatars/user2.png",
+          "content": "This is a reply!",
+          "type": "TEXT",
+          "metadata": {},
+          "replyToMessageId": 399062,
+          "replyToMessage": {
+            "id": 399062,
+            "content": "Test message from REST API",
+            "type": "TEXT",
+            "metadata": {},
+            "createdAt": "2026-01-10T07:02:05.790785Z"
+          },
+          "reactions": {},
+          "sentAt": "2026-01-10T07:02:05.812001547Z",
+          "createdAt": "2026-01-10T07:02:05.812071799Z",
+          "updatedAt": "2026-01-10T07:02:05.812071799Z",
+          "edited": false,
+          "deleted": false,
+          "forwarded": false,
+          "forwardCount": 0,
+          "pinned": false,
+          "scheduled": false
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.821482"
+    },
+    {
+      "name": "Send Message with Mentions",
+      "method": "POST",
+      "endpoint": "/conversations/11/messages",
+      "request_body": {
+        "content": "@user2 check this out!",
+        "type": "TEXT",
+        "mentions": [
+          2
+        ]
+      },
+      "request_params": null,
+      "status_code": 201,
+      "response": {
+        "success": true,
+        "message": "Message sent successfully",
+        "data": {
+          "id": 399064,
+          "conversationId": 11,
+          "senderId": 1,
+          "senderUsername": "user1",
+          "senderFullName": "Nguyen Linh La",
+          "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+          "content": "@user2 check this out!",
+          "type": "TEXT",
+          "metadata": {},
+          "reactions": {},
+          "mentions": [
+            2
+          ],
+          "sentAt": "2026-01-10T07:02:05.831995086Z",
+          "createdAt": "2026-01-10T07:02:05.832082450Z",
+          "updatedAt": "2026-01-10T07:02:05.832082450Z",
+          "edited": false,
+          "deleted": false,
+          "forwarded": false,
+          "forwardCount": 0,
+          "pinned": false,
+          "scheduled": false
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.841290"
+    },
+    {
+      "name": "Get Single Message",
+      "method": "GET",
+      "endpoint": "/conversations/11/messages/399062",
+      "request_body": null,
+      "request_params": null,
+      "status_code": 200,
+      "response": {
+        "success": true,
+        "message": "Message retrieved successfully",
+        "data": {
+          "id": 399062,
+          "conversationId": 11,
+          "senderId": 1,
+          "senderUsername": "user1",
+          "senderFullName": "Nguyen Linh La",
+          "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+          "content": "Test message from REST API",
+          "type": "TEXT",
+          "metadata": {},
+          "reactions": {},
+          "sentAt": "2026-01-10T07:02:05.790686Z",
+          "createdAt": "2026-01-10T07:02:05.790785Z",
+          "updatedAt": "2026-01-10T07:02:05.790785Z",
+          "edited": false,
+          "deleted": false,
+          "forwarded": false,
+          "forwardCount": 0,
+          "pinned": false,
+          "scheduled": false
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.854317"
+    },
+    {
+      "name": "Update Message",
+      "method": "PUT",
+      "endpoint": "/conversations/11/messages/399062",
+      "request_body": {
+        "content": "Updated message content"
+      },
+      "request_params": null,
+      "status_code": 200,
+      "response": {
+        "success": true,
+        "message": "Message updated successfully",
+        "data": {
+          "id": 399062,
+          "conversationId": 11,
+          "senderId": 1,
+          "senderUsername": "user1",
+          "senderFullName": "Nguyen Linh La",
+          "senderAvatarUrl": "https://res.cloudinary.com/dk3gud5kq/image/upload/v1766711396/avatars/user1.png",
+          "content": "Updated message content",
+          "type": "TEXT",
+          "metadata": {
+            "editHistory": [
+              {
+                "newContent": "Updated message content",
+                "editedBy": 1,
+                "editedAt": "2026-01-10T07:02:05.864912277Z",
+                "oldContent": "Test message from REST API"
+              }
+            ]
+          },
+          "reactions": {},
+          "sentAt": "2026-01-10T07:02:05.790686Z",
+          "createdAt": "2026-01-10T07:02:05.790785Z",
+          "updatedAt": "2026-01-10T07:02:05.864925214Z",
+          "edited": true,
+          "editedAt": "2026-01-10T07:02:05.864925057Z",
+          "deleted": false,
+          "forwarded": false,
+          "forwardCount": 0,
+          "pinned": false,
+          "scheduled": false
+        }
+      },
+      "timestamp": "2026-01-10T14:02:05.875211"
+    },
+    {
+      "name": "Get Edit History",
+      "method": "GET",
+      "endpoint": "/conversations/11/messages/399062/history",
+      "request_body": null,
+      "request_params": null,
+      "status_code": 200,
+      "response": {
+        "success": true,
+        "message": "Edit history retrieved successfully",
+        "data": [
+          {
+            "editedAt": "2026-01-10T07:02:05.864912277Z",
+            "editedBy": 1,
+            "newContent": "Updated message content",
+            "oldContent": "Test message from REST API"
+          }
+        ]
+      },
+      "timestamp": "2026-01-10T14:02:05.887419"
+    }
+  ],
+  "generated_at": "2026-01-10T14:02:05.978334"
+}
