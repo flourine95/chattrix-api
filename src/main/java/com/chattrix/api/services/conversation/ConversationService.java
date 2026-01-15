@@ -165,12 +165,20 @@ public class ConversationService {
     /**
      * Get conversations with cursor-based pagination and filtering.
      * Cursor is the conversation ID of the last item from previous page.
+     * 
+     * Supported filters:
+     * - all: All conversations (default)
+     * - direct: Direct (1-1) conversations only
+     * - group: Group conversations only
+     * - unread: Conversations with unread messages
+     * - archived: Archived conversations
      */
     @Transactional
     public CursorPaginatedResponse<ConversationResponse> getConversations(Long userId, String filter, Long cursor, int limit) {
         // Validate filter
-        if (filter != null && !filter.equals("all") && !filter.equals("direct") && !filter.equals("group")) {
-            throw BusinessException.badRequest("Invalid filter. Must be 'all', 'direct', or 'group'");
+        if (filter != null && !filter.equals("all") && !filter.equals("direct") && !filter.equals("group") 
+                && !filter.equals("unread") && !filter.equals("archived")) {
+            throw BusinessException.badRequest("Invalid filter. Must be 'all', 'direct', 'group', 'unread', or 'archived'");
         }
 
         limit = PaginationHelper.validateLimit(limit);

@@ -198,6 +198,8 @@ public class ConversationRepository {
             jpql.append("AND cp.unreadCount > 0 ");
         } else if ("group".equalsIgnoreCase(filter)) {
             jpql.append("AND c.type = 'GROUP' ");
+        } else if ("direct".equalsIgnoreCase(filter)) {
+            jpql.append("AND c.type = 'DIRECT' ");
         }
 
         // Cursor pagination - based on composite key (pinned, updatedAt, id)
