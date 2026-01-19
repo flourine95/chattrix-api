@@ -260,11 +260,24 @@ public class CallService {
         try {
             RtcTokenBuilder tokenBuilder = new RtcTokenBuilder();
             int timestamp = (int) (System.currentTimeMillis() / 1000 + agoraConfig.getDefaultTokenExpiration());
-            return tokenBuilder.buildTokenWithUserAccount(
-                    agoraConfig.getAppId(), agoraConfig.getAppCertificate(),
-                    channelId, userId, Role.Role_Publisher, timestamp
+            int uid = Integer.parseInt(userId);
+            
+            log.debug("Generating Agora token - channelId: {}, uid: {}, expiration: {}", 
+                    channelId, uid, timestamp);
+            
+            String token = tokenBuilder.buildTokenWithUid(
+                    agoraConfig.getAppId(), 
+                    agoraConfig.getAppCertificate(),
+                    channelId, 
+                    uid, 
+                    Role.Role_Publisher, 
+                    timestamp
             );
+            
+            log.debug("Agora token generated successfully - length: {}", token.length());
+            return token;
         } catch (Exception e) {
+            log.error("Token generation failed for channelId: {}, userId: {}", channelId, userId, e);
             throw new RuntimeException("Token generation failed", e);
         }
     }
