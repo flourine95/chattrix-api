@@ -49,6 +49,9 @@ public class CallService {
     private WebSocketNotificationService webSocketService;
     @Inject
     private CallTimeoutScheduler timeoutScheduler;
+    
+    @Inject
+    private com.chattrix.api.services.message.SystemMessageService systemMessageService;
 
     public CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(request.getConversationId())
@@ -216,10 +219,53 @@ public class CallService {
         });
     }
 
+    public List<CallResponse> getCallHistory(Long userId, int limit, String statusFilter) {
+        List<Call> calls;
+        
+        if (statusFilter != null && !statusFilter.isEmpty()) {
+            try {
+                CallStatus status = CallStatus.valueOf(statusFilter.toUpperCase());
+                calls = callRepository.findCallHistoryByUserIdAndStatus(userId, status, limit);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid call status filter: {}", statusFilter);
+                calls = callRepository.findCallHistoryByUserId(userId, limit);
+            }
+        } else {
+            calls = callRepository.findCallHistoryByUserId(userId, limit);
+        }
+        
+        return calls.stream()
+                .map(this::toFullResponse)
+                .collect(Collectors.toList());
+    }
+
     private void finalizeCall(Call call, CallStatus status) {
         timeoutScheduler.cancelTimeout(call.getId());
         call.end(status);
-        callRepository.save(call);
+        Call savedCall = callRepository.save(call);
+        
+        // Create call message in conversation
+        try {
+            List<Long> participantIds = savedCall.getParticipants().stream()
+                    .map(CallParticipant::getUserId)
+                    .collect(Collectors.toList());
+            
+            systemMessageService.createCallMessage(
+                savedCall.getConversationId(),
+                savedCall.getCallerId(),
+                savedCall.getId(),
+                savedCall.getCallType().name(),
+                savedCall.getStatus().name(),
+                savedCall.getDurationSeconds(),
+                participantIds
+            );
+            
+            log.info("Created call message for call {} in conversation {}", 
+                    savedCall.getId(), savedCall.getConversationId());
+        } catch (Exception e) {
+            log.error("Failed to create call message for call {}", savedCall.getId(), e);
+            // Don't fail the call finalization if message creation fails
+        }
     }
 
     private CallResponse toFullResponse(Call call) {

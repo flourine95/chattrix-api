@@ -115,6 +115,62 @@ public class SystemMessageService {
         return createSystemMessage(conversationId, userId, "user_joined_via_link", metadata);
     }
     
+    @Transactional
+    public Message createCallMessage(Long conversationId, Long callerId, String callId, String callType, 
+                                    String callStatus, Integer durationSeconds, List<Long> participantIds) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("callId", callId);
+        metadata.put("callType", callType);
+        metadata.put("callStatus", callStatus);
+        metadata.put("durationSeconds", durationSeconds != null ? durationSeconds : 0);
+        metadata.put("participantIds", participantIds);
+        
+        return createCallSystemMessage(conversationId, callerId, "call_ended", metadata);
+    }
+    
+    private Message createCallSystemMessage(Long conversationId, Long actorUserId, String eventType, 
+                                           Map<String, Object> additionalMetadata) {
+        try {
+            Conversation conversation = conversationRepository.findById(conversationId)
+                    .orElseThrow(() -> new RuntimeException("Conversation not found"));
+            
+            User actor = userRepository.findById(actorUserId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            
+            // Build message content as JSON
+            Map<String, Object> content = new HashMap<>();
+            content.put("type", eventType);
+            content.put("userId", actorUserId);
+            content.put("userName", actor.getFullName());
+            content.put("username", actor.getUsername());
+            content.put("timestamp", Instant.now().toEpochMilli());
+            
+            if (additionalMetadata != null) {
+                content.putAll(additionalMetadata);
+            }
+            
+            String contentJson = objectMapper.writeValueAsString(content);
+            
+            Message message = new Message();
+            message.setConversation(conversation);
+            message.setSender(actor);
+            message.setContent(contentJson);
+            message.setType(MessageType.CALL);  // Use CALL type instead of SYSTEM
+            message.setSentAt(Instant.now());
+            
+            // Store call metadata in message metadata field
+            if (additionalMetadata != null) {
+                message.setMetadata(new HashMap<>(additionalMetadata));
+            }
+            
+            return messageRepository.save(message);
+            
+        } catch (Exception e) {
+            System.err.println("Failed to create call message: " + e.getMessage());
+            throw new RuntimeException("Failed to create call message", e);
+        }
+    }
+    
     private Message createSystemMessage(Long conversationId, Long actorUserId, String eventType, Map<String, Object> additionalMetadata) {
         try {
             Conversation conversation = conversationRepository.findById(conversationId)

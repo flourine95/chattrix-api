@@ -33,6 +33,9 @@ public class UserStatusResource {
 
     @Inject
     private UserMapper userMapper;
+    
+    @Inject
+    private com.chattrix.api.repositories.ConversationParticipantRepository participantRepository;
 
     @GET
     @Path("/online")
@@ -45,19 +48,20 @@ public class UserStatusResource {
     @GET
     @Path("/online/conversation/{conversationId}")
     public Response getOnlineUsersInConversation(@Context SecurityContext securityContext, @PathParam("conversationId") Long conversationId) {
-        // Get all participants in conversation
-        List<User> participants = userRepository.findAll().stream()
-                .filter(user -> user.getConversationParticipants().stream()
-                        .anyMatch(cp -> cp.getConversation().getId().equals(conversationId)))
+        // Get all participant user IDs in conversation
+        List<Long> participantUserIds = participantRepository.findByConversationId(conversationId)
+                .stream()
+                .map(cp -> cp.getUser().getId())
                 .toList();
         
         // Filter to only online users
         Set<Long> onlineUserIds = onlineStatusCache.getOnlineUserIds();
-        List<User> onlineUsers = participants.stream()
-                .filter(user -> onlineUserIds.contains(user.getId()))
-                .toList();
+        Set<Long> onlineParticipantIds = participantUserIds.stream()
+                .filter(onlineUserIds::contains)
+                .collect(java.util.stream.Collectors.toSet());
         
-        List<UserResponse> userDtos = userMapper.toResponseList(onlineUsers);
+        // Fetch user DTOs for online participants
+        List<UserResponse> userDtos = userRepository.findByIdsAsDTO(onlineParticipantIds);
         return Response.ok(ApiResponse.success(userDtos, "Online users in conversation retrieved successfully")).build();
     }
 

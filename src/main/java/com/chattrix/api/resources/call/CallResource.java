@@ -70,4 +70,13 @@ public class CallResource {
         var response = callService.endCall(callId, userContext.getCurrentUserId(), request);
         return Response.ok(ApiResponse.success(response, "Call ended")).build();
     }
+
+    @GET
+    @Path("/history")
+    public Response getCallHistory(
+            @QueryParam("limit") @DefaultValue("50") int limit,
+            @QueryParam("status") String status) {
+        var response = callService.getCallHistory(userContext.getCurrentUserId(), limit, status);
+        return Response.ok(ApiResponse.success(response, "Call history retrieved")).build();
+    }
 }
