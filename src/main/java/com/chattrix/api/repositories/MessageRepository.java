@@ -746,4 +746,65 @@ public class MessageRepository {
         Number count = (Number) query.getSingleResult();
         return count.longValue() > 0;
     }
+    
+    // ==================== MEDIA STATISTICS METHODS ====================
+    
+    /**
+     * Get media statistics for a conversation
+     */
+    public java.util.Map<String, Long> getMediaStatistics(Long conversationId) {
+        String sql = "SELECT " +
+                     "  COALESCE(SUM(CASE WHEN type = 'IMAGE' THEN 1 ELSE 0 END), 0) as images, " +
+                     "  COALESCE(SUM(CASE WHEN type = 'VIDEO' THEN 1 ELSE 0 END), 0) as videos, " +
+                     "  COALESCE(SUM(CASE WHEN type = 'AUDIO' THEN 1 ELSE 0 END), 0) as audios, " +
+                     "  COALESCE(SUM(CASE WHEN type = 'FILE' THEN 1 ELSE 0 END), 0) as files, " +
+                     "  COALESCE(SUM(CASE WHEN type = 'LINK' THEN 1 ELSE 0 END), 0) as links, " +
+                     "  COALESCE(COUNT(*), 0) as total " +
+                     "FROM messages " +
+                     "WHERE conversation_id = :conversationId " +
+                     "AND type IN ('IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'LINK') " +
+                     "AND deleted = false";
+        
+        Query query = em.createNativeQuery(sql);
+        query.setParameter("conversationId", conversationId);
+        
+        Object[] result = (Object[]) query.getSingleResult();
+        
+        java.util.Map<String, Long> stats = new java.util.HashMap<>();
+        stats.put("images", result[0] != null ? ((Number) result[0]).longValue() : 0L);
+        stats.put("videos", result[1] != null ? ((Number) result[1]).longValue() : 0L);
+        stats.put("audios", result[2] != null ? ((Number) result[2]).longValue() : 0L);
+        stats.put("files", result[3] != null ? ((Number) result[3]).longValue() : 0L);
+        stats.put("links", result[4] != null ? ((Number) result[4]).longValue() : 0L);
+        stats.put("total", result[5] != null ? ((Number) result[5]).longValue() : 0L);
+        
+        return stats;
+    }
+    
+    /**
+     * Count media by type
+     */
+    public long countMediaByType(Long conversationId, MessageType type) {
+        return em.createQuery(
+                "SELECT COUNT(m) FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.type = :type",
+                Long.class)
+            .setParameter("conversationId", conversationId)
+            .setParameter("type", type)
+            .getSingleResult();
+    }
+    
+    /**
+     * Count all media types
+     */
+    public long countAllMedia(Long conversationId) {
+        return em.createQuery(
+                "SELECT COUNT(m) FROM Message m " +
+                "WHERE m.conversation.id = :conversationId " +
+                "AND m.type IN ('IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'LINK')",
+                Long.class)
+            .setParameter("conversationId", conversationId)
+            .getSingleResult();
+    }
 }

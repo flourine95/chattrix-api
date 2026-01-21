@@ -18,6 +18,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 
 @ApplicationScoped
@@ -108,7 +109,7 @@ public class ReactionService {
         reactionEvent.setEmoji(emoji);
         reactionEvent.setAction(action);
         reactionEvent.setReactions(reactions);
-        reactionEvent.setTimestamp(java.time.Instant.now());
+        reactionEvent.setTimestamp(Instant.now());
 
         WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_REACTION, reactionEvent);
 
@@ -176,7 +177,7 @@ public class ReactionService {
             reactionEvent.setEmoji(emoji);
             reactionEvent.setAction("remove");
             reactionEvent.setReactions(reactions);
-            reactionEvent.setTimestamp(java.time.Instant.now());
+            reactionEvent.setTimestamp(Instant.now());
 
             WebSocketMessage<ReactionEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.MESSAGE_REACTION, reactionEvent);
 

@@ -58,8 +58,30 @@ public class ChatServerEndpoint {
                 case "heartbeat" -> heartbeatHandler.handleHeartbeat(session, userId);
                 default -> log.warn("Unknown message type: {}", type);
             }
+        } catch (com.chattrix.api.exceptions.BusinessException e) {
+            // Business exceptions (validation, permissions, etc.) - send to client
+            log.warn("Business error handling message [{}] for user {}: {}", type, userId, e.getMessage());
+            sendErrorToClient(session, type, e.getMessage(), e.getErrorCode());
         } catch (Exception e) {
-            log.error("Error handling message [{}]: {}", type, e.getMessage(), e);
+            // Unexpected errors - log and send generic error
+            log.error("Error handling message [{}] for user {}: {}", type, userId, e.getMessage(), e);
+            sendErrorToClient(session, type, "An error occurred while processing your message", "INTERNAL_ERROR");
+        }
+    }
+    
+    private void sendErrorToClient(Session session, String originalType, String errorMessage, String errorCode) {
+        try {
+            java.util.Map<String, Object> errorPayload = new java.util.HashMap<>();
+            errorPayload.put("error", errorMessage);
+            errorPayload.put("code", errorCode);
+            errorPayload.put("originalType", originalType);
+            
+            WebSocketMessage<java.util.Map<String, Object>> errorMsg = 
+                new WebSocketMessage<>("error", errorPayload);
+            
+            session.getBasicRemote().sendObject(errorMsg);
+        } catch (Exception e) {
+            log.error("Failed to send error message to client: {}", e.getMessage());
         }
     }
 

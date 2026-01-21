@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -12,11 +14,11 @@ import lombok.NoArgsConstructor;
 public class WebSocketMessage<T> {
     private String type;
     private T payload;
-    private String timestamp; // Changed to String to accept ISO 8601 format from client
+    private String timestamp;
 
     public WebSocketMessage(String type, T payload) {
         this.type = type;
         this.payload = payload;
-        this.timestamp = java.time.Instant.now().toString();
+        this.timestamp = Instant.now().toString();
     }
 }

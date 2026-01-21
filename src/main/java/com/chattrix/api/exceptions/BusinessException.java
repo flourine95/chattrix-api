@@ -40,6 +40,10 @@ public class BusinessException extends RuntimeException {
     public static BusinessException conflict(String message, String code) {
         return new BusinessException(message, code, 409);
     }
+    
+    public static BusinessException gone(String message, String code) {
+        return new BusinessException(message, code, 410);
+    }
 
     public static BusinessException tooManyRequests(String message) {
         return new BusinessException(message, "RATE_LIMIT_EXCEEDED", 429);
