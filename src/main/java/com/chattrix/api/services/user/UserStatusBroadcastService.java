@@ -45,26 +45,23 @@ public class UserStatusBroadcastService {
      * @param isOnline true if user went online, false if offline
      */
     public void broadcastUserStatusChange(Long userId, boolean isOnline) {
+        broadcastUserStatusChange(userId, isOnline, java.time.Instant.now());
+    }
+    
+    /**
+     * Broadcast user status change with explicit lastSeen timestamp.
+     * 
+     * @param userId User whose status changed
+     * @param isOnline true if user went online, false if offline
+     * @param lastSeen The current lastSeen timestamp to broadcast
+     */
+    public void broadcastUserStatusChange(Long userId, boolean isOnline, java.time.Instant lastSeen) {
         try {
-            // Get user from cache first
-            UserResponse userResponse = userProfileCache.get(userId);
-            
-            // If not in cache, fetch from DB and cache it
-            if (userResponse == null) {
-                User user = userRepository.findById(userId).orElse(null);
-                if (user == null) {
-                    log.warn("Cannot broadcast status for non-existent user: {}", userId);
-                    return;
-                }
-                userResponse = userMapper.toResponse(user);
-                userProfileCache.put(userId, userResponse);
-            }
-            
-            // Build status payload
+            // Build status payload with provided lastSeen timestamp
             UserStatusEventDto payload = UserStatusEventDto.builder()
                     .userId(userId)
                     .status(isOnline ? "online" : "offline")
-                    .lastSeen(userResponse.getLastSeen())
+                    .lastSeen(lastSeen)
                     .build();
             
             WebSocketMessage<UserStatusEventDto> statusMessage = 
@@ -74,18 +71,23 @@ public class UserStatusBroadcastService {
             List<Long> recipientUserIds = 
                 userRepository.findUserIdsWhoShouldReceiveStatusUpdates(userId);
             
+            log.info("Broadcasting status change for user {} (online: {}) to {} recipients: {}",
+                userId, isOnline, recipientUserIds.size(), recipientUserIds);
+            
             // Broadcast to all recipients
+            int successCount = 0;
             for (Long recipientId : recipientUserIds) {
                 try {
                     chatSessionService.sendDirectMessage(recipientId, statusMessage);
+                    successCount++;
                 } catch (Exception e) {
                     log.debug("Failed to send status update to user {}: {}", 
                         recipientId, e.getMessage());
                 }
             }
             
-            log.debug("Broadcasted status change for user {} (online: {}) to {} recipients",
-                userId, isOnline, recipientUserIds.size());
+            log.info("Broadcasted status change for user {} (online: {}, lastSeen: {}) - sent to {}/{} recipients",
+                userId, isOnline, lastSeen, successCount, recipientUserIds.size());
                 
         } catch (Exception e) {
             log.error("Error broadcasting status change for user {}: {}", 

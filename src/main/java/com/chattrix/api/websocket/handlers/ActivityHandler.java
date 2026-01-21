@@ -9,6 +9,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
+
 @ApplicationScoped
 @Slf4j
 public class ActivityHandler {
@@ -47,9 +49,15 @@ public class ActivityHandler {
      */
     public void markUserOffline(Long userId) {
         callService.handleUserDisconnected(userId);
+        
+        // Capture current timestamp before marking offline
+        Instant currentTimestamp = Instant.now();
+        
         onlineStatusCache.markOffline(userId);
         batchService.queueLastSeenUpdate(userId);
         heartbeatMonitorService.removeHeartbeat(userId);
-        broadcastService.broadcastUserStatusChange(userId, false);
+        
+        // Broadcast with current timestamp (not old cached value)
+        broadcastService.broadcastUserStatusChange(userId, false, currentTimestamp);
     }
 }

@@ -52,9 +52,14 @@ public class ConnectionHandler {
 
         session.getUserProperties().put("userId", user.getId());
         chatSessionService.addSession(user.getId(), session);
+        
+        log.info("User {} (ID: {}) connected via WebSocket, marking as online...", 
+            user.getUsername(), userId);
+        
         activityHandler.markUserOnline(user.getId());
 
-        log.info("User Connected: {} (ID: {})", user.getUsername(), userId);
+        log.info("User Connected: {} (ID: {}) - Online status broadcasted", 
+            user.getUsername(), userId);
     }
 
     public void handleClose(Session session) {
