@@ -13,6 +13,6 @@ import java.util.List;
 @Builder
 public class VotePollRequest {
     @NotNull(message = "Option IDs are required")
-    @NotEmpty(message = "At least one option must be selected")
+    // Removed @NotEmpty to allow unvoting (empty array = remove all votes)
     private List<Long> optionIds;
 }
