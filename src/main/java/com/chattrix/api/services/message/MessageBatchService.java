@@ -499,10 +499,34 @@ public class MessageBatchService {
                 managedMessage.setConversation(entityManager.merge(message.getConversation()));
             }
             if (message.getReplyToMessage() != null) {
-                managedMessage.setReplyToMessage(entityManager.merge(message.getReplyToMessage()));
+                try {
+                    // Check if reply message still exists before merging
+                    Message replyMessage = entityManager.find(Message.class, message.getReplyToMessage().getId());
+                    if (replyMessage != null) {
+                        managedMessage.setReplyToMessage(entityManager.merge(message.getReplyToMessage()));
+                    } else {
+                        log.warn("Reply message {} no longer exists, skipping", message.getReplyToMessage().getId());
+                        managedMessage.setReplyToMessage(null);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to merge reply message {}: {}", message.getReplyToMessage().getId(), e.getMessage());
+                    managedMessage.setReplyToMessage(null);
+                }
             }
             if (message.getOriginalMessage() != null) {
-                managedMessage.setOriginalMessage(entityManager.merge(message.getOriginalMessage()));
+                try {
+                    // Check if original message still exists before merging
+                    Message originalMessage = entityManager.find(Message.class, message.getOriginalMessage().getId());
+                    if (originalMessage != null) {
+                        managedMessage.setOriginalMessage(entityManager.merge(message.getOriginalMessage()));
+                    } else {
+                        log.warn("Original message {} no longer exists, skipping", message.getOriginalMessage().getId());
+                        managedMessage.setOriginalMessage(null);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to merge original message {}: {}", message.getOriginalMessage().getId(), e.getMessage());
+                    managedMessage.setOriginalMessage(null);
+                }
             }
 
             Message saved = messageRepository.save(managedMessage);

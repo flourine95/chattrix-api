@@ -5,6 +5,8 @@ import com.chattrix.api.enums.ScheduledStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.type.SqlTypes;
@@ -90,6 +92,7 @@ public class Message {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reply_to_message_id")
+    @NotFound(action = NotFoundAction.IGNORE)  // Ignore if replied message is deleted
     private Message replyToMessage;
 
     @Builder.Default
@@ -98,6 +101,7 @@ public class Message {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "original_message_id")
+    @NotFound(action = NotFoundAction.IGNORE)  // Ignore if original message is deleted
     private Message originalMessage;
 
     @Builder.Default

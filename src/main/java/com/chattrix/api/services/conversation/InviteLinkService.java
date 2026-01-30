@@ -216,6 +216,7 @@ public class InviteLinkService {
     /**
      * Get invite link info (public - no auth required)
      */
+    @Transactional
     public InviteLinkInfoResponse getInviteLinkInfo(String token) {
         Conversation conversation = conversationRepository.findByInviteToken(token)
                 .orElseThrow(() -> BusinessException.notFound("Invite link not found or has been revoked", "INVITE_LINK_NOT_FOUND"));

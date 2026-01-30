@@ -151,27 +151,27 @@ public class MessageService {
 
         if (request.metadata() != null)
             message.setMetadata(new HashMap<>(request.metadata()));
-        
+
         message.setMentions(request.mentions());
-        
+
         // Set reply to message if provided
         if (request.replyToMessageId() != null && response.getReplyToMessage() != null) {
             Message replyToMessage = new Message();
             replyToMessage.setId(response.getReplyToMessage().getId());
             replyToMessage.setContent(response.getReplyToMessage().getContent());
             replyToMessage.setType(MessageType.valueOf(response.getReplyToMessage().getType()));
-            
+
             User replySender = new User();
             replySender.setId(response.getReplyToMessage().getSenderId());
             replySender.setUsername(response.getReplyToMessage().getSenderUsername());
             replySender.setFullName(response.getReplyToMessage().getSenderFullName());
             replyToMessage.setSender(replySender);
-            
+
             message.setReplyToMessage(replyToMessage);
         }
 
         messageCreationService.broadcastMessage(message, conversation);
-        
+
         // Broadcast conversation update with temp lastMessage immediately
         // This allows clients to see lastMessage right away (with temp ID)
         // Will be updated again after flush with real ID
@@ -362,7 +362,17 @@ public class MessageService {
         invalidateCaches(conversationId, conversation.getParticipantIds());
 
         MessageResponse response = messageMapper.toResponse(message);
-        broadcastMessage(message, conversation);
+
+        // Broadcast poll created event
+        PollEventDto pollEvent = PollEventDto.builder()
+                .type("POLL_CREATED")
+                .poll(messageMapper.toPollResponse(message))
+                .build();
+        WebSocketMessage<PollEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.POLL_CREATED, pollEvent);
+
+        conversation.getParticipants()
+                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), wsMessage));
+
         broadcastConversationUpdate(conversation);
 
         return response;
@@ -432,7 +442,7 @@ public class MessageService {
                     // Check if userId already exists (handle both Integer and Long)
                     boolean alreadyVoted = votes.stream()
                             .anyMatch(id -> id instanceof Number && ((Number) id).longValue() == userId);
-                    
+
                     if (!alreadyVoted) {
                         votes.add(userId);
                     }
@@ -447,7 +457,22 @@ public class MessageService {
         messageCache.invalidate(conversationId);
 
         MessageResponse response = messageMapper.toResponse(message);
-        broadcastMessage(message, message.getConversation());
+
+        // Broadcast poll vote event to ALL participants
+        // Each user will see their own hasVoted status
+        message.getConversation().getParticipants()
+                .forEach(p -> {
+                    Long participantId = p.getUser().getId();
+                    
+                    // Create poll response with participant-specific data
+                    PollEventDto pollEvent = PollEventDto.builder()
+                            .type("POLL_VOTED")
+                            .poll(messageMapper.toPollResponse(message, participantId))
+                            .build();
+                    WebSocketMessage<PollEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.POLL_VOTED, pollEvent);
+                    
+                    chatSessionService.sendMessageToUser(participantId, wsMessage);
+                });
 
         return response;
     }
@@ -497,7 +522,17 @@ public class MessageService {
         invalidateCaches(conversationId, conversation.getParticipantIds());
 
         MessageResponse response = messageMapper.toResponse(message);
-        broadcastMessage(message, conversation);
+
+        // Broadcast event created
+        EventEventDto eventDto = EventEventDto.builder()
+                .type("EVENT_CREATED")
+                .event(messageMapper.toEventResponse(message))
+                .build();
+        WebSocketMessage<EventEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.EVENT_CREATED, eventDto);
+
+        conversation.getParticipants()
+                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), wsMessage));
+
         broadcastConversationUpdate(conversation);
 
         return response;
@@ -561,7 +596,16 @@ public class MessageService {
         messageCache.invalidate(conversationId);
 
         MessageResponse response = messageMapper.toResponse(message);
-        broadcastMessage(message, message.getConversation());
+
+        // Broadcast event RSVP update
+        EventEventDto eventDto = EventEventDto.builder()
+                .type("EVENT_RSVP_UPDATED")
+                .event(messageMapper.toEventResponse(message))
+                .build();
+        WebSocketMessage<EventEventDto> wsMessage = new WebSocketMessage<>(WebSocketEventType.EVENT_RSVP, eventDto);
+
+        message.getConversation().getParticipants()
+                .forEach(p -> chatSessionService.sendMessageToUser(p.getUser().getId(), wsMessage));
 
         return response;
     }

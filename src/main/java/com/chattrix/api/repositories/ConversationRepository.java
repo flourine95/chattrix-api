@@ -260,9 +260,10 @@ public class ConversationRepository {
     public Optional<Conversation> findByInviteToken(String token) {
         try {
             // Native query to search JSONB metadata for invite token
+            // Use -> to get JSONB object, then ->> to get text value
             String sql = "SELECT c.* FROM conversations c " +
-                    "WHERE c.metadata->>'inviteLink'->>'token' = :token " +
-                    "AND c.metadata->>'inviteLink'->>'revoked' = 'false'";
+                    "WHERE c.metadata->'inviteLink'->>'token' = :token " +
+                    "AND c.metadata->'inviteLink'->>'revoked' = 'false'";
 
             Conversation conversation = (Conversation) em.createNativeQuery(sql, Conversation.class)
                     .setParameter("token", token)
