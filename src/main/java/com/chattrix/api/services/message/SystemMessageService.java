@@ -109,6 +109,13 @@ public class SystemMessageService {
     }
     
     @Transactional
+    public Message createPermissionsChangedMessage(Long conversationId, Long changedByUserId, Map<String, String> changedPermissions) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("permissions", changedPermissions);
+        return createSystemMessage(conversationId, changedByUserId, "permissions_changed", metadata);
+    }
+    
+    @Transactional
     public Message createUserJoinedViaLinkMessage(Long conversationId, Long userId, Long invitedByUserId) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("invitedBy", invitedByUserId);
