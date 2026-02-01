@@ -255,15 +255,15 @@ public class ConversationRepository {
 
     /**
      * Find conversations by invite token from JSONB metadata
-     * Uses native query to query JSONB field
+     * Searches in inviteLinks array for matching token
      */
     public Optional<Conversation> findByInviteToken(String token) {
         try {
-            // Native query to search JSONB metadata for invite token
-            // Use -> to get JSONB object, then ->> to get text value
-            String sql = "SELECT c.* FROM conversations c " +
-                    "WHERE c.metadata->'inviteLink'->>'token' = :token " +
-                    "AND c.metadata->'inviteLink'->>'revoked' = 'false'";
+            String sql = "SELECT c.* FROM conversations c, " +
+                    "jsonb_array_elements(c.metadata->'inviteLinks') AS link " +
+                    "WHERE link->>'token' = :token " +
+                    "AND (link->>'revoked' = 'false' OR link->>'revoked' IS NULL) " +
+                    "AND (link->>'active' = 'true' OR link->>'active' IS NULL)";
 
             Conversation conversation = (Conversation) em.createNativeQuery(sql, Conversation.class)
                     .setParameter("token", token)

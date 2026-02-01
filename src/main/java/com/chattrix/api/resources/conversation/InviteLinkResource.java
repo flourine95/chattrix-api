@@ -40,29 +40,33 @@ public class InviteLinkResource {
     }
 
     @GET
-    @Path("/{conversationId}/invite-link")
-    public Response getCurrentInviteLink(@PathParam("conversationId") Long conversationId) {
-        Long userId = userContext.getCurrentUserId();
-        log.info("User {} getting invite link for conversation {}", userId, conversationId);
-        InviteLinkResponse response = inviteLinkService.getCurrentInviteLink(userId, conversationId);
-
-        return Response.ok(ApiResponse.success(response, "Invite link retrieved successfully")).build();
-    }
-
-    @GET
     @Path("/{conversationId}/invite-links")
-    public Response getInviteLinkHistory(
+    public Response getInviteLinks(
             @PathParam("conversationId") Long conversationId,
+            @QueryParam("status") String status,
             @QueryParam("cursor") Long cursor,
             @QueryParam("limit") @DefaultValue("20") int limit) {
         
         Long userId = userContext.getCurrentUserId();
-        log.info("User {} getting invite link history for conversation {} (cursor: {}, limit: {})", 
-                userId, conversationId, cursor, limit);
+        log.info("User {} getting invite links for conversation {} (status: {}, cursor: {}, limit: {})", 
+                userId, conversationId, status, cursor, limit);
         
-        var response = inviteLinkService.getInviteLinkHistory(userId, conversationId, cursor, limit);
+        var response = inviteLinkService.getInviteLinks(userId, conversationId, status, cursor, limit);
 
-        return Response.ok(ApiResponse.success(response, "Invite link history retrieved successfully")).build();
+        return Response.ok(ApiResponse.success(response, "Invite links retrieved successfully")).build();
+    }
+
+    @GET
+    @Path("/{conversationId}/invite-link/{token}")
+    public Response getInviteLinkDetail(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("token") String token) {
+        
+        Long userId = userContext.getCurrentUserId();
+        log.info("User {} getting invite link detail {} for conversation {}", userId, token, conversationId);
+        var response = inviteLinkService.getInviteLinkDetail(userId, conversationId, token);
+
+        return Response.ok(ApiResponse.success(response, "Invite link detail retrieved successfully")).build();
     }
 
     @DELETE

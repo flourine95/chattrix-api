@@ -89,7 +89,7 @@ public class InviteLinkService {
             inviteLinks = new ArrayList<>();
         }
 
-        inviteLinks.add(0, newLink);
+        inviteLinks.addFirst(newLink);
         metadata.put("inviteLinks", inviteLinks);
         conversation.setMetadata(metadata);
 
@@ -100,41 +100,9 @@ public class InviteLinkService {
         return buildInviteLinkResponse(conversationId, newLink);
     }
 
-    public InviteLinkResponse getCurrentInviteLink(Long userId, Long conversationId) {
-        if (!participantRepository.isUserParticipant(conversationId, userId)) {
-            throw BusinessException.forbidden("You are not a member of this conversation");
-        }
-
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
-
-        Map<String, Object> metadata = conversation.getMetadata();
-        if (metadata == null) {
-            throw BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK");
-        }
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
-        
-        if (inviteLinks == null || inviteLinks.isEmpty()) {
-            throw BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK");
-        }
-
-        Map<String, Object> activeLink = inviteLinks.stream()
-                .filter(link -> {
-                    Boolean active = (Boolean) link.get("active");
-                    Boolean revoked = (Boolean) link.get("revoked");
-                    return (active != null && active) && (revoked == null || !revoked);
-                })
-                .findFirst()
-                .orElseThrow(() -> BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK"));
-
-        return buildInviteLinkResponse(conversationId, activeLink);
-    }
-
     @Transactional
-    public CursorPaginatedResponse<InviteLinkHistoryResponse> getInviteLinkHistory(
-            Long userId, Long conversationId, Long cursor, int limit) {
+    public CursorPaginatedResponse<InviteLinkHistoryResponse> getInviteLinks(
+            Long userId, Long conversationId, String status, Long cursor, int limit) {
         
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a member of this conversation");
@@ -150,7 +118,13 @@ public class InviteLinkService {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
             if (inviteLinks != null) {
-                allLinks.addAll(inviteLinks);
+                if (status != null && !status.isEmpty()) {
+                    allLinks.addAll(inviteLinks.stream()
+                            .filter(link -> status.equalsIgnoreCase(determineStatus(link)))
+                            .collect(Collectors.toList()));
+                } else {
+                    allLinks.addAll(inviteLinks);
+                }
             }
         }
 
@@ -184,6 +158,37 @@ public class InviteLinkService {
                 responses.size(), conversationId, cursor, allLinks.size());
 
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
+    }
+
+    @Transactional
+    public InviteLinkHistoryResponse getInviteLinkDetail(Long userId, Long conversationId, String token) {
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw BusinessException.forbidden("You are not a member of this conversation");
+        }
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+
+        Map<String, Object> metadata = conversation.getMetadata();
+        if (metadata == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+        
+        if (inviteLinks == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        Map<String, Object> inviteLink = inviteLinks.stream()
+                .filter(link -> token.equals(link.get("token")))
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND"));
+
+        log.info("Retrieved invite link detail {} for conversation {}", token, conversationId);
+
+        return buildHistoryResponse(conversationId, inviteLink);
     }
 
     @Transactional
@@ -364,11 +369,7 @@ public class InviteLinkService {
 
         Integer maxUses = getIntegerValue(inviteLink.get("maxUses"));
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
-        if (maxUses != null && maxUses > 0 && currentUses >= maxUses) {
-            return false;
-        }
-
-        return true;
+        return maxUses <= 0 || currentUses < maxUses;
     }
 
     private String getInvalidReason(Map<String, Object> inviteLink) {
@@ -384,7 +385,7 @@ public class InviteLinkService {
 
         Integer maxUses = getIntegerValue(inviteLink.get("maxUses"));
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
-        if (maxUses != null && currentUses >= maxUses) {
+        if (currentUses >= maxUses) {
             return "This invite link has reached its maximum number of uses";
         }
 
@@ -404,7 +405,7 @@ public class InviteLinkService {
 
         Integer maxUses = getIntegerValue(inviteLink.get("maxUses"));
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
-        if (maxUses != null && currentUses >= maxUses) {
+        if (currentUses >= maxUses) {
             return "INVITE_LINK_MAX_USES_REACHED";
         }
 
@@ -424,7 +425,7 @@ public class InviteLinkService {
 
         Integer maxUses = getIntegerValue(inviteLink.get("maxUses"));
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
-        if (maxUses != null && currentUses >= maxUses) {
+        if (currentUses >= maxUses) {
             return "max_uses_reached";
         }
 
@@ -510,30 +511,42 @@ public class InviteLinkService {
     }
 
     private Long getLongValue(Object value) {
-        if (value == null) return null;
-        if (value instanceof Long) return (Long) value;
-        if (value instanceof Integer) return ((Integer) value).longValue();
-        if (value instanceof Number) return ((Number) value).longValue();
-        return null;
+        return switch (value) {
+            case Long l -> l;
+            case Integer i -> i.longValue();
+            case Number number -> number.longValue();
+            case null, default -> null;
+        };
     }
 
     private Integer getIntegerValue(Object value) {
-        if (value == null) return 0;
-        if (value instanceof Integer) return (Integer) value;
-        if (value instanceof Long) return ((Long) value).intValue();
-        if (value instanceof Number) return ((Number) value).intValue();
-        return 0;
+        return switch (value) {
+            case Integer i -> i;
+            case Long l -> l.intValue();
+            case Number number -> number.intValue();
+            case null, default -> 0;
+        };
     }
 
     private Instant getInstantValue(Object value) {
-        if (value == null) return null;
-        if (value instanceof Instant) return (Instant) value;
-        if (value instanceof String) return Instant.parse((String) value);
-        if (value instanceof Number) {
-            double timestamp = ((Number) value).doubleValue();
-            long seconds = (long) timestamp;
-            long nanos = (long) ((timestamp - seconds) * 1_000_000_000);
-            return Instant.ofEpochSecond(seconds, nanos);
+        switch (value) {
+            case null -> {
+                return null;
+            }
+            case Instant instant -> {
+                return instant;
+            }
+            case String s -> {
+                return Instant.parse(s);
+            }
+            case Number number -> {
+                double timestamp = number.doubleValue();
+                long seconds = (long) timestamp;
+                long nanos = (long) ((timestamp - seconds) * 1_000_000_000);
+                return Instant.ofEpochSecond(seconds, nanos);
+            }
+            default -> {
+            }
         }
         return null;
     }
