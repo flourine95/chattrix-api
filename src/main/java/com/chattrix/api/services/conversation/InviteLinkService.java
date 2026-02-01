@@ -8,6 +8,7 @@ import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.ConversationRepository;
+import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.requests.CreateInviteLinkRequest;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.InviteLinkHistoryResponse;
@@ -15,6 +16,8 @@ import com.chattrix.api.responses.InviteLinkInfoResponse;
 import com.chattrix.api.responses.InviteLinkResponse;
 import com.chattrix.api.responses.JoinViaInviteResponse;
 import com.chattrix.api.responses.UserBasicResponse;
+import com.chattrix.api.services.invite.QRCodeService;
+import com.google.zxing.WriterException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -40,6 +43,15 @@ public class InviteLinkService {
 
     @Inject
     private AppConfig appConfig;
+
+    @Inject
+    private QRCodeService qrCodeService;
+
+    @Inject
+    private ConversationBroadcastService conversationBroadcastService;
+
+    @Inject
+    private UserRepository userRepository;
 
     @Transactional
     public InviteLinkResponse createInviteLink(Long userId, Long conversationId, CreateInviteLinkRequest request) {
@@ -287,7 +299,17 @@ public class InviteLinkService {
         conversation.setMetadata(metadata);
         conversationRepository.save(conversation);
 
+        User joinedUser = userRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User not found"));
+
         log.info("User {} joined conversation {} via invite link", userId, conversation.getId());
+
+        conversationBroadcastService.broadcastMembersAdded(
+                conversation, 
+                List.of(joinedUser), 
+                userId, 
+                joinedUser.getUsername()
+        );
 
         return JoinViaInviteResponse.builder()
                 .success(true)
@@ -549,5 +571,43 @@ public class InviteLinkService {
             }
         }
         return null;
+    }
+
+    public byte[] generateInviteLinkQRCode(Long userId, Long conversationId, String token, int size) {
+        if (!participantRepository.isUserParticipant(conversationId, userId)) {
+            throw BusinessException.forbidden("You are not a member of this conversation");
+        }
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
+
+        Map<String, Object> metadata = conversation.getMetadata();
+        if (metadata == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+        
+        if (inviteLinks == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        boolean linkExists = inviteLinks.stream()
+                .anyMatch(link -> token.equals(link.get("token")));
+
+        if (!linkExists) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        String inviteUrl = buildInviteUrl(token);
+
+        try {
+            log.info("Generating QR code for invite link {} (size: {})", token, size);
+            return qrCodeService.generateQRCode(inviteUrl, size, size);
+        } catch (WriterException | java.io.IOException e) {
+            log.error("Failed to generate QR code for invite link {}", token, e);
+            throw BusinessException.internalError("Failed to generate QR code", "QR_CODE_GENERATION_FAILED");
+        }
     }
 }

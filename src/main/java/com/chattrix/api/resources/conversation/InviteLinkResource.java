@@ -81,4 +81,20 @@ public class InviteLinkResource {
 
         return Response.ok(ApiResponse.success(null, "Invite link revoked successfully")).build();
     }
+
+    @GET
+    @Path("/{conversationId}/invite-link/{token}/qr")
+    @Produces("image/png")
+    public Response getInviteLinkQRCode(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("token") String token,
+            @QueryParam("size") @DefaultValue("300") int size) {
+        
+        Long userId = userContext.getCurrentUserId();
+        log.info("User {} generating QR code for invite link {} of conversation {}", userId, token, conversationId);
+        
+        byte[] qrCode = inviteLinkService.generateInviteLinkQRCode(userId, conversationId, token, size);
+
+        return Response.ok(qrCode).build();
+    }
 }

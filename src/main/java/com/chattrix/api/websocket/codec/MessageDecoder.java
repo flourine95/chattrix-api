@@ -9,19 +9,20 @@ import jakarta.websocket.DecodeException;
 import jakarta.websocket.Decoder;
 
 public class MessageDecoder implements Decoder.Text<WebSocketMessage<?>> {
-    private static final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper objectMapper;
+
+    static {
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
 
     @Override
     public WebSocketMessage<?> decode(String s) throws DecodeException {
         try {
             return objectMapper.readValue(s, WebSocketMessage.class);
         } catch (JsonProcessingException e) {
-            // Log the actual message that failed to decode
-            System.err.println("Failed to decode WebSocket message: " + s);
-            System.err.println("Error: " + e.getMessage());
-            throw new DecodeException(s, "Failed to decode to JSON: " + e.getMessage(), e);
+            throw new DecodeException(s, "Failed to decode WebSocket message", e);
         }
     }
 
