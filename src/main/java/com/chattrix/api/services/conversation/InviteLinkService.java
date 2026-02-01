@@ -1,7 +1,9 @@
 package com.chattrix.api.services.conversation;
 
+import com.chattrix.api.config.AppConfig;
 import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
+import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.repositories.ConversationParticipantRepository;
@@ -19,7 +21,11 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -32,21 +38,18 @@ public class InviteLinkService {
     @Inject
     private ConversationParticipantRepository participantRepository;
 
-    /**
-     * Create invite link for a group
-     */
+    @Inject
+    private AppConfig appConfig;
+
     @Transactional
     public InviteLinkResponse createInviteLink(Long userId, Long conversationId, CreateInviteLinkRequest request) {
-        // Get conversation
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
 
-        // Check if group
         if (conversation.getType() != ConversationType.GROUP) {
             throw BusinessException.badRequest("Invite links are only available for group conversations");
         }
 
-        // Check permissions - only admins can create invite links
         ConversationParticipant participant = participantRepository.findByConversationIdAndUserId(conversationId, userId)
                 .orElseThrow(() -> BusinessException.forbidden("You are not a member of this conversation"));
         
@@ -54,54 +57,39 @@ public class InviteLinkService {
             throw BusinessException.forbidden("Only admins can create invite links");
         }
 
-        // Generate token
         String token = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        // Calculate expiration
         Instant expiresAt = null;
         if (request.getExpiresIn() != null) {
             expiresAt = Instant.now().plusSeconds(request.getExpiresIn());
         }
 
-        // Create new invite link
+        Instant now = Instant.now();
+
         Map<String, Object> newLink = new HashMap<>();
         newLink.put("token", token);
-        newLink.put("expiresAt", expiresAt);
+        newLink.put("expiresAt", expiresAt != null ? expiresAt.toString() : null);
         newLink.put("maxUses", request.getMaxUses());
         newLink.put("currentUses", 0);
         newLink.put("createdBy", userId);
-        newLink.put("createdAt", Instant.now());
+        newLink.put("createdAt", now.toString());
         newLink.put("revoked", false);
         newLink.put("revokedAt", null);
         newLink.put("revokedBy", null);
         newLink.put("active", true);
 
-        // Get metadata
         Map<String, Object> metadata = conversation.getMetadata();
         if (metadata == null) {
             metadata = new HashMap<>();
         }
 
-        // Deactivate current active link
-        Map<String, Object> currentLink = (Map<String, Object>) metadata.get("inviteLink");
-        if (currentLink != null) {
-            currentLink.put("active", false);
-        }
-
-        // Get or create invite links history
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
         if (inviteLinks == null) {
             inviteLinks = new ArrayList<>();
         }
 
-        // Add old link to history if exists
-        if (currentLink != null) {
-            inviteLinks.add(0, currentLink);
-        }
-
-        // Set new active link
-        metadata.put("inviteLink", newLink);
+        inviteLinks.add(0, newLink);
         metadata.put("inviteLinks", inviteLinks);
         conversation.setMetadata(metadata);
 
@@ -112,11 +100,7 @@ public class InviteLinkService {
         return buildInviteLinkResponse(conversationId, newLink);
     }
 
-    /**
-     * Get current invite link for a group
-     */
     public InviteLinkResponse getCurrentInviteLink(Long userId, Long conversationId) {
-        // Check if user is member
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a member of this conversation");
         }
@@ -125,31 +109,33 @@ public class InviteLinkService {
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
 
         Map<String, Object> metadata = conversation.getMetadata();
-        if (metadata == null || !metadata.containsKey("inviteLink")) {
+        if (metadata == null) {
             throw BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK");
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> inviteLink = (Map<String, Object>) metadata.get("inviteLink");
-
-        Boolean active = (Boolean) inviteLink.get("active");
-        Boolean revoked = (Boolean) inviteLink.get("revoked");
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
         
-        if ((active != null && !active) || (revoked != null && revoked)) {
+        if (inviteLinks == null || inviteLinks.isEmpty()) {
             throw BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK");
         }
 
-        return buildInviteLinkResponse(conversationId, inviteLink);
+        Map<String, Object> activeLink = inviteLinks.stream()
+                .filter(link -> {
+                    Boolean active = (Boolean) link.get("active");
+                    Boolean revoked = (Boolean) link.get("revoked");
+                    return (active != null && active) && (revoked == null || !revoked);
+                })
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK"));
+
+        return buildInviteLinkResponse(conversationId, activeLink);
     }
 
-    /**
-     * Get invite link history for a group (with cursor pagination)
-     */
     @Transactional
     public CursorPaginatedResponse<InviteLinkHistoryResponse> getInviteLinkHistory(
             Long userId, Long conversationId, Long cursor, int limit) {
         
-        // Check if user is member
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a member of this conversation");
         }
@@ -160,26 +146,16 @@ public class InviteLinkService {
         Map<String, Object> metadata = conversation.getMetadata();
         List<Map<String, Object>> allLinks = new ArrayList<>();
 
-        // Add current active link first
-        if (metadata != null && metadata.containsKey("inviteLink")) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> currentLink = (Map<String, Object>) metadata.get("inviteLink");
-            allLinks.add(currentLink);
-        }
-
-        // Add history links
         if (metadata != null && metadata.containsKey("inviteLinks")) {
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> historyLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
-            if (historyLinks != null) {
-                allLinks.addAll(historyLinks);
+            List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+            if (inviteLinks != null) {
+                allLinks.addAll(inviteLinks);
             }
         }
 
-        // Apply cursor-based pagination
         int startIndex = 0;
         if (cursor != null) {
-            // Find index of cursor (using createdAt as cursor)
             for (int i = 0; i < allLinks.size(); i++) {
                 Instant createdAt = getInstantValue(allLinks.get(i).get("createdAt"));
                 if (createdAt != null && createdAt.toEpochMilli() == cursor) {
@@ -189,16 +165,13 @@ public class InviteLinkService {
             }
         }
 
-        // Get items for current page
         int endIndex = Math.min(startIndex + limit, allLinks.size());
         List<Map<String, Object>> paginatedLinks = allLinks.subList(startIndex, endIndex);
 
-        // Convert to response DTOs
         List<InviteLinkHistoryResponse> responses = paginatedLinks.stream()
                 .map(link -> buildHistoryResponse(conversationId, link))
                 .collect(Collectors.toList());
 
-        // Calculate next cursor
         Long nextCursor = null;
         if (endIndex < allLinks.size()) {
             Instant nextCreatedAt = getInstantValue(allLinks.get(endIndex).get("createdAt"));
@@ -213,29 +186,36 @@ public class InviteLinkService {
         return new CursorPaginatedResponse<>(responses, nextCursor, limit);
     }
 
-    /**
-     * Get invite link info (public - no auth required)
-     */
     @Transactional
     public InviteLinkInfoResponse getInviteLinkInfo(String token) {
         Conversation conversation = conversationRepository.findByInviteToken(token)
                 .orElseThrow(() -> BusinessException.notFound("Invite link not found or has been revoked", "INVITE_LINK_NOT_FOUND"));
 
         Map<String, Object> metadata = conversation.getMetadata();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> inviteLink = (Map<String, Object>) metadata.get("inviteLink");
+        if (metadata == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
 
-        // Check if valid
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+        
+        if (inviteLinks == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        Map<String, Object> inviteLink = inviteLinks.stream()
+                .filter(link -> token.equals(link.get("token")))
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND"));
+
         boolean valid = isInviteLinkValid(inviteLink);
         if (!valid) {
             String reason = getInvalidReason(inviteLink);
             throw BusinessException.gone(reason, getInvalidCode(inviteLink));
         }
 
-        // Get member count
         long memberCount = participantRepository.countByConversationId(conversation.getId());
 
-        // Get creator info
         Long createdBy = getLongValue(inviteLink.get("createdBy"));
         ConversationParticipant creator = participantRepository.findByConversationIdAndUserId(
                 conversation.getId(), createdBy).orElse(null);
@@ -254,41 +234,49 @@ public class InviteLinkService {
                 .build();
     }
 
-    /**
-     * Join group via invite link
-     */
     @Transactional
     public JoinViaInviteResponse joinViaInviteLink(Long userId, String token) {
         Conversation conversation = conversationRepository.findByInviteToken(token)
                 .orElseThrow(() -> BusinessException.notFound("Invite link not found or has been revoked", "INVITE_LINK_NOT_FOUND"));
 
-        // Check if already member
         if (participantRepository.isUserParticipant(conversation.getId(), userId)) {
             throw BusinessException.badRequest("You are already a member of this group", "ALREADY_MEMBER");
         }
 
         Map<String, Object> metadata = conversation.getMetadata();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> inviteLink = (Map<String, Object>) metadata.get("inviteLink");
+        if (metadata == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
 
-        // Check if valid
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+        
+        if (inviteLinks == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        Map<String, Object> inviteLink = inviteLinks.stream()
+                .filter(link -> token.equals(link.get("token")))
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND"));
+
         if (!isInviteLinkValid(inviteLink)) {
             String reason = getInvalidReason(inviteLink);
             throw BusinessException.gone(reason, getInvalidCode(inviteLink));
         }
 
-        // Add user to conversation
+        User user = new User();
+        user.setId(userId);
+
         ConversationParticipant participant = ConversationParticipant.builder()
                 .conversation(conversation)
-                .user(new com.chattrix.api.entities.User())
+                .user(user)
                 .role(ConversationParticipant.Role.MEMBER)
                 .joinedAt(Instant.now())
                 .build();
-        participant.getUser().setId(userId);
 
         participantRepository.save(participant);
 
-        // Increment current uses
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
         inviteLink.put("currentUses", currentUses + 1);
         conversation.setMetadata(metadata);
@@ -303,25 +291,30 @@ public class InviteLinkService {
                 .build();
     }
 
-    /**
-     * Revoke invite link
-     */
     @Transactional
-    public void revokeInviteLink(Long userId, Long conversationId) {
+    public void revokeInviteLink(Long userId, Long conversationId, String token) {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found"));
 
         Map<String, Object> metadata = conversation.getMetadata();
-        if (metadata == null || !metadata.containsKey("inviteLink")) {
-            throw BusinessException.notFound("No active invite link found", "NO_ACTIVE_INVITE_LINK");
+        if (metadata == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> inviteLink = (Map<String, Object>) metadata.get("inviteLink");
+        List<Map<String, Object>> inviteLinks = (List<Map<String, Object>>) metadata.get("inviteLinks");
+        
+        if (inviteLinks == null) {
+            throw BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND");
+        }
+
+        Map<String, Object> inviteLink = inviteLinks.stream()
+                .filter(link -> token.equals(link.get("token")))
+                .findFirst()
+                .orElseThrow(() -> BusinessException.notFound("Invite link not found", "INVITE_LINK_NOT_FOUND"));
 
         Long createdBy = getLongValue(inviteLink.get("createdBy"));
 
-        // Check permissions (admin or creator)
         ConversationParticipant participant = participantRepository.findByConversationIdAndUserId(conversationId, userId)
                 .orElseThrow(() -> BusinessException.forbidden("You are not a member of this conversation"));
 
@@ -329,43 +322,49 @@ public class InviteLinkService {
             throw BusinessException.forbidden("Only admins or the link creator can revoke invite links");
         }
 
-        // Revoke link
         inviteLink.put("revoked", true);
-        inviteLink.put("revokedAt", Instant.now());
+        inviteLink.put("revokedAt", Instant.now().toString());
         inviteLink.put("revokedBy", userId);
         inviteLink.put("active", false);
         conversation.setMetadata(metadata);
 
         conversationRepository.save(conversation);
 
-        log.info("Invite link revoked for conversation {} by user {}", conversationId, userId);
+        log.info("Invite link {} revoked for conversation {} by user {}", token, conversationId, userId);
     }
 
-    // Helper methods
+    private String buildInviteUrl(String token) {
+        String baseUrl = appConfig.get("app.base.url");
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            baseUrl = "http://localhost:8080";
+        }
+        
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        
+        return baseUrl + "/api/v1/invite/" + token;
+    }
 
     private boolean isInviteLinkValid(Map<String, Object> inviteLink) {
-        // Check active
         Boolean active = (Boolean) inviteLink.get("active");
-        if (active != null && !active) {
+        if (active == null || !active) {
             return false;
         }
 
-        // Check revoked
         Boolean revoked = (Boolean) inviteLink.get("revoked");
         if (revoked != null && revoked) {
             return false;
         }
 
-        // Check expiration
         Instant expiresAt = getInstantValue(inviteLink.get("expiresAt"));
         if (expiresAt != null && Instant.now().isAfter(expiresAt)) {
             return false;
         }
 
-        // Check max uses
         Integer maxUses = getIntegerValue(inviteLink.get("maxUses"));
         Integer currentUses = getIntegerValue(inviteLink.get("currentUses"));
-        if (maxUses != null && currentUses >= maxUses) {
+        if (maxUses != null && maxUses > 0 && currentUses >= maxUses) {
             return false;
         }
 
@@ -438,12 +437,14 @@ public class InviteLinkService {
     }
 
     private InviteLinkResponse buildInviteLinkResponse(Long conversationId, Map<String, Object> inviteLink) {
+        String token = (String) inviteLink.get("token");
         return InviteLinkResponse.builder()
                 .id(conversationId)
-                .token((String) inviteLink.get("token"))
+                .token(token)
+                .inviteUrl(buildInviteUrl(token))
                 .conversationId(conversationId)
                 .createdBy(getLongValue(inviteLink.get("createdBy")))
-                .createdByUsername(null) // TODO: Load if needed
+                .createdByUsername(null)
                 .createdAt(getInstantValue(inviteLink.get("createdAt")))
                 .expiresAt(getInstantValue(inviteLink.get("expiresAt")))
                 .maxUses(getIntegerValue(inviteLink.get("maxUses")))
@@ -528,7 +529,12 @@ public class InviteLinkService {
         if (value == null) return null;
         if (value instanceof Instant) return (Instant) value;
         if (value instanceof String) return Instant.parse((String) value);
-        if (value instanceof Number) return Instant.ofEpochMilli(((Number) value).longValue());
+        if (value instanceof Number) {
+            double timestamp = ((Number) value).doubleValue();
+            long seconds = (long) timestamp;
+            long nanos = (long) ((timestamp - seconds) * 1_000_000_000);
+            return Instant.ofEpochSecond(seconds, nanos);
+        }
         return null;
     }
 }

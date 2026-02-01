@@ -17,6 +17,7 @@ import jakarta.ws.rs.ext.Provider;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,7 +54,7 @@ public class RateLimitedFilter implements ContainerRequestFilter {
             ApiResponse<Void> errorResponse = ApiResponse.error(
                     "RATE_LIMIT_EXCEEDED",
                     "Too many requests. Please try again in " + windowSeconds + " seconds.",
-                    java.util.UUID.randomUUID().toString()
+                    UUID.randomUUID().toString()
             );
 
             requestContext.abortWith(

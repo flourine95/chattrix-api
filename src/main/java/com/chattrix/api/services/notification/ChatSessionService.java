@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 @Slf4j
@@ -163,6 +164,6 @@ public class ChatSessionService {
         
         return sessions.stream()
             .filter(session -> session != null && session.isOpen())
-            .collect(java.util.stream.Collectors.toSet());
+            .collect(Collectors.toSet());
     }
 }

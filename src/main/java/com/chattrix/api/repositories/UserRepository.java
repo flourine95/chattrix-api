@@ -1,6 +1,7 @@
 package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.User;
+import com.chattrix.api.responses.UserResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
@@ -8,9 +9,14 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class UserRepository {
@@ -94,7 +100,7 @@ public class UserRepository {
      * Find users by IDs - DTO Projection (optimized)
      * Returns UserResponse directly without entity mapping
      */
-    public List<com.chattrix.api.responses.UserResponse> findByIdsAsDTO(Set<Long> ids) {
+    public List<UserResponse> findByIdsAsDTO(Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -106,7 +112,7 @@ public class UserRepository {
                                 ") " +
                                 "FROM User u " +
                                 "WHERE u.id IN :ids",
-                        com.chattrix.api.responses.UserResponse.class)
+                        UserResponse.class)
                 .setParameter("ids", ids)
                 .getResultList();
     }
@@ -280,7 +286,7 @@ public class UserRepository {
      * Find all users - DTO Projection (optimized)
      * Returns UserResponse directly without entity mapping
      */
-    public List<com.chattrix.api.responses.UserResponse> findAllAsDTO() {
+    public List<UserResponse> findAllAsDTO() {
         return em.createQuery(
                         "SELECT new com.chattrix.api.responses.UserResponse(" +
                                 "  u.id, u.username, u.email, u.emailVerified, u.phone, " +
@@ -288,7 +294,7 @@ public class UserRepository {
                                 "  u.location, u.profileVisibility, u.lastSeen, u.createdAt, u.updatedAt" +
                                 ") " +
                                 "FROM User u",
-                        com.chattrix.api.responses.UserResponse.class)
+                        UserResponse.class)
                 .getResultList();
     }
 
@@ -322,12 +328,12 @@ public class UserRepository {
                 .getResultList();
 
         // Merge all results and remove duplicates using Set
-        Set<Long> allUserIds = new java.util.HashSet<>();
+        Set<Long> allUserIds = new HashSet<>();
         allUserIds.addAll(contactUserIds);
         allUserIds.addAll(contactedByUserIds);
         allUserIds.addAll(conversationMemberIds);
 
-        return new java.util.ArrayList<>(allUserIds);
+        return new ArrayList<>(allUserIds);
     }
 
     /**
@@ -376,7 +382,7 @@ public class UserRepository {
      * Returns users who have been active in the last 7 days
      */
     public List<User> findRecentActiveUsers(int limit) {
-        Instant sevenDaysAgo = Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS);
+        Instant sevenDaysAgo = Instant.now().minus(7, ChronoUnit.DAYS);
         return em.createQuery(
                         "SELECT u FROM User u " +
                                 "WHERE u.lastSeen >= :threshold " +
@@ -395,7 +401,7 @@ public class UserRepository {
      * @param updates Map of userId -> lastSeen timestamp
      */
     @Transactional
-    public void batchUpdateLastSeen(java.util.Map<Long, Instant> updates) {
+    public void batchUpdateLastSeen(Map<Long, Instant> updates) {
         if (updates == null || updates.isEmpty()) {
             return;
         }
@@ -403,7 +409,7 @@ public class UserRepository {
         // Build CASE WHEN query for batch update
         StringBuilder sql = new StringBuilder("UPDATE users SET last_seen = CASE id ");
         
-        for (java.util.Map.Entry<Long, Instant> entry : updates.entrySet()) {
+        for (Map.Entry<Long, Instant> entry : updates.entrySet()) {
             sql.append("WHEN ").append(entry.getKey())
                .append(" THEN TIMESTAMP '").append(entry.getValue()).append("' ");
         }
@@ -411,7 +417,7 @@ public class UserRepository {
         sql.append("END WHERE id IN (");
         sql.append(updates.keySet().stream()
             .map(String::valueOf)
-            .collect(java.util.stream.Collectors.joining(",")));
+            .collect(Collectors.joining(",")));
         sql.append(")");
         
         int updatedCount = em.createNativeQuery(sql.toString()).executeUpdate();

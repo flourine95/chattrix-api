@@ -6,6 +6,8 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.UserMapper;
+import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
@@ -51,10 +53,10 @@ public class EventService {
     private ChatSessionService chatSessionService;
 
     @Inject
-    private com.chattrix.api.mappers.WebSocketMapper webSocketMapper;
+    private WebSocketMapper webSocketMapper;
 
     @Inject
-    private com.chattrix.api.mappers.UserMapper userMapper;
+    private UserMapper userMapper;
 
     /**
      * List events in conversation with filters

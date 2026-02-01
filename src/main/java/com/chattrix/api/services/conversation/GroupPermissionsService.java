@@ -4,6 +4,7 @@ import com.chattrix.api.entities.Conversation;
 import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.GroupPermissions;
 import com.chattrix.api.entities.Message;
+import com.chattrix.api.entities.User;
 import com.chattrix.api.enums.ConversationType;
 import com.chattrix.api.enums.DeletePermissionLevel;
 import com.chattrix.api.enums.PermissionLevel;
@@ -20,6 +21,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import java.util.HashMap;
+import java.util.Map;
 
 @ApplicationScoped
 public class GroupPermissionsService {
@@ -50,7 +52,7 @@ public class GroupPermissionsService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
 
-        if (conversation.isGroupConversation()) {
+        if (!conversation.isGroupConversation()) {
             throw BusinessException.badRequest("Permissions only apply to group conversations", "INVALID_CONVERSATION_TYPE");
         }
 
@@ -75,7 +77,7 @@ public class GroupPermissionsService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "CONVERSATION_NOT_FOUND"));
 
-        if (conversation.isGroupConversation()) {
+        if (!conversation.isGroupConversation()) {
             throw BusinessException.badRequest("Permissions only apply to group conversations", "INVALID_CONVERSATION_TYPE");
         }
 
@@ -114,7 +116,7 @@ public class GroupPermissionsService {
         permissionsRepository.save(permissions);
 
         // Build permissions map for broadcasting
-        java.util.Map<String, String> permissionsMap = new HashMap<>();
+        Map<String, String> permissionsMap = new HashMap<>();
         if (request.getSendMessages() != null) permissionsMap.put("sendMessages", request.getSendMessages());
         if (request.getAddMembers() != null) permissionsMap.put("addMembers", request.getAddMembers());
         if (request.getRemoveMembers() != null) permissionsMap.put("removeMembers", request.getRemoveMembers());
@@ -135,7 +137,7 @@ public class GroupPermissionsService {
 
         // Broadcast permissions updated event
 
-        com.chattrix.api.entities.User actionByUser = conversation.getParticipants().stream()
+        User actionByUser = conversation.getParticipants().stream()
                 .map(ConversationParticipant::getUser)
                 .filter(user -> user.getId().equals(userId))
                 .findFirst()

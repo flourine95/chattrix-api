@@ -613,6 +613,9 @@ public class ConversationService {
                     .role(ConversationParticipant.Role.MEMBER)
                     .build();
             participantRepository.save(newParticipant);
+            
+            // Add to conversation's participants collection so broadcast includes new members
+            conversation.getParticipants().add(newParticipant);
 
             addedMembers.add(AddMembersResponse.AddedMember.builder()
                     .userId(newUser.getId())

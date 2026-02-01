@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -235,7 +236,7 @@ public class CacheAdminResource {
         Map<String, Object> health = new HashMap<>();
         health.put("cache", cacheManager.getHealthStatus());
         health.put("messageBuffer", messageBatchService.getStats());
-        health.put("timestamp", java.time.Instant.now());
+        health.put("timestamp", Instant.now());
         
         return Response.ok(health).build();
     }

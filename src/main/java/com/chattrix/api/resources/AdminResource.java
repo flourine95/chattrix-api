@@ -5,6 +5,10 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,18 +146,18 @@ public class AdminResource {
 
     // ==================== DTOs ====================
 
-    @lombok.Getter
-    @lombok.Setter
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class StatsResponse {
         private String stats;
     }
 
-    @lombok.Getter
-    @lombok.Setter
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MessageResponse {
         private String message;
     }

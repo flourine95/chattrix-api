@@ -2,14 +2,19 @@ package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.enums.ScheduledStatus;
+import com.chattrix.api.responses.MessageResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.*;
 import jakarta.transaction.Transactional;
 
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import com.chattrix.api.enums.MessageType;
 @ApplicationScoped
@@ -602,7 +607,7 @@ public class MessageRepository {
      * Find announcements with cursor - DTO Projection (optimized)
      * Returns MessageResponse directly without entity mapping
      */
-    public List<com.chattrix.api.responses.MessageResponse> findAnnouncementsByCursorAsDTO(
+    public List<MessageResponse> findAnnouncementsByCursorAsDTO(
             Long conversationId, Long cursor, int limit) {
         
         StringBuilder jpql = new StringBuilder(
@@ -628,8 +633,8 @@ public class MessageRepository {
         
         jpql.append("ORDER BY m.id DESC");
         
-        TypedQuery<com.chattrix.api.responses.MessageResponse> query = 
-            em.createQuery(jpql.toString(), com.chattrix.api.responses.MessageResponse.class);
+        TypedQuery<MessageResponse> query =
+            em.createQuery(jpql.toString(), MessageResponse.class);
         
         query.setParameter("conversationId", conversationId);
         query.setParameter("announcementType", MessageType.ANNOUNCEMENT);
@@ -728,7 +733,7 @@ public class MessageRepository {
      */
     public boolean hasBirthdayMessageBeenSentToday(Long conversationId, Long birthdayUserId) {
         // Get start of today in UTC
-        Instant startOfToday = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        Instant startOfToday = Instant.now().truncatedTo(ChronoUnit.DAYS);
         
         // Native query to handle JSONB array containment check in PostgreSQL
         // Using standard SQL CAST to avoid parser confusion with :: operator
@@ -740,7 +745,7 @@ public class MessageRepository {
         
         Query query = em.createNativeQuery(sql);
         query.setParameter("conversationId", conversationId);
-        query.setParameter("startOfToday", java.sql.Timestamp.from(startOfToday));
+        query.setParameter("startOfToday", Timestamp.from(startOfToday));
         query.setParameter("mentionPattern", "[" + birthdayUserId + "]");
         
         Number count = (Number) query.getSingleResult();
@@ -752,7 +757,7 @@ public class MessageRepository {
     /**
      * Get media statistics for a conversation
      */
-    public java.util.Map<String, Long> getMediaStatistics(Long conversationId) {
+    public Map<String, Long> getMediaStatistics(Long conversationId) {
         String sql = "SELECT " +
                      "  COALESCE(SUM(CASE WHEN type = 'IMAGE' THEN 1 ELSE 0 END), 0) as images, " +
                      "  COALESCE(SUM(CASE WHEN type = 'VIDEO' THEN 1 ELSE 0 END), 0) as videos, " +
@@ -770,7 +775,7 @@ public class MessageRepository {
         
         Object[] result = (Object[]) query.getSingleResult();
         
-        java.util.Map<String, Long> stats = new java.util.HashMap<>();
+        Map<String, Long> stats = new HashMap<>();
         stats.put("images", result[0] != null ? ((Number) result[0]).longValue() : 0L);
         stats.put("videos", result[1] != null ? ((Number) result[1]).longValue() : 0L);
         stats.put("audios", result[2] != null ? ((Number) result[2]).longValue() : 0L);

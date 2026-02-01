@@ -34,7 +34,8 @@ public class GroupAvatarService {
         // Bean Validation already checked: avatarUrl is not blank
         
         // Verify conversation exists and is a group
-        Conversation conversation = conversationRepository.findById(conversationId)
+        // Use findByIdWithParticipants to avoid LazyInitializationException when mapping
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (conversation.getType() != ConversationType.GROUP) {
@@ -53,7 +54,7 @@ public class GroupAvatarService {
         // Create system message
         systemMessageService.createGroupAvatarChangedMessage(conversationId, userId);
 
-        return conversationMapper.toResponse(conversation);
+        return conversationMapper.toResponseWithUnreadCount(conversation, userId);
     }
 
     /**
@@ -62,7 +63,8 @@ public class GroupAvatarService {
     @Transactional
     public ConversationResponse deleteAvatar(Long userId, Long conversationId) {
         // Verify conversation exists and is a group
-        Conversation conversation = conversationRepository.findById(conversationId)
+        // Use findByIdWithParticipants to avoid LazyInitializationException when mapping
+        Conversation conversation = conversationRepository.findByIdWithParticipants(conversationId)
                 .orElseThrow(() -> BusinessException.notFound("Conversation not found", "RESOURCE_NOT_FOUND"));
 
         if (conversation.getType() != ConversationType.GROUP) {
@@ -78,6 +80,6 @@ public class GroupAvatarService {
         conversation.setAvatarUrl(null);
         conversationRepository.save(conversation);
 
-        return conversationMapper.toResponse(conversation);
+        return conversationMapper.toResponseWithUnreadCount(conversation, userId);
     }
 }

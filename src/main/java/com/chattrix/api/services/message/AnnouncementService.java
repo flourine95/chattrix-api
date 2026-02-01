@@ -28,6 +28,7 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AnnouncementService {
@@ -95,7 +96,7 @@ public class AnnouncementService {
         messageCache.invalidate(conversationId);
         Set<Long> participantIds = conversation.getParticipants().stream()
                 .map(p -> p.getUser().getId())
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         cacheManager.invalidateConversationCaches(conversationId, participantIds);
 
         // Broadcast to all participants

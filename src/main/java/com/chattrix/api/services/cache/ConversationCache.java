@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Cache for conversation metadata (lastMessage, unreadCount, participants)
@@ -51,7 +52,7 @@ public class ConversationCache {
      */
     public void putAll(Long userId, Map<Long, ConversationResponse> conversations) {
         Map<String, ConversationResponse> cacheEntries = conversations.entrySet().stream()
-            .collect(java.util.stream.Collectors.toMap(
+            .collect(Collectors.toMap(
                 entry -> getCacheKey(userId, entry.getKey()),
                 Map.Entry::getValue
             ));
@@ -72,7 +73,7 @@ public class ConversationCache {
     public void invalidateForAllParticipants(Long conversationId, Set<Long> participantIds) {
         Set<String> keys = participantIds.stream()
             .map(userId -> getCacheKey(userId, conversationId))
-            .collect(java.util.stream.Collectors.toSet());
+            .collect(Collectors.toSet());
         cache.invalidateAll(keys);
     }
     
@@ -83,7 +84,7 @@ public class ConversationCache {
         String prefix = userId + "_";
         Set<String> keysToInvalidate = cache.asMap().keySet().stream()
             .filter(key -> key.startsWith(prefix))
-            .collect(java.util.stream.Collectors.toSet());
+            .collect(Collectors.toSet());
         cache.invalidateAll(keysToInvalidate);
     }
     

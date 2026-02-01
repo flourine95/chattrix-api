@@ -5,6 +5,7 @@ import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.responses.ConversationResponse;
 import com.chattrix.api.responses.ConversationSettingsResponse;
+import org.hibernate.LazyInitializationException;
 import org.mapstruct.*;
 
 import java.util.List;
@@ -37,40 +38,54 @@ public interface ConversationMapper {
 
     /**
      * Extract unreadCount for specific user from conversation participants.
+     * IMPORTANT: This method accesses lazy-loaded collections. Ensure the conversation
+     * entity is fetched with participants JOIN FETCHED in the repository query.
      */
     default Integer extractUnreadCount(Conversation conversation, Long userId) {
         if (conversation.getParticipants() == null || userId == null) {
             return 0;
         }
         
-        return conversation.getParticipants().stream()
-                .filter(p -> p.getUser() != null && p.getUser().getId().equals(userId))
-                .findFirst()
-                .map(ConversationParticipant::getUnreadCount)
-                .orElse(0);
+        try {
+            return conversation.getParticipants().stream()
+                    .filter(p -> p.getUser() != null && p.getUser().getId().equals(userId))
+                    .findFirst()
+                    .map(ConversationParticipant::getUnreadCount)
+                    .orElse(0);
+        } catch (LazyInitializationException e) {
+            // Fallback if participants not fetched - return 0
+            return 0;
+        }
     }
 
     /**
      * Extract user-specific settings from conversation participant.
+     * IMPORTANT: This method accesses lazy-loaded collections. Ensure the conversation
+     * entity is fetched with participants JOIN FETCHED in the repository query.
      */
     default ConversationSettingsResponse extractSettings(Conversation conversation, Long userId) {
         if (conversation.getParticipants() == null || userId == null) {
             return null;
         }
         
-        return conversation.getParticipants().stream()
-                .filter(p -> p.getUser() != null && p.getUser().getId().equals(userId))
-                .findFirst()
-                .map(p -> ConversationSettingsResponse.builder()
-                        .conversationId(conversation.getId())
-                        .muted(p.isMuted())
-                        .mutedUntil(p.getMutedUntil())
-                        .pinned(p.isPinned())
-                        .pinOrder(p.getPinOrder())
-                        .archived(p.isArchived())
-                        .notificationsEnabled(!p.isMuted()) // Inverse of muted
-                        .build())
-                .orElse(null);
+        try {
+            return conversation.getParticipants().stream()
+                    .filter(p -> p.getUser() != null && p.getUser().getId().equals(userId))
+                    .findFirst()
+                    .map(p -> ConversationSettingsResponse.builder()
+                            .conversationId(conversation.getId())
+                            .muted(p.isMuted())
+                            .mutedUntil(p.getMutedUntil())
+                            .pinned(p.isPinned())
+                            .pinOrder(p.getPinOrder())
+                            .archived(p.isArchived())
+                            .notificationsEnabled(!p.isMuted()) // Inverse of muted
+                            .build())
+                    .orElse(null);
+        } catch (LazyInitializationException e) {
+            // Fallback if participants not fetched - return null
+            return null;
+        }
     }
 
     @Mapping(target = "userId", source = "user.id")

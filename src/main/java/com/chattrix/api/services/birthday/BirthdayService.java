@@ -21,7 +21,10 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 @ApplicationScoped
 public class BirthdayService {
@@ -137,7 +140,7 @@ public class BirthdayService {
         List<Conversation> userConversations = conversationRepository.findByUserId(currentUserId);
 
         // Get all user IDs from those conversations
-        java.util.Set<Long> relevantUserIds = userConversations.stream()
+        Set<Long> relevantUserIds = userConversations.stream()
                 .flatMap(conv -> conv.getParticipants().stream())
                 .map(p -> p.getUser().getId())
                 .collect(Collectors.toSet());
@@ -378,12 +381,12 @@ public class BirthdayService {
     /**
      * Debug method to check timezone handling for a user
      */
-    public java.util.Map<String, Object> debugUserBirthday(Long userId) {
+    public Map<String, Object> debugUserBirthday(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found", "USER_NOT_FOUND"));
 
         if (user.getDateOfBirth() == null) {
-            java.util.Map<String, Object> error = new java.util.HashMap<>();
+            Map<String, Object> error = new HashMap<>();
             error.put("error", "User has no date of birth set");
             return error;
         }
@@ -394,7 +397,7 @@ public class BirthdayService {
         LocalDate today = LocalDate.now();
         LocalDate todayUTC = LocalDate.now(ZoneId.of("UTC"));
 
-        java.util.Map<String, Object> debug = new java.util.HashMap<>();
+        Map<String, Object> debug = new HashMap<>();
         debug.put("userId", user.getId());
         debug.put("username", user.getUsername());
         debug.put("dateOfBirth_instant", dob.toString());

@@ -20,6 +20,7 @@ import jakarta.transaction.Transactional;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ReactionService {
@@ -98,7 +99,7 @@ public class ReactionService {
         messageCache.invalidate(message.getConversation().getId());
         Set<Long> participantIds = conversation.getParticipants().stream()
                 .map(p -> p.getUser().getId())
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         cacheManager.invalidateConversationCaches(message.getConversation().getId(), participantIds);
 
         // Broadcast reaction event to all conversation participants
@@ -166,7 +167,7 @@ public class ReactionService {
             messageCache.invalidate(message.getConversation().getId());
             Set<Long> participantIds = conversation.getParticipants().stream()
                     .map(p -> p.getUser().getId())
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(Collectors.toSet());
             cacheManager.invalidateConversationCaches(message.getConversation().getId(), participantIds);
 
             // Broadcast reaction event to all conversation participants

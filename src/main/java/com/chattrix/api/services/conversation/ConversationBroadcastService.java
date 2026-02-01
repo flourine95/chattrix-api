@@ -1,7 +1,6 @@
 package com.chattrix.api.services.conversation;
 
 import com.chattrix.api.entities.Conversation;
-import com.chattrix.api.entities.ConversationParticipant;
 import com.chattrix.api.entities.User;
 import com.chattrix.api.mappers.ConversationMapper;
 import com.chattrix.api.responses.ConversationResponse;
@@ -32,27 +31,27 @@ public class ConversationBroadcastService {
      */
     public void broadcastConversationCreated(Conversation conversation, Long createdBy, String createdByUsername) {
         try {
-            log.debug("Broadcasting conversation created: conversationId={}, createdBy={}", 
+            log.debug("Broadcasting conversation created: conversationId={}, createdBy={}",
                     conversation.getId(), createdBy);
 
             // Map conversation to response for each participant
             conversation.getParticipants().forEach(participant -> {
                 Long userId = participant.getUser().getId();
                 ConversationResponse conversationResponse = conversationMapper.toResponseWithUnreadCount(conversation, userId);
-                
+
                 ConversationCreatedDto dto = ConversationCreatedDto.builder()
                         .conversation(conversationResponse)
                         .createdBy(createdBy)
                         .createdByUsername(createdByUsername)
                         .build();
 
-                WebSocketMessage<ConversationCreatedDto> message = 
+                WebSocketMessage<ConversationCreatedDto> message =
                         new WebSocketMessage<>(WebSocketEventType.CONVERSATION_CREATED, dto);
 
                 chatSessionService.sendMessageToUser(userId, message);
             });
 
-            log.info("Broadcasted conversation created to {} participants", 
+            log.info("Broadcasted conversation created to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast conversation created: {}", e.getMessage(), e);
@@ -64,7 +63,7 @@ public class ConversationBroadcastService {
      */
     public void broadcastConversationUpdated(Conversation conversation, Long updatedBy, String updatedByUsername) {
         try {
-            log.debug("Broadcasting conversation updated: conversationId={}, updatedBy={}", 
+            log.debug("Broadcasting conversation updated: conversationId={}, updatedBy={}",
                     conversation.getId(), updatedBy);
 
             ConversationUpdatedDto dto = ConversationUpdatedDto.builder()
@@ -77,12 +76,12 @@ public class ConversationBroadcastService {
                     .updatedAt(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationUpdatedDto> message = 
+            WebSocketMessage<ConversationUpdatedDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_UPDATED, dto);
 
             broadcastToAllParticipants(conversation, message);
 
-            log.info("Broadcasted conversation updated to {} participants", 
+            log.info("Broadcasted conversation updated to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast conversation updated: {}", e.getMessage(), e);
@@ -94,7 +93,7 @@ public class ConversationBroadcastService {
      */
     public void broadcastMembersAdded(Conversation conversation, List<User> addedUsers, Long actionBy, String actionByUsername) {
         try {
-            log.debug("Broadcasting members added: conversationId={}, count={}, actionBy={}", 
+            log.debug("Broadcasting members added: conversationId={}, count={}, actionBy={}",
                     conversation.getId(), addedUsers.size(), actionBy);
 
             List<ConversationMemberDto.MemberInfo> memberInfos = addedUsers.stream()
@@ -115,12 +114,18 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationMemberDto> message = 
+            WebSocketMessage<ConversationMemberDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_MEMBER_ADDED, dto);
+
+            // Log all participants who will receive the event
+            List<Long> participantIds = conversation.getParticipants().stream()
+                    .map(p -> p.getUser().getId())
+                    .collect(Collectors.toList());
+            log.info("Broadcasting CONVERSATION_MEMBER_ADDED to participants: {}", participantIds);
 
             broadcastToAllParticipants(conversation, message);
 
-            log.info("Broadcasted members added to {} participants", 
+            log.info("Broadcasted members added to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast members added: {}", e.getMessage(), e);
@@ -132,7 +137,7 @@ public class ConversationBroadcastService {
      */
     public void broadcastMemberRemoved(Conversation conversation, User removedUser, Long actionBy, String actionByUsername) {
         try {
-            log.debug("Broadcasting member removed: conversationId={}, removedUserId={}, actionBy={}", 
+            log.debug("Broadcasting member removed: conversationId={}, removedUserId={}, actionBy={}",
                     conversation.getId(), removedUser.getId(), actionBy);
 
             ConversationMemberDto.MemberInfo memberInfo = ConversationMemberDto.MemberInfo.builder()
@@ -150,14 +155,14 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationMemberDto> message = 
+            WebSocketMessage<ConversationMemberDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_MEMBER_REMOVED, dto);
 
             // Broadcast to remaining participants + removed user
             broadcastToAllParticipants(conversation, message);
             chatSessionService.sendMessageToUser(removedUser.getId(), message);
 
-            log.info("Broadcasted member removed to {} participants + removed user", 
+            log.info("Broadcasted member removed to {} participants + removed user",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast member removed: {}", e.getMessage(), e);
@@ -169,7 +174,7 @@ public class ConversationBroadcastService {
      */
     public void broadcastMemberLeft(Conversation conversation, User leftUser) {
         try {
-            log.debug("Broadcasting member left: conversationId={}, userId={}", 
+            log.debug("Broadcasting member left: conversationId={}, userId={}",
                     conversation.getId(), leftUser.getId());
 
             ConversationMemberDto.MemberInfo memberInfo = ConversationMemberDto.MemberInfo.builder()
@@ -187,12 +192,12 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationMemberDto> message = 
+            WebSocketMessage<ConversationMemberDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_MEMBER_LEFT, dto);
 
             broadcastToAllParticipants(conversation, message);
 
-            log.info("Broadcasted member left to {} participants", 
+            log.info("Broadcasted member left to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast member left: {}", e.getMessage(), e);
@@ -202,10 +207,10 @@ public class ConversationBroadcastService {
     /**
      * Broadcast role updated event (promote/demote)
      */
-    public void broadcastRoleUpdated(Conversation conversation, User targetUser, String oldRole, String newRole, 
+    public void broadcastRoleUpdated(Conversation conversation, User targetUser, String oldRole, String newRole,
                                      Long updatedBy, String updatedByUsername) {
         try {
-            log.debug("Broadcasting role updated: conversationId={}, userId={}, oldRole={}, newRole={}, updatedBy={}", 
+            log.debug("Broadcasting role updated: conversationId={}, userId={}, oldRole={}, newRole={}, updatedBy={}",
                     conversation.getId(), targetUser.getId(), oldRole, newRole, updatedBy);
 
             ConversationRoleUpdatedDto dto = ConversationRoleUpdatedDto.builder()
@@ -220,12 +225,12 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationRoleUpdatedDto> message = 
+            WebSocketMessage<ConversationRoleUpdatedDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_ROLE_UPDATED, dto);
 
             broadcastToAllParticipants(conversation, message);
 
-            log.info("Broadcasted role updated to {} participants", 
+            log.info("Broadcasted role updated to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast role updated: {}", e.getMessage(), e);
@@ -235,10 +240,10 @@ public class ConversationBroadcastService {
     /**
      * Broadcast permissions updated event
      */
-    public void broadcastPermissionsUpdated(Conversation conversation, Map<String, String> permissions, 
-                                           Long updatedBy, String updatedByUsername) {
+    public void broadcastPermissionsUpdated(Conversation conversation, Map<String, String> permissions,
+                                            Long updatedBy, String updatedByUsername) {
         try {
-            log.debug("Broadcasting permissions updated: conversationId={}, updatedBy={}", 
+            log.debug("Broadcasting permissions updated: conversationId={}, updatedBy={}",
                     conversation.getId(), updatedBy);
 
             ConversationPermissionsUpdatedDto dto = ConversationPermissionsUpdatedDto.builder()
@@ -249,12 +254,12 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationPermissionsUpdatedDto> message = 
+            WebSocketMessage<ConversationPermissionsUpdatedDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_PERMISSIONS_UPDATED, dto);
 
             broadcastToAllParticipants(conversation, message);
 
-            log.info("Broadcasted permissions updated to {} participants", 
+            log.info("Broadcasted permissions updated to {} participants",
                     conversation.getParticipants().size());
         } catch (Exception e) {
             log.error("Failed to broadcast permissions updated: {}", e.getMessage(), e);
@@ -266,7 +271,7 @@ public class ConversationBroadcastService {
      */
     public void broadcastConversationDeleted(Long conversationId, List<Long> participantIds, String reason) {
         try {
-            log.debug("Broadcasting conversation deleted: conversationId={}, reason={}", 
+            log.debug("Broadcasting conversation deleted: conversationId={}, reason={}",
                     conversationId, reason);
 
             ConversationDeletedDto dto = ConversationDeletedDto.builder()
@@ -275,10 +280,10 @@ public class ConversationBroadcastService {
                     .timestamp(Instant.now())
                     .build();
 
-            WebSocketMessage<ConversationDeletedDto> message = 
+            WebSocketMessage<ConversationDeletedDto> message =
                     new WebSocketMessage<>(WebSocketEventType.CONVERSATION_DELETED, dto);
 
-            participantIds.forEach(userId -> 
+            participantIds.forEach(userId ->
                     chatSessionService.sendMessageToUser(userId, message));
 
             log.info("Broadcasted conversation deleted to {} participants", participantIds.size());
@@ -291,7 +296,7 @@ public class ConversationBroadcastService {
      * Helper method to broadcast to all participants
      */
     private <T> void broadcastToAllParticipants(Conversation conversation, WebSocketMessage<T> message) {
-        conversation.getParticipants().forEach(participant -> 
+        conversation.getParticipants().forEach(participant ->
                 chatSessionService.sendMessageToUser(participant.getUser().getId(), message));
     }
 }

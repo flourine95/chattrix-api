@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -93,8 +95,8 @@ public class UnreadCountCache {
      * Get all cached entries for syncing to DB
      * Returns map of "conversationId:userId" → count
      */
-    public java.util.Map<String, Integer> getAllForSync() {
-        java.util.Map<String, Integer> result = new java.util.HashMap<>();
+    public Map<String, Integer> getAllForSync() {
+        Map<String, Integer> result = new HashMap<>();
         cache.asMap().forEach((key, atomicCount) -> {
             result.put(key, atomicCount.get());
         });

@@ -2,6 +2,7 @@ package com.chattrix.api.mappers;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.responses.ReplyMessageResponse;
 import com.chattrix.api.responses.UserResponse;
 import com.chattrix.api.websocket.dto.OutgoingMessageDto;
 import com.chattrix.api.websocket.dto.TypingUserDto;
@@ -30,7 +31,7 @@ public abstract class WebSocketMapper {
     @Mapping(target = "senderUsername", source = "sender.username")
     @Mapping(target = "senderFullName", source = "sender.fullName")
     @Mapping(target = "type", expression = "java(message.getType().name())")
-    public abstract com.chattrix.api.responses.ReplyMessageResponse toReplyMessageResponse(Message message);
+    public abstract ReplyMessageResponse toReplyMessageResponse(Message message);
 
     @Mapping(target = "userId", source = "id")
     public abstract TypingUserDto toTypingUserResponse(User user);

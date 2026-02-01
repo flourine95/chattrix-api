@@ -8,6 +8,7 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.GlobalSearchResultResponse;
 import com.chattrix.api.responses.MediaSearchResponse;
+import com.chattrix.api.responses.MediaStatisticsResponse;
 import com.chattrix.api.responses.MessageContextResponse;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.utils.PaginationHelper;
@@ -16,6 +17,7 @@ import jakarta.inject.Inject;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 @ApplicationScoped
@@ -152,10 +154,10 @@ public class MessageSearchService {
                 .toList();
         
         // Get statistics
-        java.util.Map<String, Long> stats = messageRepository.getMediaStatistics(conversationId);
+        Map<String, Long> stats = messageRepository.getMediaStatistics(conversationId);
         
-        com.chattrix.api.responses.MediaStatisticsResponse statistics = 
-            com.chattrix.api.responses.MediaStatisticsResponse.builder()
+        MediaStatisticsResponse statistics =
+            MediaStatisticsResponse.builder()
                 .totalImages(stats.get("images"))
                 .totalVideos(stats.get("videos"))
                 .totalAudios(stats.get("audios"))
@@ -182,15 +184,15 @@ public class MessageSearchService {
     /**
      * Get media statistics only (without messages)
      */
-    public com.chattrix.api.responses.MediaStatisticsResponse getMediaStatistics(Long userId, Long conversationId) {
+    public MediaStatisticsResponse getMediaStatistics(Long userId, Long conversationId) {
         // Verify user is participant
         if (!participantRepository.isUserParticipant(conversationId, userId)) {
             throw BusinessException.forbidden("You are not a member of this conversation");
         }
         
-        java.util.Map<String, Long> stats = messageRepository.getMediaStatistics(conversationId);
+        Map<String, Long> stats = messageRepository.getMediaStatistics(conversationId);
         
-        return com.chattrix.api.responses.MediaStatisticsResponse.builder()
+        return MediaStatisticsResponse.builder()
                 .totalImages(stats.get("images"))
                 .totalVideos(stats.get("videos"))
                 .totalAudios(stats.get("audios"))

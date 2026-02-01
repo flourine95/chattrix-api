@@ -2,8 +2,17 @@ package com.chattrix.api.mappers;
 
 import com.chattrix.api.entities.Message;
 import com.chattrix.api.entities.User;
+import com.chattrix.api.responses.EventResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.responses.PollOptionResponse;
+import com.chattrix.api.responses.PollResponse;
+import com.chattrix.api.responses.ReplyMessageResponse;
 import org.mapstruct.*;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.JAKARTA_CDI)
 public interface MessageMapper {
@@ -29,7 +38,7 @@ public interface MessageMapper {
     @Mapping(target = "senderUsername", source = "sender.username")
     @Mapping(target = "senderFullName", source = "sender.fullName")
     @Mapping(target = "type", expression = "java(message.getType().name())")
-    com.chattrix.api.responses.ReplyMessageResponse toReplyMessageResponse(Message message);
+    ReplyMessageResponse toReplyMessageResponse(Message message);
     
     /**
      * Helper method to map User fields with a prefix.
@@ -57,7 +66,7 @@ public interface MessageMapper {
      * Convert Message to PollResponse
      * Extracts poll data from metadata
      */
-    default com.chattrix.api.responses.PollResponse toPollResponse(Message message) {
+    default PollResponse toPollResponse(Message message) {
         return toPollResponse(message, null);
     }
     
@@ -65,27 +74,27 @@ public interface MessageMapper {
      * Convert Message to PollResponse with current user context
      * Extracts poll data from metadata and includes user-specific info
      */
-    default com.chattrix.api.responses.PollResponse toPollResponse(Message message, Long currentUserId) {
+    default PollResponse toPollResponse(Message message, Long currentUserId) {
         if (message == null || message.getMetadata() == null) return null;
         
         @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> pollData = (java.util.Map<String, Object>) message.getMetadata().get("poll");
+        Map<String, Object> pollData = (Map<String, Object>) message.getMetadata().get("poll");
         if (pollData == null) return null;
         
         @SuppressWarnings("unchecked")
-        java.util.List<java.util.Map<String, Object>> optionsList = 
-            (java.util.List<java.util.Map<String, Object>>) pollData.get("options");
+        List<Map<String, Object>> optionsList =
+            (List<Map<String, Object>>) pollData.get("options");
         
-        java.util.List<com.chattrix.api.responses.PollOptionResponse> options = new java.util.ArrayList<>();
+        List<PollOptionResponse> options = new ArrayList<>();
         int totalVotes = 0;
         
         if (optionsList != null) {
-            for (java.util.Map<String, Object> opt : optionsList) {
+            for (Map<String, Object> opt : optionsList) {
                 @SuppressWarnings("unchecked")
-                java.util.List<Object> votes = (java.util.List<Object>) opt.get("votes");
+                List<Object> votes = (List<Object>) opt.get("votes");
                 
                 // Convert votes to List<Long>
-                java.util.List<Long> voterIds = new java.util.ArrayList<>();
+                List<Long> voterIds = new ArrayList<>();
                 if (votes != null) {
                     for (Object id : votes) {
                         if (id instanceof Number) {
@@ -105,9 +114,9 @@ public interface MessageMapper {
                 
                 // Check if poll is anonymous
                 Boolean anonymous = (Boolean) pollData.get("anonymous");
-                java.util.List<Long> voterIdsToReturn = (Boolean.TRUE.equals(anonymous)) ? null : voterIds;
+                List<Long> voterIdsToReturn = (Boolean.TRUE.equals(anonymous)) ? null : voterIds;
                 
-                options.add(com.chattrix.api.responses.PollOptionResponse.builder()
+                options.add(PollOptionResponse.builder()
                     .id(((Number) opt.get("id")).longValue())
                     .text((String) opt.get("text"))
                     .voteCount(voteCount)
@@ -117,14 +126,14 @@ public interface MessageMapper {
             }
         }
         
-        java.time.Instant closesAt = null;
+        Instant closesAt = null;
         if (pollData.containsKey("closesAt") && pollData.get("closesAt") != null) {
-            closesAt = java.time.Instant.parse(pollData.get("closesAt").toString());
+            closesAt = Instant.parse(pollData.get("closesAt").toString());
         }
         
-        boolean isClosed = closesAt != null && java.time.Instant.now().isAfter(closesAt);
+        boolean isClosed = closesAt != null && Instant.now().isAfter(closesAt);
         
-        return com.chattrix.api.responses.PollResponse.builder()
+        return PollResponse.builder()
             .messageId(message.getId())
             .question((String) pollData.get("question"))
             .options(options)
@@ -143,32 +152,32 @@ public interface MessageMapper {
      * Convert Message to EventResponse
      * Extracts event data from metadata
      */
-    default com.chattrix.api.responses.EventResponse toEventResponse(Message message) {
+    default EventResponse toEventResponse(Message message) {
         if (message == null || message.getMetadata() == null) return null;
         
         @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> eventData = (java.util.Map<String, Object>) message.getMetadata().get("event");
+        Map<String, Object> eventData = (Map<String, Object>) message.getMetadata().get("event");
         if (eventData == null) return null;
         
         @SuppressWarnings("unchecked")
-        java.util.List<Object> going = (java.util.List<Object>) eventData.get("going");
+        List<Object> going = (List<Object>) eventData.get("going");
         @SuppressWarnings("unchecked")
-        java.util.List<Object> maybe = (java.util.List<Object>) eventData.get("maybe");
+        List<Object> maybe = (List<Object>) eventData.get("maybe");
         @SuppressWarnings("unchecked")
-        java.util.List<Object> notGoing = (java.util.List<Object>) eventData.get("notGoing");
+        List<Object> notGoing = (List<Object>) eventData.get("notGoing");
         
-        java.util.List<Long> goingIds = going != null ? going.stream()
-            .map(id -> ((Number) id).longValue()).toList() : new java.util.ArrayList<>();
-        java.util.List<Long> maybeIds = maybe != null ? maybe.stream()
-            .map(id -> ((Number) id).longValue()).toList() : new java.util.ArrayList<>();
-        java.util.List<Long> notGoingIds = notGoing != null ? notGoing.stream()
-            .map(id -> ((Number) id).longValue()).toList() : new java.util.ArrayList<>();
+        List<Long> goingIds = going != null ? going.stream()
+            .map(id -> ((Number) id).longValue()).toList() : new ArrayList<>();
+        List<Long> maybeIds = maybe != null ? maybe.stream()
+            .map(id -> ((Number) id).longValue()).toList() : new ArrayList<>();
+        List<Long> notGoingIds = notGoing != null ? notGoing.stream()
+            .map(id -> ((Number) id).longValue()).toList() : new ArrayList<>();
         
-        java.time.Instant startTime = java.time.Instant.parse(eventData.get("startTime").toString());
-        java.time.Instant endTime = java.time.Instant.parse(eventData.get("endTime").toString());
-        boolean isPast = java.time.Instant.now().isAfter(endTime);
+        Instant startTime = Instant.parse(eventData.get("startTime").toString());
+        Instant endTime = Instant.parse(eventData.get("endTime").toString());
+        boolean isPast = Instant.now().isAfter(endTime);
         
-        return com.chattrix.api.responses.EventResponse.builder()
+        return EventResponse.builder()
             .messageId(message.getId())
             .title((String) eventData.get("title"))
             .description((String) eventData.get("description"))

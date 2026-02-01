@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +66,7 @@ public class OnlineStatusCache {
      * Get all currently online user IDs
      */
     public Set<Long> getOnlineUserIds() {
-        Instant threshold = Instant.now().minus(ONLINE_THRESHOLD_MINUTES, java.time.temporal.ChronoUnit.MINUTES);
+        Instant threshold = Instant.now().minus(ONLINE_THRESHOLD_MINUTES, ChronoUnit.MINUTES);
 
         return onlineUsers.asMap().entrySet().stream()
                 .filter(entry -> entry.getValue().isAfter(threshold))

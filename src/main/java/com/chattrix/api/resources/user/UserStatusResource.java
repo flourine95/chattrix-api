@@ -4,6 +4,7 @@ import com.chattrix.api.entities.User;
 import com.chattrix.api.filters.Secured;
 import com.chattrix.api.filters.UserPrincipal;
 import com.chattrix.api.mappers.UserMapper;
+import com.chattrix.api.repositories.ConversationParticipantRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.ApiResponse;
 import com.chattrix.api.responses.UserResponse;
@@ -18,6 +19,7 @@ import jakarta.ws.rs.core.SecurityContext;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Path("/v1/users/status")
 @Produces(MediaType.APPLICATION_JSON)
@@ -35,7 +37,7 @@ public class UserStatusResource {
     private UserMapper userMapper;
     
     @Inject
-    private com.chattrix.api.repositories.ConversationParticipantRepository participantRepository;
+    private ConversationParticipantRepository participantRepository;
 
     @GET
     @Path("/online")
@@ -58,7 +60,7 @@ public class UserStatusResource {
         Set<Long> onlineUserIds = onlineStatusCache.getOnlineUserIds();
         Set<Long> onlineParticipantIds = participantUserIds.stream()
                 .filter(onlineUserIds::contains)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         
         // Fetch user DTOs for online participants
         List<UserResponse> userDtos = userRepository.findByIdsAsDTO(onlineParticipantIds);

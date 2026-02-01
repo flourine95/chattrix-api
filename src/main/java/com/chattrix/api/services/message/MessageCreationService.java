@@ -14,7 +14,9 @@ import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.repositories.UserRepository;
 import com.chattrix.api.responses.MessageResponse;
 import com.chattrix.api.services.cache.CacheManager;
+import com.chattrix.api.services.cache.ConversationCache;
 import com.chattrix.api.services.cache.MessageCache;
+import com.chattrix.api.services.cache.MessageIdMappingCache;
 import com.chattrix.api.services.conversation.GroupPermissionsService;
 import com.chattrix.api.services.notification.ChatSessionService;
 import com.chattrix.api.websocket.WebSocketEventType;
@@ -54,7 +56,7 @@ public class MessageCreationService {
     @Inject
     private MessageCache messageCache;
     @Inject
-    private com.chattrix.api.services.cache.ConversationCache conversationCache;
+    private ConversationCache conversationCache;
     @Inject
     private CacheManager cacheManager;
     @Inject
@@ -64,7 +66,7 @@ public class MessageCreationService {
     @Inject
     private GroupPermissionsService groupPermissionsService;
     @Inject
-    private com.chattrix.api.services.cache.MessageIdMappingCache idMappingCache;
+    private MessageIdMappingCache idMappingCache;
 
     /**
      * Create and send a message (used by both REST and WebSocket)

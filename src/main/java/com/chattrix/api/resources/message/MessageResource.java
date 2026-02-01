@@ -73,7 +73,7 @@ public class MessageResource {
     public Response updateMessage(
             @PathParam("conversationId") Long conversationId,
             @PathParam("messageId") Long messageId,
-            @Valid com.chattrix.api.requests.UpdateMessageRequest request) {
+            @Valid UpdateMessageRequest request) {
         var response = messageService.updateMessage(
                 userContext.getCurrentUserId(), conversationId, messageId, request);
         return Response.ok(ApiResponse.success(response, "Message updated successfully")).build();

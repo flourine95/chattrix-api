@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class TypingIndicatorService {
@@ -69,7 +70,7 @@ public class TypingIndicatorService {
 
         return typingUsers.stream()
                 .filter(userId -> !userId.equals(excludeUserId))
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
     }
 
     /**

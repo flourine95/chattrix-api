@@ -12,6 +12,7 @@ import java.time.Instant;
 public class InviteLinkResponse {
     private Long id;
     private String token;
+    private String inviteUrl;  // Full URL: http://localhost:8080/invite/{token}
     private Long conversationId;
     private Long createdBy;
     private String createdByUsername;

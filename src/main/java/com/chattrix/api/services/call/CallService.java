@@ -14,6 +14,7 @@ import com.chattrix.api.requests.InitiateCallRequest;
 import com.chattrix.api.requests.RejectCallRequest;
 import com.chattrix.api.responses.CallConnectionResponse;
 import com.chattrix.api.responses.CallResponse;
+import com.chattrix.api.services.message.SystemMessageService;
 import com.chattrix.api.services.notification.WebSocketNotificationService;
 import com.chattrix.api.websocket.dto.CallInvitationDto;
 import com.chattrix.api.websocket.dto.CallParticipantUpdateDto;
@@ -51,7 +52,7 @@ public class CallService {
     private CallTimeoutScheduler timeoutScheduler;
     
     @Inject
-    private com.chattrix.api.services.message.SystemMessageService systemMessageService;
+    private SystemMessageService systemMessageService;
 
     public CallConnectionResponse initiateCall(Long callerId, InitiateCallRequest request) {
         Conversation conversation = conversationRepository.findByIdWithParticipants(request.getConversationId())

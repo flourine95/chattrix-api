@@ -5,11 +5,13 @@ import com.chattrix.api.entities.Message;
 import com.chattrix.api.enums.MessageType;
 import com.chattrix.api.exceptions.BusinessException;
 import com.chattrix.api.mappers.MessageMapper;
+import com.chattrix.api.mappers.WebSocketMapper;
 import com.chattrix.api.repositories.ConversationRepository;
 import com.chattrix.api.repositories.MessageRepository;
 import com.chattrix.api.requests.UpdatePollRequest;
 import com.chattrix.api.responses.CursorPaginatedResponse;
 import com.chattrix.api.responses.MessageResponse;
+import com.chattrix.api.responses.PollOptionResponse;
 import com.chattrix.api.responses.PollResponse;
 import com.chattrix.api.services.cache.MessageCache;
 import com.chattrix.api.services.notification.ChatSessionService;
@@ -45,7 +47,7 @@ public class PollService {
     private ChatSessionService chatSessionService;
 
     @Inject
-    private com.chattrix.api.mappers.WebSocketMapper webSocketMapper;
+    private WebSocketMapper webSocketMapper;
 
     /**
      * List polls in conversation with filters
@@ -337,7 +339,7 @@ public class PollService {
 
         // Calculate total votes and build options
         int totalVotes = 0;
-        List<com.chattrix.api.responses.PollOptionResponse> optionResponses = new ArrayList<>();
+        List<PollOptionResponse> optionResponses = new ArrayList<>();
 
         for (Map<String, Object> option : options) {
             @SuppressWarnings("unchecked")
@@ -352,7 +354,7 @@ public class PollService {
 
             boolean hasVoted = voterIds.contains(currentUserId);
 
-            optionResponses.add(com.chattrix.api.responses.PollOptionResponse.builder()
+            optionResponses.add(PollOptionResponse.builder()
                     .id(((Number) option.get("id")).longValue())
                     .text(option.get("text").toString())
                     .voteCount(voterIds.size())

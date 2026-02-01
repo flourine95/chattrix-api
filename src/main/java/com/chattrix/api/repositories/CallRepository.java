@@ -10,6 +10,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -104,7 +105,7 @@ public class CallRepository {
     /**
      * Find calls that have been in CONNECTING or CONNECTED state for too long
      */
-    public List<Call> findLongRunningCalls(java.time.Instant cutoffTime) {
+    public List<Call> findLongRunningCalls(Instant cutoffTime) {
         return em.createQuery(
                         "SELECT c FROM Call c " +
                                 "WHERE c.status IN :activeStatuses " +
@@ -122,7 +123,7 @@ public class CallRepository {
     /**
      * Find calls stuck in RINGING state (safety net)
      */
-    public List<Call> findStuckRingingCalls(java.time.Instant cutoffTime) {
+    public List<Call> findStuckRingingCalls(Instant cutoffTime) {
         return em.createQuery(
                         "SELECT c FROM Call c " +
                                 "WHERE c.status IN :ringingStatuses " +

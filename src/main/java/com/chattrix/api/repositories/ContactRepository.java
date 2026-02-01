@@ -1,6 +1,7 @@
 package com.chattrix.api.repositories;
 
 import com.chattrix.api.entities.Contact;
+import com.chattrix.api.responses.ContactResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -41,7 +42,7 @@ public class ContactRepository {
      * Find contacts by user ID - DTO Projection (optimized)
      * Returns ContactResponse directly without entity mapping
      */
-    public List<com.chattrix.api.responses.ContactResponse> findByUserIdAsDTO(Long userId) {
+    public List<ContactResponse> findByUserIdAsDTO(Long userId) {
         return em.createQuery(
                         "SELECT new com.chattrix.api.responses.ContactResponse(" +
                                 "  c.id, cu.id, cu.username, cu.fullName, cu.avatarUrl, " +
@@ -51,7 +52,7 @@ public class ContactRepository {
                                 "JOIN c.contactUser cu " +
                                 "WHERE c.user.id = :userId AND c.status = 'ACCEPTED' " +
                                 "ORDER BY c.favorite DESC, cu.fullName ASC",
-                        com.chattrix.api.responses.ContactResponse.class)
+                        ContactResponse.class)
                 .setParameter("userId", userId)
                 .getResultList();
     }
@@ -71,7 +72,7 @@ public class ContactRepository {
      * Find favorite contacts by user ID - DTO Projection (optimized)
      * Returns ContactResponse directly without entity mapping
      */
-    public List<com.chattrix.api.responses.ContactResponse> findFavoritesByUserIdAsDTO(Long userId) {
+    public List<ContactResponse> findFavoritesByUserIdAsDTO(Long userId) {
         return em.createQuery(
                         "SELECT new com.chattrix.api.responses.ContactResponse(" +
                                 "  c.id, cu.id, cu.username, cu.fullName, cu.avatarUrl, " +
@@ -81,7 +82,7 @@ public class ContactRepository {
                                 "JOIN c.contactUser cu " +
                                 "WHERE c.user.id = :userId AND c.favorite = true AND c.status = 'ACCEPTED' " +
                                 "ORDER BY cu.fullName ASC",
-                        com.chattrix.api.responses.ContactResponse.class)
+                        ContactResponse.class)
                 .setParameter("userId", userId)
                 .getResultList();
     }

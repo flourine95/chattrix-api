@@ -26,9 +26,6 @@ public class InviteLinkResource {
     @Inject
     private UserContext userContext;
 
-    /**
-     * Create invite link for a group
-     */
     @POST
     @Path("/{conversationId}/invite-link")
     public Response createInviteLink(
@@ -42,9 +39,6 @@ public class InviteLinkResource {
         return Response.ok(ApiResponse.success(response, "Invite link created successfully")).build();
     }
 
-    /**
-     * Get current invite link for a group
-     */
     @GET
     @Path("/{conversationId}/invite-link")
     public Response getCurrentInviteLink(@PathParam("conversationId") Long conversationId) {
@@ -55,9 +49,6 @@ public class InviteLinkResource {
         return Response.ok(ApiResponse.success(response, "Invite link retrieved successfully")).build();
     }
 
-    /**
-     * Get invite link history for a group (with cursor pagination)
-     */
     @GET
     @Path("/{conversationId}/invite-links")
     public Response getInviteLinkHistory(
@@ -74,15 +65,15 @@ public class InviteLinkResource {
         return Response.ok(ApiResponse.success(response, "Invite link history retrieved successfully")).build();
     }
 
-    /**
-     * Revoke invite link
-     */
     @DELETE
-    @Path("/{conversationId}/invite-link")
-    public Response revokeInviteLink(@PathParam("conversationId") Long conversationId) {
+    @Path("/{conversationId}/invite-link/{token}")
+    public Response revokeInviteLink(
+            @PathParam("conversationId") Long conversationId,
+            @PathParam("token") String token) {
+        
         Long userId = userContext.getCurrentUserId();
-        log.info("User {} revoking invite link for conversation {}", userId, conversationId);
-        inviteLinkService.revokeInviteLink(userId, conversationId);
+        log.info("User {} revoking invite link {} for conversation {}", userId, token, conversationId);
+        inviteLinkService.revokeInviteLink(userId, conversationId, token);
 
         return Response.ok(ApiResponse.success(null, "Invite link revoked successfully")).build();
     }

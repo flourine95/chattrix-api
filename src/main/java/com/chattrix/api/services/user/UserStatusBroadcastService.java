@@ -13,6 +13,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,7 @@ public class UserStatusBroadcastService {
      * @param isOnline true if user went online, false if offline
      */
     public void broadcastUserStatusChange(Long userId, boolean isOnline) {
-        broadcastUserStatusChange(userId, isOnline, java.time.Instant.now());
+        broadcastUserStatusChange(userId, isOnline, Instant.now());
     }
     
     /**
@@ -55,7 +56,7 @@ public class UserStatusBroadcastService {
      * @param isOnline true if user went online, false if offline
      * @param lastSeen The current lastSeen timestamp to broadcast
      */
-    public void broadcastUserStatusChange(Long userId, boolean isOnline, java.time.Instant lastSeen) {
+    public void broadcastUserStatusChange(Long userId, boolean isOnline, Instant lastSeen) {
         try {
             // Build status payload with provided lastSeen timestamp
             UserStatusEventDto payload = UserStatusEventDto.builder()
